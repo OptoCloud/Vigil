@@ -96,7 +96,7 @@ messages on one channel, so there are no locks and events are ordered as they ha
 | `Data` | Npgsql: two data sources, `SchemaSetup` (tables, hypertables, aggregates, policies, applied on every connect), the writers and the history and event queries. SQL from `core/sql/` | Protocol, Configuration |
 | `Notifications` | `NtfyClient`, over HTTPS | Alerting, Protocol |
 | `Runtime` | `VigilRuntime`, the one owner of state; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
-| `Api` | the routes (`/api/live`, `/api/history`, `/api/events`, `/health`), the static dashboard and its security headers | Runtime, Data, Protocol |
+| `Api` | the routes (`/api/live`, `/api/history`, `/api/events`, `/api/drives/{name}/history`, `/health`), the static dashboard's pages and its security headers | Runtime, Data, Protocol |
 
 `Program.cs` and `VigilServices.cs` only compose these. Nothing below `Runtime` knows it is in a
 web server, which is why all of it is unit-tested without one.
@@ -105,10 +105,15 @@ web server, which is why all of it is unit-tested without one.
 
 | Path | Job |
 |---|---|
-| `routes/+page.svelte` | the dashboard page: the live stream, history and the event log, all from `/api/*` |
-| `routes/+layout.ts` | prerenders the one page (`adapter-static`) |
-| `static/theme.js` | applies the saved theme before first paint; a file, so the CSP needs no hand-kept hash |
-| `lib/chart/` | scales, ticks, formatting |
+| `routes/+layout.svelte` | the header, the section nav and the banners; opens the one connection every page shares |
+| `routes/+layout.ts` | prerenders every page (`adapter-static`) |
+| `routes/+page.svelte` | the overview, each panel linking to its section |
+| `routes/{drives,storage,cooling,power,events}/` | a page per section |
+| `routes/drives/[wwn]/` | one disk; not prerendered, so it is the build's fallback page (ADR-020) |
+| `lib/live.svelte.ts` | the live state: the stream from `/api/live`, the event log and the history, held once for every page |
+| `lib/{series,status,drives,zfs,ups}.ts` | what the pages show, worked out from that state. Pure and unit-tested |
+| `static/theme.js` | resolves the theme to a `dark` class before first paint; a file, so the CSP needs no hand-kept hash. mode-watcher owns the choice after load |
+| `lib/chart/` | scales, ticks, formatting, and the line chart's paths and readout |
 | `lib/components/` | presentation |
 | `lib/components/ui/`³ | vendored shadcn-svelte: never hand-edited |
 | `lib/types.ts` | the mirror of both contract files |

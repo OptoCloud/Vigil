@@ -251,8 +251,11 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
 - The script and style policy is the static build's own `<meta>` CSP, which SvelteKit writes in
   hash mode with the hash of each inline script it emits. A header `script-src` would be
   enforced alongside it and block those scripts, which is why the header does not carry one.
-- No inline script of ours: the theme resolver is `static/theme.js`. No external script, style
-  or font origins: vigil-core ships everything it serves.
+- No inline script of ours: the theme resolver is `static/theme.js`, and mode-watcher's own head
+  script is switched off (`disableHeadScriptInjection`). No external script, style or font
+  origins: vigil-core ships everything it serves.
+- The build's fallback page is served for `/drives/<name>` alone, never as a catch-all, so an
+  unknown path is still a 404 (ADR-020). It carries the same `<meta>` CSP as every other page.
 - No `{@html}` with anything not from a literal in our source.
 
 *Enforcer:* `ApiTests.HealthAnswersWithEverySecurityHeader`; `scripts/check.sh` checks the

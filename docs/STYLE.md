@@ -284,8 +284,8 @@ reference types as errors in C#; review checklist.
 - The dashboard is a static build: no server code in `web/` at all. Everything it needs comes
   from vigil-core's `/api/*`.
 - Components take typed props via an explicit `interface Props`. No implicit `any` props.
-- A component owns presentation. Data shaping goes in `#lib/`. The rule `+page.svelte` currently
-  breaks is that it also owns the live-stream wiring, theme persistence and history fetching.
+- A component owns presentation. Data shaping goes in `#lib/`, the live-stream wiring and the
+  history fetch in `#lib/live.svelte.ts`, held once by the root layout for every page.
 - Never `innerHTML` / `{@html}` with anything that did not come from a literal in our source.
 - Prettier decides formatting, with `prettier-plugin-tailwindcss` for class order.
 
