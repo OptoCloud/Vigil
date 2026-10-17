@@ -129,6 +129,19 @@ public sealed record DriveState
     public required string AsOf { get; init; }
 }
 
+/// <summary>
+/// One recorded change in a drive's health: a row of <c>/api/drives/{wwn}/history</c>. Written
+/// only when something other than power-on hours moved, so each row is an event worth seeing.
+/// </summary>
+public sealed record DriveHealthRecord
+{
+    public required string Ts { get; init; }
+    public required bool? Passed { get; init; }
+    public required ulong? ReallocatedSectorCount { get; init; }
+    public required ulong? PendingSectorCount { get; init; }
+    public required ulong? PowerOnHours { get; init; }
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<Severity>))]
 public enum Severity
 {

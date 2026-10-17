@@ -34,6 +34,8 @@ public sealed class ApiTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         File.WriteAllText(Path.Combine(_webRoot, "index.html"), "<!doctype html><title>vigil</title>");
+        File.WriteAllText(Path.Combine(_webRoot, Dashboard.FallbackPage), "<!doctype html><title>vigil fallback</title>");
+        File.WriteAllText(Path.Combine(_webRoot, "drives.html"), "<!doctype html><title>vigil drives</title>");
         Directory.CreateDirectory(Path.Combine(_webRoot, "_app", "immutable"));
         File.WriteAllText(Path.Combine(_webRoot, "_app", "immutable", "start.abc123.js"), "export {};");
 
@@ -46,12 +48,14 @@ public sealed class ApiTests : IAsyncLifetime
         builder.Services.AddSingleton<VigilDataSources>();
         builder.Services.AddSingleton<HistoryQueries>();
         builder.Services.AddSingleton<EventStore>();
+        builder.Services.AddSingleton<DriveStore>();
         builder.Services.AddSingleton(new LiveHub(_inputs.Writer));
 
         _app = builder.Build();
         _app.UseSecurityHeaders();
         _app.UseDashboard(_webRoot);
         _app.MapVigilApi();
+        _app.MapDashboardPages(_webRoot);
         await _app.StartAsync();
 
         _http = new HttpClient { BaseAddress = new Uri(_app.Urls.First()), Timeout = TimeSpan.FromSeconds(10) };
@@ -172,5 +176,54 @@ public sealed class ApiTests : IAsyncLifetime
 
         using var missing = await Http.GetAsync(new Uri("/settings", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task ServesEachSectionAndTheFallbackForADiskButNothingElse()
+    {
+        var token = TestContext.Current.CancellationToken;
+
+        foreach (var path in new[] { "/drives", "/drives/" })
+        {
+            using var section = await Http.GetAsync(new Uri(path, UriKind.Relative), token);
+            Assert.Equal(HttpStatusCode.OK, section.StatusCode);
+            Assert.Contains("vigil drives", await section.Content.ReadAsStringAsync(token), StringComparison.Ordinal);
+            Assert.True(section.Headers.CacheControl?.NoCache);
+        }
+
+        foreach (var path in new[] { "/drives/naa.5000c500bae40598", "/drives/naa.5000c500bae40598/" })
+        {
+            using var disk = await Http.GetAsync(new Uri(path, UriKind.Relative), token);
+            Assert.Equal(HttpStatusCode.OK, disk.StatusCode);
+            Assert.Contains("vigil fallback", await disk.Content.ReadAsStringAsync(token), StringComparison.Ordinal);
+            Assert.True(disk.Headers.CacheControl?.NoCache);
+            Assert.Equal("nosniff", disk.Headers.GetValues("X-Content-Type-Options").Single());
+        }
+
+        // Only a disk's page falls back: deeper or other unknown paths are still a 404.
+        foreach (var path in new[] { "/drives/naa.1/smart", "/pools/void", "/api/events.html" })
+        {
+            using var missing = await Http.GetAsync(new Uri(path, UriKind.Relative), token);
+            Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task DriveHistoryRefusesWhatCannotBeADriveName()
+    {
+        var name = new string('a', 129);
+        using var response = await Http.GetAsync(new Uri($"/api/drives/{name}/history", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DriveHistorySaysSoWhenTheDatabaseIsDown()
+    {
+        // Nothing listens on port 1 (see InitializeAsync), so the query fails to connect.
+        using var response = await Http.GetAsync(new Uri("/api/drives/naa.5000c500bae40598/history", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.StartsWith("Drive history is unavailable", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 }

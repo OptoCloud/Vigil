@@ -168,6 +168,37 @@ public sealed class DataLayerTests
     }
 
     [Fact]
+    public async Task ReadsOneDrivesHealthChangesNewestFirst()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+
+        var store = new DriveStore(databases);
+        var start = DateTimeOffset.UtcNow.AddDays(-2);
+        var drive = new DriveState
+        {
+            Wwn = "naa.5000c500bae40598",
+            Port = null,
+            Passed = true,
+            ReallocatedSectorCount = 0,
+            PendingSectorCount = 0,
+            PowerOnHours = 8760,
+            SourcePath = "/dev/sdc",
+            AsOf = Rfc3339.From(start),
+        };
+        await store.SaveAsync(drive, changed: true, token);
+        await store.SaveAsync(drive with { PendingSectorCount = 8, AsOf = Rfc3339.From(start.AddDays(1)) }, changed: true, token);
+        await store.SaveAsync(drive with { Wwn = "naa.other", AsOf = Rfc3339.From(start.AddDays(1)) }, changed: true, token);
+
+        var history = await store.HistoryAsync(drive.Wwn, 10, token);
+
+        Assert.Equal([8ul, 0ul], history.Select(record => record.PendingSectorCount ?? 99));
+        Assert.Single(await store.HistoryAsync(drive.Wwn, 1, token));
+        Assert.Empty(await store.HistoryAsync("naa.unknown", 10, token));
+    }
+
+    [Fact]
     public async Task InsertsAnEventAndReturnsWhatTheDatabaseAssigned()
     {
         var token = TestContext.Current.CancellationToken;

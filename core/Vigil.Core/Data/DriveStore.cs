@@ -16,6 +16,7 @@ public sealed class DriveStore(VigilDataSources databases)
     private static readonly string SelectDrives = SqlText.Load("select_drives");
     private static readonly string UpsertDrive = SqlText.Load("upsert_drive");
     private static readonly string InsertHealthHistory = SqlText.Load("insert_drive_health_history");
+    private static readonly string SelectHealthHistory = SqlText.Load("select_drive_health_history");
 
     public async Task<List<DriveState>> LoadAsync(CancellationToken cancellationToken)
     {
@@ -42,6 +43,33 @@ public sealed class DriveStore(VigilDataSources databases)
         }
 
         return drives;
+    }
+
+    /// <summary>
+    /// One drive's recorded health changes, newest first, at most <paramref name="limit"/>.
+    /// Read through the SELECT-only role. An unknown drive is an empty list, not an error.
+    /// </summary>
+    public async Task<List<DriveHealthRecord>> HistoryAsync(string wwn, int limit, CancellationToken cancellationToken)
+    {
+        await using var command = databases.Reader.CreateCommand(SelectHealthHistory);
+        command.Parameters.Add(Text(wwn));
+        command.Parameters.Add(new() { Value = limit, NpgsqlDbType = NpgsqlDbType.Integer });
+
+        var records = new List<DriveHealthRecord>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            records.Add(new DriveHealthRecord
+            {
+                Ts = Rfc3339.From(DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(0))),
+                Passed = reader.IsDBNull(1) ? null : reader.GetBoolean(1),
+                ReallocatedSectorCount = Count(reader, 2),
+                PendingSectorCount = Count(reader, 3),
+                PowerOnHours = Count(reader, 4),
+            });
+        }
+
+        return records;
     }
 
     /// <summary>
