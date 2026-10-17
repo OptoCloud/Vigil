@@ -1,20 +1,12 @@
 //! Sensor types, plus discovery and reading of hwmon temperature sensors.
 //!
 //! hwmonN numbering shifts across reboots and depends on module load order, so resolution
-//! always goes by chip "name", never by a remembered hwmonN path. For drives even the
-//! backing block device's sdX letter is unstable (it shifts across reboots and always
-//! changes if the drive moves to another port), so drive identity is further resolved to
-//! the drive's WWN (/sys/class/block/{dev}/device/wwid), confirmed present on this
-//! hardware for both native-SATA (libata) and HBA-attached (mpt3sas) drives. The WWN is
-//! burned into the drive, so it survives a port change: exactly the property a sensor id
-//! that history gets keyed on needs.
-//!
-//! A drive also carries its port: the /dev/disk/by-path name of where it is plugged in
-//! ("pci-0000:01:00.1-ata-3", "pci-0000:03:00.0-sas-phy0-lun-0"). That is the opposite
-//! property, fixed to the bay whatever disk sits in it, and it is what cooling cares about:
-//! zones name bays by port. Two keys because there are two questions. The WWN answers "how
-//! is this disk doing" (health, history); the port answers "how is this spot doing" (airflow).
+//! always goes by chip "name", never by a remembered hwmonN path. A drive's sensor is named
+//! for the disk rather than its sdX letter, by `disks.rs`: its WWN, confirmed present on this
+//! hardware for both native-SATA (libata) and HBA-attached (mpt3sas) drives, and its port
+//! beside it, because zones name bays by port.
 
+use crate::disks;
 pub use crate::protocol::{SensorCategory, SensorReading};
 use crate::sysfs::{self, SysFs};
 
@@ -125,15 +117,9 @@ impl<'a> HwmonResolver<'a> {
         }
 
         let device_name = self.backing_device_name(chip_path);
-        let port = device_name.as_deref().and_then(|device| port_of(device, links));
+        let port = device_name.as_deref().and_then(|device| disks::port_of(device, links));
         let stable_name = match &device_name {
-            // A real block device (a drive): key it by WWN, not the live sdX name. Failing
-            // that the port, which at least doesn't reorder across reboots the way sdX does.
-            Some(device) => self
-                .sysfs
-                .read(&sysfs::join(&[&self.block_root, device, "device", "wwid"]))
-                .or_else(|| port.clone())
-                .unwrap_or_else(|| device.clone()),
+            Some(device) => disks::stable_name(self.sysfs, &self.block_root, device, port.as_ref()),
             // No backing block device (jc42 DIMM sensors): nothing more stable exists
             // than the hwmon directory name.
             None => sysfs::file_name(chip_path).to_owned(),
@@ -174,18 +160,6 @@ impl<'a> HwmonResolver<'a> {
         let block_dir = sysfs::join(&[chip_path, "device", "block"]);
         self.sysfs.list_dirs(&block_dir).first().map(|dir| sysfs::file_name(dir).to_owned())
     }
-}
-
-/// The by-path name for a block device: the shortest link pointing at it, partitions
-/// excluded. udev can publish more than one spelling for the same port (newer versions add
-/// "ata-3.0" beside "ata-3"); the shortest is the stable, historical one.
-fn port_of(device: &str, links: &[(String, String)]) -> Option<String> {
-    links
-        .iter()
-        .filter(|(name, target)| target == device && !name.contains("-part"))
-        .map(|(name, _)| name)
-        .min_by(|a, b| a.len().cmp(&b.len()).then(a.cmp(b)))
-        .cloned()
 }
 
 /// Reads the current value of an already-resolved hwmon sensor (millidegrees in sysfs).
