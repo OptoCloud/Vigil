@@ -521,10 +521,12 @@ Its HTTP API, all `GET`:
 
 | Route | What it serves |
 |---|---|
-| `/` and its assets | the dashboard, from `WEB_ROOT` |
+| `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/power` and `/events` each have a page of their own |
+| `/drives/<name>` | one disk's page: its SMART state and changes, temperature, and its place in ZFS. The build's fallback page, rendered in the browser |
 | `/api/live` | Server-Sent Events: the current state on connect, then every change (snapshots, `vigild` reachability, drives, the UPS, new events). A named `keepalive` event after 20s of quiet. At most 64 at once; `503` past that |
 | `/api/history?range=` | chart history for `1h`, `6h`, `24h`, `7d`, `30d` or `1y`, bucketed in SQL. Each range reads the coarsest level that still has its resolution: raw samples up to 6 hours, minute rollups up to 7 days, hourly ones beyond. `503` without a database |
 | `/api/events` | the newest 50 events, `[]` without a database |
+| `/api/drives/<name>/history` | one disk's recorded SMART changes, newest first, at most 200. `503` without a database |
 | `/health` | `ok` once running; says nothing about the database, which the live view does not need |
 
 It is configured entirely from the environment (`/etc/vigil-core.env` in

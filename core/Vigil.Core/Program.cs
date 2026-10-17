@@ -49,6 +49,7 @@ app.UseSecurityHeaders();
 if (startup.WebRoot is { Length: > 0 } webRoot)
 {
     app.UseDashboard(webRoot);
+    app.MapDashboardPages(webRoot);
 }
 else
 {

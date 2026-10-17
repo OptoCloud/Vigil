@@ -248,3 +248,24 @@ the page and ntfy cannot disagree about what is wrong.
 *Consequence:* a new condition shows on the page without any web change. Anything that should
 hold the verdict for as long as it lasts has to be a condition, not a one-time event: a drive
 failing SMART is therefore both. A status rule written only in the web is a review flag.
+
+### ADR-020: The dashboard is several pages, and a disk has its own
+
+*Decided 2026-10-17.* One page had outgrown itself: tiles, two charts, the UPS, fans, events and
+a thirteen-row drive table, with ZFS still to come. It is now an overview at `/` with a page per
+section (`/drives`, `/storage`, `/cooling`, `/power`, `/events`), and a page per disk at
+`/drives/<name>`, where its SMART changes, temperature and ZFS membership are joined on the
+name vigild gives it.
+
+The section pages are prerendered like the overview was, and vigil-core serves `/drives` from
+`drives.html`. A disk's name is only known at run time, so its page cannot be: it is the
+build's fallback page (`spa.html`), rendered in the browser. vigil-core serves that file for
+`/drives/{name}` only, through one mapped GET, rather than for every unknown path, because a
+catch-all would answer anything with a 200 and hide a broken link as an empty page.
+
+The root layout opens the one connection to `/api/live` and fetches the history; every page
+reads that shared state, so moving between pages drops neither. `/api/drives/{name}/history`
+is the one new route: a GET, bound to 200 rows, the name bound as a parameter. ADR-008 holds.
+
+*Consequence:* a new page that needs a run-time name needs its own mapped route in
+`Dashboard.MapDashboardPages` and a line here; nothing falls through to the fallback by itself.
