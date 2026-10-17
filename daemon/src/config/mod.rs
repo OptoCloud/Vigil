@@ -30,6 +30,7 @@ pub struct Config {
     pub gpu: GpuConfig,
     pub hba: HbaConfig,
     pub drive_health: DriveHealthConfig,
+    pub zfs: ZfsConfig,
     pub zones: Vec<ZoneConfig>,
     pub channels: Vec<ChannelConfig>,
     pub curves: Vec<CurveConfig>,
@@ -47,6 +48,7 @@ impl Default for Config {
             gpu: GpuConfig::default(),
             hba: HbaConfig::default(),
             drive_health: DriveHealthConfig::default(),
+            zfs: ZfsConfig::default(),
             zones: Vec::new(),
             channels: Vec::new(),
             curves: Vec::new(),
@@ -141,6 +143,27 @@ pub struct DriveHealthConfig {
 impl Default for DriveHealthConfig {
     fn default() -> Self {
         Self { enabled: true, smartctl_path: "smartctl".to_owned(), poll_interval_secs: 900.0, timeout_secs: 60.0 }
+    }
+}
+
+/// ZFS pool state, from `zpool status`. Off by default: a host without ZFS would otherwise
+/// log a failing zpool every minute.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ZfsConfig {
+    pub enabled: bool,
+    pub zpool_path: String,
+    /// zpool status reads what the kernel already holds and touches no disk, so this can be far
+    /// shorter than SMART's: it is how long a faulted disk can go unseen by vigil.
+    pub poll_interval_secs: f64,
+    /// zpool is killed past this. A suspended pool can hang it outright, which costs the ZFS
+    /// thread this long, never a fan poll.
+    pub timeout_secs: f64,
+}
+
+impl Default for ZfsConfig {
+    fn default() -> Self {
+        Self { enabled: false, zpool_path: "zpool".to_owned(), poll_interval_secs: 60.0, timeout_secs: 15.0 }
     }
 }
 

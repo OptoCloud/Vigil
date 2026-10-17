@@ -1,0 +1,253 @@
+{
+    "output_version": {
+        "command": "zpool status",
+        "vers_major": 0,
+        "vers_minor": 1
+    },
+    "pools": {
+        "void": {
+            "name": "void",
+            "state": "DEGRADED",
+            "pool_guid": 8400000000000000001,
+            "txg": 4821133,
+            "spa_version": 5000,
+            "zpl_version": 5,
+            "status": "One or more devices are faulted in response to persistent errors.\n\tSufficient replicas exist for the pool to continue functioning in a\n\tdegraded state.",
+            "action": "Replace the faulted device, or use 'zpool clear' to mark the device\n\trepaired.",
+            "msgid": "ZFS-8000-9P",
+            "moreinfo": "https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-9P",
+            "scan_stats": {
+                "function": "RESILVER",
+                "state": "SCANNING",
+                "start_time": 1791434814,
+                "end_time": 0,
+                "to_examine": 12940000000000,
+                "examined": 6100000000000,
+                "skipped": 0,
+                "processed": 975000000000,
+                "errors": 0,
+                "bytes_per_scan": 0,
+                "pass_start": 1791434814,
+                "scrub_pause": 0,
+                "scrub_spent_paused": 0,
+                "issued_bytes_per_scan": 980000000000,
+                "issued": 980000000000
+            },
+            "vdevs": {
+                "void": {
+                    "name": "void",
+                    "vdev_type": "root",
+                    "guid": 9100000000000000000,
+                    "class": "normal",
+                    "state": "DEGRADED",
+                    "alloc_space": 12940000000000,
+                    "total_space": 32000000000000,
+                    "def_space": 24000000000000,
+                    "read_errors": 0,
+                    "write_errors": 0,
+                    "checksum_errors": 0,
+                    "vdevs": {
+                        "raidz2-0": {
+                            "name": "raidz2-0",
+                            "vdev_type": "raidz",
+                            "guid": 9100000000000000001,
+                            "class": "normal",
+                            "state": "DEGRADED",
+                            "alloc_space": 3000000000000,
+                            "total_space": 32000000000000,
+                            "def_space": 24000000000000,
+                            "read_errors": 0,
+                            "write_errors": 0,
+                            "checksum_errors": 0,
+                            "vdevs": {
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ01": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ01",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001101,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ01-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ01-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy1-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ02": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ02",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001102,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ02-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ02-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy2-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ03": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ03",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001103,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ03-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ03-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy3-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ04": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ04",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001104,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ04-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ04-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy4-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ05": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ05",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001105,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ05-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ05-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy5-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "spare-5": {
+                                    "name": "spare-5",
+                                    "vdev_type": "spare",
+                                    "guid": 9100000000000000005,
+                                    "class": "normal",
+                                    "state": "DEGRADED",
+                                    "alloc_space": 3000000000000,
+                                    "total_space": 32000000000000,
+                                    "def_space": 24000000000000,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "vdevs": {
+                                        "ata-ST4000VN008-2DR166_ZGY9ZQY6": {
+                                            "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6",
+                                            "vdev_type": "disk",
+                                            "guid": 9000000000000001106,
+                                            "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+                                            "devid": "ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+                                            "phys_path": "pci-0000:03:00.0-sas-phy6-lun-0",
+                                            "class": "normal",
+                                            "state": "FAULTED",
+                                            "rep_dev_size": 4000776716288,
+                                            "phys_space": 4000787030016,
+                                            "read_errors": 14,
+                                            "write_errors": 0,
+                                            "checksum_errors": 0,
+                                            "slow_ios": 0,
+                                            "aux": "ERR_EXCEEDED"
+                                        },
+                                        "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K": {
+                                            "name": "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K",
+                                            "vdev_type": "disk",
+                                            "guid": 9000000000000001201,
+                                            "path": "/dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K-part1",
+                                            "devid": "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K-part1",
+                                            "phys_path": "pci-0000:03:00.0-sas-phy1-lun-0",
+                                            "class": "spare",
+                                            "state": "ONLINE",
+                                            "rep_dev_size": 4000776716288,
+                                            "phys_space": 4000787030016,
+                                            "read_errors": 0,
+                                            "write_errors": 0,
+                                            "checksum_errors": 0,
+                                            "slow_ios": 0
+                                        }
+                                    }
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ07": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ07",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001107,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ07-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ07-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy7-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                },
+                                "ata-ST4000VN008-2DR166_ZGY9ZQ08": {
+                                    "name": "ata-ST4000VN008-2DR166_ZGY9ZQ08",
+                                    "vdev_type": "disk",
+                                    "guid": 9000000000000001108,
+                                    "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQ08-part1",
+                                    "devid": "ata-ST4000VN008-2DR166_ZGY9ZQ08-part1",
+                                    "phys_path": "pci-0000:03:00.0-sas-phy8-lun-0",
+                                    "class": "normal",
+                                    "state": "ONLINE",
+                                    "rep_dev_size": 4000776716288,
+                                    "phys_space": 4000787030016,
+                                    "read_errors": 0,
+                                    "write_errors": 0,
+                                    "checksum_errors": 0,
+                                    "slow_ios": 0
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "spares": {
+                "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K": {
+                    "name": "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K",
+                    "vdev_type": "disk",
+                    "guid": 9000000000000001201,
+                    "path": "/dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K-part1",
+                    "devid": "ata-WDC_WD40EFRX-68N32N0_WD-WX10B77K-part1",
+                    "phys_path": "pci-0000:03:00.0-sas-phy1-lun-0",
+                    "class": "spare",
+                    "state": "INUSE"
+                },
+                "ata-WDC_WD40EFRX-68N32N0_WD-WX121Q2D": {
+                    "name": "ata-WDC_WD40EFRX-68N32N0_WD-WX121Q2D",
+                    "vdev_type": "disk",
+                    "guid": 9000000000000001202,
+                    "path": "/dev/disk/by-id/ata-WDC_WD40EFRX-68N32N0_WD-WX121Q2D-part1",
+                    "devid": "ata-WDC_WD40EFRX-68N32N0_WD-WX121Q2D-part1",
+                    "phys_path": "pci-0000:03:00.0-sas-phy2-lun-0",
+                    "class": "spare",
+                    "state": "AVAIL"
+                }
+            },
+            "error_count": 0
+        }
+    }
+}

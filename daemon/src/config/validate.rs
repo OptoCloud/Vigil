@@ -37,6 +37,18 @@ impl Config {
             positive(&mut errors, "drive_health.poll_interval_secs", self.drive_health.poll_interval_secs);
         }
 
+        if self.zfs.enabled {
+            positive(&mut errors, "zfs.poll_interval_secs", self.zfs.poll_interval_secs);
+            positive(&mut errors, "zfs.timeout_secs", self.zfs.timeout_secs);
+            // Otherwise a hung zpool is still running when the next poll is due.
+            if self.zfs.timeout_secs >= self.zfs.poll_interval_secs {
+                errors.push(format!(
+                    "zfs.timeout_secs ({}) must be shorter than zfs.poll_interval_secs ({}).",
+                    self.zfs.timeout_secs, self.zfs.poll_interval_secs
+                ));
+            }
+        }
+
         if !(self.gpu.min_read_interval_secs.is_finite() && self.gpu.min_read_interval_secs >= 0.0) {
             errors.push(format!("gpu.min_read_interval_secs must not be negative (is {}).", self.gpu.min_read_interval_secs));
         }
@@ -207,7 +219,7 @@ fn counts<'a>(items: impl Iterator<Item = &'a str>) -> Vec<(&'a str, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ChannelConfig, CurveConfig, ZoneConfig};
+    use crate::config::{ChannelConfig, CurveConfig, ZfsConfig, ZoneConfig};
 
     fn channel(id: &str, index: i64) -> ChannelConfig {
         ChannelConfig { id: id.to_owned(), chip_name: "nct6798".to_owned(), index, minimum_duty_percent: 30 }
@@ -346,6 +358,21 @@ mod tests {
 
         assert_eq!((config.api.socket_uid, config.api.socket_gid), (Some(100000), Some(102000)));
         assert_eq!(config.api.socket_mode_bits(), Some(0o660));
+        assert!(config.zfs.enabled, "orion's pools are what the zfs poller exists for");
+        assert!(config.validate().is_empty());
+    }
+
+    #[test]
+    fn zfs_is_checked_only_when_enabled_and_its_timeout_must_fit_its_interval() {
+        let zfs = |enabled: bool, poll_interval_secs: f64, timeout_secs: f64| Config {
+            zfs: ZfsConfig { enabled, poll_interval_secs, timeout_secs, ..ZfsConfig::default() },
+            ..Config::default()
+        };
+
+        assert!(zfs(true, 60.0, 15.0).validate().is_empty());
+        assert!(zfs(false, 0.0, 99.0).validate().is_empty());
+        assert!(has(&zfs(true, 60.0, 60.0).validate(), "zfs.timeout_secs"));
+        assert!(has(&zfs(true, 0.0, 15.0).validate(), "zfs.poll_interval_secs"));
     }
 
     #[test]

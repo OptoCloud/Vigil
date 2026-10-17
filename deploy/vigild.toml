@@ -44,6 +44,14 @@ enabled = true
 poll_interval_secs = 900
 timeout_secs = 60
 
+# Pool state from `zpool status`. It reads kernel state and wakes no disk, so it can poll far
+# more often than SMART: this interval is how long a faulted disk can go unseen by vigil.
+[zfs]
+enabled = true
+zpool_path = "/usr/sbin/zpool"
+poll_interval_secs = 60
+timeout_secs = 15
+
 # Zones group sensors by the airflow they sit in, not by sensor category. The case has two
 # compartments:
 #

@@ -14,6 +14,7 @@ Every rule names an **Enforcer**.
   sysfs PWM  │                           │
   /dev/mpt3ctl ─> vigild                 │   no network listener at all
   smartctl   │      │                    │
+  zpool      │      │                    │
   nvidia-smi │      └─ unix socket ───────────┐  0660, uid/gid from config
              └───────────────────────────┘    │
                                               v
@@ -193,7 +194,9 @@ value that reaches a syscall, a bind address or a SQL identifier is validated fi
 
 ## 5. Subprocesses
 
-vigild runs `smartctl` and `nvidia-smi`. vigil-core runs nothing: ntfy is an HTTPS request now.
+vigild runs `smartctl`, `zpool` and `nvidia-smi`. vigil-core runs nothing: ntfy is an HTTPS request now.
+`zpool` only ever runs `status`: the subcommand is a constant in `zfs.rs`, and config supplies
+only the binary's path (ADR-018).
 
 - **Never through a shell.** Always `Command::new(program).args(...)` with argv. No `sh -c`, no
   string concatenation of a command line.
@@ -201,7 +204,7 @@ vigild runs `smartctl` and `nvidia-smi`. vigil-core runs nothing: ntfy is an HTT
   that fell off the bus or a drive in error recovery blocks indefinitely.
 - **Always `stdin(Stdio::null())`**, so a tool that prompts cannot hang waiting for input.
 - **Paths come from config, not from `PATH`** where it matters (`nvidia_smi_path`,
-  `smartctl_path`), so a `PATH` entry cannot substitute a different binary.
+  `smartctl_path`, `zpool_path`), so a `PATH` entry cannot substitute a different binary.
 - **Bound the output** (§4.1).
 
 *Enforcer:* `scripts/check.sh` greps for shell invocation; review checklist.

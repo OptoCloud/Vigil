@@ -453,58 +453,61 @@ That proposal was written before checking the code. It changed in these places:
   events cannot: scans and vdev error counters.
 - **Debounced per ZFS poll, not per snapshot.** `ConditionDebouncer` counts updates, and a pool
   reading repeats unchanged in every 2 s snapshot until the next 60 s poll. Debouncing on
-  snapshots would therefore debounce nothing. Pool conditions are fed in only when a pool's
-  `asOf` changes.
+  snapshots would therefore debounce nothing. Pool conditions are fed in only when
+  `zfs.asOf` changes.
 - **The time of the last scrub is vigil-core's to remember.** `zpool status` reports only the
   latest scan, so a resilver hides the scrub before it. History is vigil-core's job
   (invariant 4).
 
 ### Steps, each ending green
 
-- [ ] **7.1 vigild: `zfs.rs` reads pool state.**
+- [ ] **7.1 vigild: `zfs.rs` reads pool state.** Done in code on 2026-10-17; open only for the
+      two host items at the end, which nothing here can reach.
       - `[zfs]` in `vigild.toml`: `enabled` (default false, so a host without ZFS does not log
         a failing `zpool` every minute; `deploy/vigild.toml` sets it to true), `zpool_path`,
-        `poll_interval_secs = 60` and `timeout_secs = 15`. All of it is checked in
-        `config/validate.rs`, and the timeout must be shorter than the interval.
-      - It runs on its own thread, like `spawn_drive_health_poller`, and the control loop copies
-        the latest result into each snapshot. A hung `zpool` (a SUSPENDED pool, or
-        `failmode=wait`) costs that thread its timeout and never costs a fan poll:
-        `process::run` kills the child and does not block waiting to reap it.
-      - The commands are `zpool status -j --json-int` and `zpool list -j --json-int`, through
-        `process::run`: argv, null stdin, output capped at 1 MiB (SECURITY.md §5). Only these
-        read-only subcommands appear in the code, and config supplies only the binary's path.
-        Neither command touches a disk, so a sleeping drive stays asleep, the same rule as
-        `smart.rs`'s `-n standby`.
-      - Parsing is pure and tested against fixtures **captured on orion's ZFS 2.4.4**, not
-        written by hand, because the JSON layout is ZFS's and not ours. There are four:
-        healthy, DEGRADED with a spare INUSE, resilver in progress, and a scrub finished with
-        errors. A document of an unexpected shape makes the pool unavailable, never ONLINE
-        (SECURITY.md §4.3; invariant 3 applied to pools).
-      - **Wire:** `Snapshot.pools: Option<Vec<PoolStatus>>`, `#[serde(default)]`. `null`
-        means `[zfs]` is off, and the panel is hidden the way UPS `enabled: false` hides
-        the UPS. `[]` means ZFS is on and has no pools. For each pool: `name`, `state`,
-        `errorCount`, `scan` (function, state, start, end, examined, to examine, errors),
-        `size`, `allocated`, `fragmentation`, `isAvailable` and `asOf`. Its `vdevs`, every
-        leaf: `name`, `path`, `wwn`, `port`, `parent` (`raidz2-0`, `spare-5`, …), `role`
-        (member, spare, log, cache, special), `state`, read, write and checksum errors, and
-        `slowIos`. Spares are vdevs with `role: spare`, AVAIL or INUSE, not a second list.
-      - **Keys (ADR-009):** each vdev's `path` is resolved to its disk with the identity
-        `sensors.rs` already gives drives, so `wwn` equals `driveHealth.deviceName`, and `port`
-        is the disk's by-path link. A vdev that is not a disk (the file-backed test pool in 7.8)
-        has a null `wwn` and `port` and keeps its `path`.
-      - **Unit:** no change is expected (`ProtectSystem=full`, no `PrivateDevices`). But `zpool`
-        inherits `RestrictAddressFamilies=AF_UNIX`, so check on the host before deploying:
-        `systemd-run --pty -p RestrictAddressFamilies=AF_UNIX -p ProtectSystem=full zpool status -j`.
-      - *Enforcer:* the parser and identity tests, config validation tests, and a regenerated
-        `daemon/contract.json`. Docs: the ARCHITECTURE module map, `zpool` in SECURITY.md §1 and
-        §5, and the README's API sample.
-- [ ] **7.2 vigil-core: the client types and history.**
-      - The pool records in `Protocol/Snapshot.cs`. The existing round trip against
-        `daemon/contract.json` covers them.
+        `poll_interval_secs = 60` and `timeout_secs = 15`, checked in `config/validate.rs`,
+        where the timeout must be shorter than the interval.
+      - Its own thread, like the SMART poller, with the latest result copied into each
+        snapshot. A hung `zpool` costs that thread its timeout, never a fan poll. Pool state
+        changes and zpool becoming unreadable are logged once each (`PoolLog`).
+      - **One command, not two:** `zpool status -j --json-int`, through `process::run`. The
+        plan also had `zpool list -j` for capacity, but the root vdev in `status` already
+        carries the same raw size and allocation `zpool list` shows. Fragmentation, the one
+        figure only `list` has, was dropped with it. Neither touches a disk.
+      - **Wire, changed from the plan:** `Snapshot.zfs: { isAvailable, asOf, pools }`, null when
+        `[zfs]` is off or before the first poll. Availability is a property of the poll, not of
+        a pool: when zpool fails there are no pools to attach it to, so `pools: []` with
+        `isAvailable: false` means unknown. States, scan function and vdev class are zpool's
+        own strings, not pinned enums, because an enum would make a state a later ZFS adds
+        fail the whole snapshot in vigil-core. Each vdev also carries its `guid`, as text
+        because a u64 outgrows a JavaScript number, and `aux` (`ERR_EXCEEDED`: "faulted for
+        too many errors"). `role` became zpool's `class`.
+      - **Keys:** the new `disks.rs` names a disk for every reader (drive sensors, SMART, vdevs).
+        `deviceName` rather than `wwn`, because it is exactly `driveHealth.deviceName`: the WWN,
+        failing that the port. A vdev's path goes through its by-id link to the partition, then
+        to its disk via sysfs's `partition` file, never by trimming digits.
+      - **The C# and web types landed here, not in 7.2,** because the contract tests in all
+        three languages fail until every side mirrors a new field. `Snapshot.Zfs` is optional in
+        C# for a daemon that predates it. Nothing in vigil-core reads it yet.
+      - **Fixtures are derived, not captured.** Nothing here could reach orion, so the four in
+        `daemon/tests/fixtures/zfs/` follow OpenZFS 2.4.4's JSON writer (`zpool_main.c`) key
+        for key; their README says how. That source also corrected the man page, whose example
+        shows a vdev state "HEALTHY" that zpool never prints.
+      - *Enforcer:* 14 new vigild tests (the parser against each fixture, malformed documents,
+        disk resolution, config validation, the log), the regenerated contracts with their C#
+        round trips and web key lists, and `integration-test.sh` running the real binary
+        against a fake `zpool` through the socket. Docs: ARCHITECTURE's module map, SECURITY.md
+        §1 and §5, and the README's API sample and host prerequisite.
+      - **Open, on the host:** capture real `zpool status -j --json-int` output for the
+        fixtures (`healthy.json` from orion, the rest from the 7.8 scratch pool) and keep the
+        tests passing against it. And check that `zpool` works under the unit's sandbox, since
+        it inherits `RestrictAddressFamilies=AF_UNIX`:
+        `systemd-run --pty -p RestrictAddressFamilies=AF_UNIX -p ProtectSystem=full /usr/sbin/zpool status -j`.
+- [ ] **7.2 vigil-core: history.**
       - `core/sql/schema.sql` gets two tables. `zfs_scans` has one row per scrub or resilver:
         pool, function, start, end, examined and errors, keyed by (pool, function, start) and
         updated while the scan runs. `zfs_vdev_errors` gets rows only when a counter changes:
-        ts, pool, vdev key (`wwn`, else `path`), read, write, checksum and slow. That is the
+        ts, pool, vdev `guid`, read, write, checksum and slow. That is the
         `drive_health_history` pattern. The statements go in `core/sql/`, with values bound.
       - Both are written through `IRuntimeStore`, so the live view and alerting keep working
         without a database (invariant 5).
@@ -517,7 +520,7 @@ That proposal was written before checking the code. It changed in these places:
       | Rule | Kind | Severity |
       |---|---|---|
       | pool `state` ≠ ONLINE | condition `zfs-pool:<pool>` | critical |
-      | any vdev ≠ ONLINE, including a spare INUSE (an AVAIL spare is fine) | condition `zfs-vdev:<pool>:<key>` | critical |
+      | any vdev ≠ ONLINE, including a spare INUSE (an AVAIL spare is fine) | condition `zfs-vdev:<pool>:<guid>` | critical |
       | `errorCount` > 0: permanent data errors | condition `zfs-data-errors:<pool>` | critical |
       | a vdev's read, write or checksum errors grew since the last poll | event | warning |
       | resilver started | event | warning |
@@ -525,7 +528,7 @@ That proposal was written before checking the code. It changed in these places:
       | scrub finished with errors | event | warning |
       | last completed scrub older than `ZFS_SCRUB_MAX_AGE_DAYS` (35: scrubs are monthly) | condition | warning |
       | capacity ≥ 80 %, and ≥ 90 % | one condition, severity by level, hysteresis via `IsRaised` | warning, critical |
-      | `pools` unavailable, or `asOf` older than 5 min | condition `zfs-unreadable` | warning |
+      | `zfs.isAvailable` false, or `zfs.asOf` older than 5 min | condition `zfs-unreadable` | warning |
       | fewer AVAIL spares than `ZFS_EXPECTED_SPARES` (`void:2`) | condition | warning |
 
       A failed `zpool` poll feeds the debouncer with `isComplete: false`, so it can never clear
