@@ -49,13 +49,35 @@ public static class Dashboard
         });
 
     /// <summary>
-    /// Serves the build in <paramref name="webRoot"/>: <c>index.html</c> for <c>/</c>, files
-    /// as they are. No fallback to index.html for unknown paths: the dashboard is one page, so an
-    /// unknown path is a 404, not a route.
+    /// The page SvelteKit renders for routes it cannot prerender, and the one route that is:
+    /// a disk's own page, whose name is only known once the disk is. Written by adapter-static's
+    /// <c>fallback</c> option in web/vite.config.ts, under this same name.
+    /// </summary>
+    public const string FallbackPage = "spa.html";
+
+    /// <summary>
+    /// Serves the build in <paramref name="webRoot"/>: <c>index.html</c> for <c>/</c>, each
+    /// prerendered page under its own name (<c>/drives</c> is <c>drives.html</c>, as SvelteKit
+    /// writes it), files as they are. No catch-all fallback: <see cref="MapDashboardPages"/>
+    /// names the only paths that are not files, so any other unknown path is a 404, not a route.
     /// </summary>
     public static IApplicationBuilder UseDashboard(this IApplicationBuilder app, string webRoot)
     {
         var files = new PhysicalFileProvider(Path.GetFullPath(webRoot));
+
+        // A page's address has no extension; its file does. Only a page that exists is
+        // rewritten, so nothing else changes meaning, and the provider refuses "..".
+        app.Use((context, next) =>
+        {
+            var path = context.Request.Path.Value?.TrimEnd('/');
+            if (path is { Length: > 0 } && context.GetEndpoint() is null && files.GetFileInfo(path + ".html").Exists)
+            {
+                context.Request.Path = path + ".html";
+            }
+
+            return next(context);
+        });
+
         app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
         return app.UseStaticFiles(new StaticFileOptions
         {
@@ -70,5 +92,22 @@ public static class Dashboard
                         : "no-cache";
             },
         });
+    }
+
+    /// <summary>
+    /// The dashboard's one dynamic route, <c>/drives/{wwn}/</c>, answered with
+    /// <see cref="FallbackPage"/>, which reads the name from the URL itself. Mapped here rather
+    /// than as a catch-all so every other unknown path stays a 404 (ADR-020).
+    /// </summary>
+    public static IEndpointRouteBuilder MapDashboardPages(this IEndpointRouteBuilder app, string webRoot)
+    {
+        var fallback = Path.Combine(Path.GetFullPath(webRoot), FallbackPage);
+        app.MapGet("/drives/{wwn}", (HttpContext context) =>
+        {
+            // As index.html: it names the current hashed assets, so it must be revalidated.
+            context.Response.Headers.CacheControl = "no-cache";
+            return TypedResults.PhysicalFile(fallback, "text/html; charset=utf-8");
+        });
+        return app;
     }
 }
