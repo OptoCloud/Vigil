@@ -5,10 +5,11 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
 		<!--
-			Applied before first paint so a stored theme choice never flashes the other one, which
-			is why it is a plain blocking script here rather than code in a component. A file
-			rather than inline: the page's CSP (docs/SECURITY.md §8) allows scripts from 'self',
-			and an inline one would need its hash kept in step by hand.
+			Resolves the theme to a concrete class before first paint, so neither a stored choice
+			nor the OS preference ever flashes the other palette; mode-watcher takes over once the
+			page has loaded. A file rather than inline, which is also why mode-watcher's own head
+			script is switched off: the page's CSP (docs/SECURITY.md §8) allows scripts from
+			'self', and an inline one would need its hash kept in step by hand.
 		-->
 		<script src="%sveltekit.assets%/theme.js"></script>
 		%sveltekit.head%

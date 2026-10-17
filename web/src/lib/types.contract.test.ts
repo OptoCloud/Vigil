@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type {
 	DriveHealth,
+	DriveHealthRecord,
 	DriveState,
 	EventRecord,
 	FanStatus,
@@ -155,6 +156,13 @@ const TYPE_KEYS = {
 		sourcePath: 1,
 		asOf: 1
 	} satisfies Record<keyof DriveState, 1>,
+	DriveHealthRecord: {
+		ts: 1,
+		passed: 1,
+		reallocatedSectorCount: 1,
+		pendingSectorCount: 1,
+		powerOnHours: 1
+	} satisfies Record<keyof DriveHealthRecord, 1>,
 	EventRecord: { id: 1, ts: 1, severity: 1, kind: 1, message: 1 } satisfies Record<keyof EventRecord, 1>
 };
 

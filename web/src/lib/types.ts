@@ -192,6 +192,15 @@ export interface DriveState {
 	asOf: string;
 }
 
+/** One recorded change in a drive's health, from /api/drives/<wwn>/history: written only when a count moved. */
+export interface DriveHealthRecord {
+	ts: string;
+	passed: boolean | null;
+	reallocatedSectorCount: number | null;
+	pendingSectorCount: number | null;
+	powerOnHours: number | null;
+}
+
 export type Severity = 'info' | 'warning' | 'critical';
 
 export interface EventRecord {

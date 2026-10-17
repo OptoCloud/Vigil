@@ -153,20 +153,28 @@ throwaway work.
 
 ## Phase 5 — Tailwind + shadcn-svelte
 
-- [ ] `prettier-plugin-tailwindcss`, for deterministic class order (deferred from Phase 0).
-- [ ] `@tailwindcss/vite` + Tailwind v4; `shadcn-svelte` init (`components.json`, `#lib/utils.ts`
+- [x] `prettier-plugin-tailwindcss`, for deterministic class order (deferred from Phase 0).
+- [x] `@tailwindcss/vite` + Tailwind v4; `shadcn-svelte` init (`components.json`, `#lib/utils.ts`
       with `cn()`, `tailwind-variants`, `tailwind-merge`, `bits-ui`, `mode-watcher`).
-- [ ] `app.css` → `@import "tailwindcss"` + one `@theme` block. Existing roles map onto shadcn
+- [x] `app.css` → `@import "tailwindcss"` + one `@theme` block. Existing roles map onto shadcn
       names so its components inherit the palette; `--series-*`, `--status-*`, `--meter-*` stay.
-- [ ] Collapse the dark palette, written out three times verbatim in `web/src/app.css` today:
+- [x] Collapse the dark palette, written out three times verbatim in `web/src/app.css` today:
       resolve `auto` to a concrete `class="dark"` in an inline script in `app.html` (which also
       removes the current theme flash), and let `mode-watcher` own the toggle — deleting the
-      hand-rolled `setTheme`/`localStorage` code in `+page.svelte`.
-- [ ] shadcn for generic chrome only: Card, Button, Badge, Table, Tooltip, Select, Separator, Switch.
-- [ ] `StatusBadge.svelte` severity states → a `tailwind-variants` variant set.
-- [ ] Keep bespoke: `LineChart.svelte`, `Sparkline.svelte`, the `StatTile` meter.
-- [ ] Split `web/src/routes/+page.svelte` (386) into section components plus a live-state module.
-- [ ] Split `LineChart.svelte` (411): geometry and readout logic into `#lib/chart/`, SVG stays.
+      hand-rolled `setTheme`/`localStorage` code in `+page.svelte`. *Done with `static/theme.js`
+      rather than an inline script, which the hash-mode CSP would need a hand-kept hash for; for
+      the same reason mode-watcher's head script is off. A choice saved under the old `theme`
+      key is not carried over: the page starts on Auto once.*
+- [x] shadcn for generic chrome only: Card, Button, Badge, Table, Tooltip, Select, Separator, Switch.
+      *All eight are vendored; Card, Button and Table are what the pages use so far.*
+- [x] `StatusBadge.svelte` severity states → a `tailwind-variants` variant set.
+- [x] Keep bespoke: `LineChart.svelte`, `Sparkline.svelte`, the `StatTile` meter.
+- [x] Split `web/src/routes/+page.svelte` (386) into section components plus a live-state module.
+- [x] Split `LineChart.svelte` (411): geometry and readout logic into `#lib/chart/`, SVG stays.
+- [x] One page becomes several (ADR-020): an overview at `/`, a page each for drives, storage,
+      cooling, power and events, and a page per disk at `/drives/<name>` with its SMART changes
+      from the new `/api/drives/<name>/history`. The live state is held once, in
+      `#lib/live.svelte.ts`, by the root layout. The dev mock reports ZFS pools (`z` faults one).
 
 ## Phase 6 — vigil-core becomes one ASP.NET Core app, serving the dashboard
 
