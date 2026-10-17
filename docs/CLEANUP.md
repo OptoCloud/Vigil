@@ -154,7 +154,7 @@ throwaway work.
 ## Phase 5 — Tailwind + shadcn-svelte
 
 - [ ] `prettier-plugin-tailwindcss`, for deterministic class order (deferred from Phase 0).
-- [ ] `@tailwindcss/vite` + Tailwind v4; `shadcn-svelte` init (`components.json`, `$lib/utils.ts`
+- [ ] `@tailwindcss/vite` + Tailwind v4; `shadcn-svelte` init (`components.json`, `#lib/utils.ts`
       with `cn()`, `tailwind-variants`, `tailwind-merge`, `bits-ui`, `mode-watcher`).
 - [ ] `app.css` → `@import "tailwindcss"` + one `@theme` block. Existing roles map onto shadcn
       names so its components inherit the palette; `--series-*`, `--status-*`, `--meter-*` stay.
@@ -166,7 +166,7 @@ throwaway work.
 - [ ] `StatusBadge.svelte` severity states → a `tailwind-variants` variant set.
 - [ ] Keep bespoke: `LineChart.svelte`, `Sparkline.svelte`, the `StatTile` meter.
 - [ ] Split `web/src/routes/+page.svelte` (386) into section components plus a live-state module.
-- [ ] Split `LineChart.svelte` (411): geometry and readout logic into `$lib/chart/`, SVG stays.
+- [ ] Split `LineChart.svelte` (411): geometry and readout logic into `#lib/chart/`, SVG stays.
 
 ## Phase 6 — vigil-core becomes one ASP.NET Core app, serving the dashboard
 
@@ -549,7 +549,7 @@ That proposal was written before checking the code. It changed in these places:
       - The header shows the worst of the connection states (as it does today) and every raised
         condition. Green means nothing is raised, not just that the fans are fine. The detail
         line names the worst condition and how many others there are. This is a pure function in
-        `$lib/`, with vitest.
+        `#lib/`, with vitest.
       - `PoolPanel.svelte`, one per pool: a state badge, a progress bar for a scrub or resilver
         with an ETA from its rate, capacity, and how long ago the last scrub ran.
       - `DriveTable` gains ZFS columns joined by WWN: pool, role, state and errors. A disk that

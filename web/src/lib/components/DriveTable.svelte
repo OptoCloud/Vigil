@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { relativeTime } from '$lib/chart/scale';
-	import type { DriveState, HistoryResponse, SensorReading, SeriesPoints } from '$lib/types';
+	import { relativeTime } from '#lib/chart/scale.ts';
+	import type { DriveState, HistoryResponse, SensorReading, SeriesPoints } from '#lib/types.ts';
 	import Sparkline from './Sparkline.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 

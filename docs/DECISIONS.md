@@ -128,6 +128,10 @@ one-sided rename fails CI. Adding a field means regenerating the contract in the
 
 ### ADR-014 — `npm audit` gates at moderate, not low
 
+**Resolved on 2026-10-17.** SvelteKit 3 depends on `cookie ^2`, and `npm audit` reports no
+vulnerabilities at any level. The gate stays at moderate: that threshold was the reason for
+this record, but nothing now depends on it.
+
 `cookie@0.6.0` reaches the tree through `@sveltejs/kit@2.70.3`, which is the latest 2.x
 release; there is no upstream fix, and the only version `npm audit fix --force` offers is a
 prerelease major of `adapter-node`. The advisory (out-of-bounds characters accepted in a cookie

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { humanize } from '$lib/chart/scale';
-	import type { FanStatus } from '$lib/types';
+	import { humanize } from '#lib/chart/scale.ts';
+	import type { FanStatus } from '#lib/types.ts';
 	import StatusBadge from './StatusBadge.svelte';
 
 	let { fans }: { fans: FanStatus[] } = $props();
