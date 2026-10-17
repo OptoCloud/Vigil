@@ -83,7 +83,14 @@ mod tests {
     const FRESH: Duration = Duration::from_secs(3600);
 
     fn snapshot(timestamp: &str, healthy: bool) -> Snapshot {
-        Snapshot { timestamp_utc: timestamp.to_owned(), sensors: vec![], fans: vec![], drive_health: vec![], control_loop_healthy: healthy }
+        Snapshot {
+            timestamp_utc: timestamp.to_owned(),
+            sensors: vec![],
+            fans: vec![],
+            drive_health: vec![],
+            zfs: None,
+            control_loop_healthy: healthy,
+        }
     }
 
     #[test]

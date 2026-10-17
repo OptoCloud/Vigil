@@ -4,7 +4,7 @@ Two processes, one job each, and a JSON contract between them. The split is a pr
 boundary first and a code boundary second: see `docs/SECURITY.md` §1.
 
 ```
-                sysfs PWM, /dev/mpt3ctl, smartctl, nvidia-smi
+            sysfs PWM, /dev/mpt3ctl, smartctl, zpool, nvidia-smi
                                   │
                         ┌─────────▼─────────┐
                         │  vigild  (root)   │  the only writer of hardware
@@ -29,7 +29,7 @@ hop and Node from the deployment.
 
 | Path | What it owns | Language |
 |---|---|---|
-| `daemon/` | `vigild`: sensors, drive health, fan curves, fan safety, the socket API | Rust, one crate |
+| `daemon/` | `vigild`: sensors, drive health, ZFS pool state, fan curves, fan safety, the socket API | Rust, one crate |
 | `core/` | `vigil-core`: polling, history, alerting, the API, serving the dashboard | C#, .NET 10 |
 | `web/` | the dashboard: one prerendered SvelteKit page | TypeScript, Svelte 5 |
 
@@ -66,11 +66,13 @@ testable against an in-memory sysfs, with no hardware and no root.
 | `config/` | the config shape and defaults (`mod.rs`), and the validation that runs before any fan is touched (`validate.rs`) |
 | `curve.rs` | piecewise-linear curves with asymmetric hysteresis |
 | `fans/` | split by failure mode: `controller.rs` (the only code that writes a header), `stall.rs`, `safety.rs` (the `Drop` guard and the deadman) |
-| `sensors.rs` | hwmon discovery by chip name, drive identity by WWN, bay by by-path |
+| `sensors.rs` | hwmon discovery by chip name |
+| `disks.rs` | what a disk is called: its WWN and its by-path port, from a hwmon device or a vdev's path |
 | `sysfs.rs` | the sysfs trait, and its in-memory fake |
 | `mpt3.rs` | pure MPI2 wire format for IO Unit Page 7: no native call, fully unit-tested |
 | `hba.rs` | the thin `ioctl` wrapper around `mpt3.rs` |
 | `smart.rs` | smartctl JSON parsing; never wakes a sleeping drive |
+| `zfs.rs` | `zpool status` JSON parsing, and the log of pool state changes; read-only, wakes no disk |
 | `gpu.rs` | nvidia-smi, out-of-process on purpose |
 | `process.rs` | child process with a hard timeout and bounded output |
 | `status.rs` | the snapshot hub consumers subscribe to |

@@ -21,7 +21,11 @@ public sealed class DaemonContractTests
     private static readonly JsonNode Contract = ContractFiles.Load(ContractFiles.Daemon);
 
     /// <summary>Every vigild type mirrored here, so one added in Rust and missed here fails.</summary>
-    private static readonly string[] MirroredTypes = [nameof(DriveHealth), nameof(FanStatus), nameof(SensorReading), nameof(Snapshot)];
+    private static readonly string[] MirroredTypes =
+    [
+        nameof(DriveHealth), nameof(FanStatus), nameof(PoolScan), nameof(PoolStatus), nameof(SensorReading), nameof(Snapshot),
+        nameof(VdevStatus), nameof(ZfsStatus),
+    ];
 
     private static void RoundTrips<T>(string name)
     {
@@ -45,6 +49,10 @@ public sealed class DaemonContractTests
     [Fact] public void FanStatusRoundTrips() => RoundTrips<FanStatus>(nameof(FanStatus));
     [Fact] public void DriveHealthRoundTrips() => RoundTrips<DriveHealth>(nameof(DriveHealth));
     [Fact] public void SnapshotRoundTrips() => RoundTrips<Snapshot>(nameof(Snapshot));
+    [Fact] public void ZfsStatusRoundTrips() => RoundTrips<ZfsStatus>(nameof(ZfsStatus));
+    [Fact] public void PoolStatusRoundTrips() => RoundTrips<PoolStatus>(nameof(PoolStatus));
+    [Fact] public void PoolScanRoundTrips() => RoundTrips<PoolScan>(nameof(PoolScan));
+    [Fact] public void VdevStatusRoundTrips() => RoundTrips<VdevStatus>(nameof(VdevStatus));
 
     [Theory]
     [InlineData("SensorCategory", typeof(SensorCategory))]

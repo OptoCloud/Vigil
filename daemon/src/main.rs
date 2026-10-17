@@ -28,6 +28,7 @@ mod server;
 mod smart;
 mod status;
 mod sysfs;
+mod zfs;
 
 use config::Config;
 use control::ControlLoop;
@@ -41,6 +42,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use sysfs::{LinuxSysFs, SysFs};
 use tracing::{error, info, warn};
+use zfs::PoolChange;
 
 /// Overridden by RUST_LOG. Info is the right default: the control loop logs transitions,
 /// not every poll, so this stays quiet on a healthy host.
@@ -110,12 +112,18 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
 
     let hub = Arc::new(StatusHub::new());
     let drive_health = Arc::new(Mutex::new(Vec::new()));
+    let pools = Arc::new(Mutex::new(None));
 
     start_status_api(&config, &hub)?;
     if config.drive_health.enabled {
         spawn_drive_health_poller(&config, Arc::clone(&sysfs), Arc::clone(&drive_health));
     } else {
         info!("Drive health polling disabled via config.");
+    }
+    if config.zfs.enabled {
+        spawn_zfs_poller(&config, Arc::clone(&sysfs), Arc::clone(&pools));
+    } else {
+        info!("ZFS pool polling disabled via config.");
     }
 
     let mut gpu = gpu::GpuTemperatureProvider::new(config.gpu.clone());
@@ -139,6 +147,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
             sensors: result.readings,
             fans: result.fans,
             drive_health: drive_health.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+            zfs: pools.lock().unwrap_or_else(|e| e.into_inner()).clone(),
             control_loop_healthy: result.healthy,
         });
 
@@ -250,6 +259,38 @@ fn spawn_drive_health_poller(config: &Config, sysfs: Arc<dyn SysFs>, results: Ar
 
     if let Err(error) = spawned {
         error!("Cannot start the drive health poller; drive health will be unavailable: {error}");
+    }
+}
+
+/// Pool state on its own cycle, like drive health: a hung zpool (a suspended pool) costs this
+/// thread its timeout, never a fan poll. Disks are resolved afresh on each cycle, so a vdev
+/// that moved bays carries its new port.
+fn spawn_zfs_poller(config: &Config, sysfs: Arc<dyn SysFs>, results: Arc<Mutex<Option<zfs::ZfsStatus>>>) {
+    let sysfs_root = config.sysfs_root.clone();
+    let by_path_dir = config.disk_by_path_dir.clone();
+    let config = config.zfs.clone();
+    info!("ZFS pool polling every {:?}.", Duration::from_secs_f64(config.poll_interval_secs));
+
+    let spawned = std::thread::Builder::new().name("zfs".to_owned()).spawn(move || {
+        let mut log = zfs::PoolLog::default();
+        while !SHUTDOWN.load(Ordering::Relaxed) {
+            let disks = disks::DiskResolver::new(&*sysfs, &sysfs_root, &by_path_dir);
+            let status = zfs::poll(&config, |path| disks.disk_of(path), &status::now_rfc3339());
+
+            for change in log.update(&status) {
+                match change {
+                    PoolChange::Warning(message) => warn!("{message}"),
+                    PoolChange::Cleared(message) => info!("{message}"),
+                }
+            }
+
+            *results.lock().unwrap_or_else(|e| e.into_inner()) = Some(status);
+            sleep_until(Instant::now() + Duration::from_secs_f64(config.poll_interval_secs));
+        }
+    });
+
+    if let Err(error) = spawned {
+        error!("Cannot start the ZFS poller; pool state will be unavailable: {error}");
     }
 }
 

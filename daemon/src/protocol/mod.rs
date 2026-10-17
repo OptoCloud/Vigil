@@ -134,6 +134,84 @@ pub struct DriveHealth {
     pub as_of: String,
 }
 
+/// What ZFS says about every imported pool, from one `zpool status` poll. Polled on its own
+/// cycle, like drive health, and embedded unchanged in every snapshot until the next poll.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZfsStatus {
+    /// False when zpool could not be run, timed out, or printed something that is not its JSON.
+    /// `pools` is then empty, and that means "unknown", never "no pools".
+    pub is_available: bool,
+    /// When this poll ran (RFC 3339, UTC).
+    pub as_of: String,
+    pub pools: Vec<PoolStatus>,
+}
+
+/// One pool. States are zpool's own words, kept as text rather than an enum: a state a later
+/// ZFS adds must reach vigil-core as "not ONLINE", not make the whole snapshot unreadable.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolStatus {
+    pub name: String,
+    /// ONLINE, DEGRADED, FAULTED, OFFLINE, REMOVED, UNAVAIL or SUSPENDED; "UNKNOWN" when zpool
+    /// gave none, so a pool it could not describe is never taken for a healthy one.
+    pub state: String,
+    /// Permanent data errors: blocks ZFS could not repair from redundancy.
+    pub error_count: Option<u64>,
+    /// Raw space across every disk, parity included, as `zpool list` counts it.
+    pub size_bytes: Option<u64>,
+    pub allocated_bytes: Option<u64>,
+    /// The latest scrub or resilver, whichever ran last. Null when the pool was never scanned.
+    pub scan: Option<PoolScan>,
+    /// Every leaf vdev (a disk, a partition or a file), hot spares included.
+    pub vdevs: Vec<VdevStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolScan {
+    /// SCRUB, RESILVER or ERRORSCRUB.
+    pub function: String,
+    /// SCANNING, FINISHED or CANCELED.
+    pub state: String,
+    pub start_time: Option<String>,
+    /// Null while the scan is running.
+    pub end_time: Option<String>,
+    pub to_examine_bytes: Option<u64>,
+    pub examined_bytes: Option<u64>,
+    /// What zpool's own progress figure counts: examined is the metadata walk, issued the I/O.
+    pub issued_bytes: Option<u64>,
+    /// Repaired by a scrub, or written by a resilver.
+    pub processed_bytes: Option<u64>,
+    pub errors: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VdevStatus {
+    /// zpool's name for it, e.g. "wwn-0x5000c500a1b2c3d4-part1".
+    pub name: String,
+    /// Text, because a u64 outgrows the numbers a browser can hold exactly.
+    pub guid: Option<String>,
+    pub path: Option<String>,
+    /// The disk it is on, named as `DriveHealth.device_name` names it, so ZFS and SMART for one
+    /// disk can be put side by side. Null for a vdev that is not on a disk (a file).
+    pub device_name: Option<String>,
+    pub port: Option<String>,
+    /// The vdev it sits in ("raidz2-0", "spare-5"), or null at the top of the pool.
+    pub parent: Option<String>,
+    /// normal, special, dedup, log, l2cache or spare.
+    pub class: String,
+    /// ONLINE, DEGRADED, FAULTED, OFFLINE, REMOVED, UNAVAIL; for a hot spare, AVAIL or INUSE.
+    pub state: String,
+    /// Why it is not ONLINE, in zpool's words: ERR_EXCEEDED is "faulted for too many errors".
+    pub aux: Option<String>,
+    pub read_errors: Option<u64>,
+    pub write_errors: Option<u64>,
+    pub checksum_errors: Option<u64>,
+    pub slow_ios: Option<u64>,
+}
+
 /// The full read-only view of vigild's state. This is the contract consumers build on:
 /// treat a field rename here as a breaking change.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -143,6 +221,9 @@ pub struct Snapshot {
     pub sensors: Vec<SensorReading>,
     pub fans: Vec<FanStatus>,
     pub drive_health: Vec<DriveHealth>,
+    /// Null when `[zfs]` is off, before its first poll, and from a daemon that predates it.
+    #[serde(default)]
+    pub zfs: Option<ZfsStatus>,
     /// False when any channel couldn't be driven this poll, or (judged at read time) when
     /// this snapshot is older than the deadman timeout, i.e. the loop has hung.
     pub control_loop_healthy: bool,
@@ -160,6 +241,13 @@ const RFC3339_MILLIS: &[time::format_description::FormatItem<'_>] =
 /// Current time as RFC 3339 UTC with millisecond precision, e.g. "2026-09-21T20:39:27.482Z".
 pub fn now_rfc3339() -> String {
     format_utc(OffsetDateTime::now_utc())
+}
+
+/// Unix seconds as RFC 3339, the way every other time is on the wire. None for zero, which is
+/// how ZFS says "never", and for a value no calendar holds.
+pub fn rfc3339_from_unix_seconds(seconds: u64) -> Option<String> {
+    let seconds = i64::try_from(seconds).ok().filter(|seconds| *seconds > 0)?;
+    OffsetDateTime::from_unix_timestamp(seconds).ok().map(format_utc)
 }
 
 fn format_utc(at: OffsetDateTime) -> String {
@@ -188,12 +276,20 @@ mod tests {
     }
 
     #[test]
+    fn unix_seconds_become_rfc3339_and_zero_means_never() {
+        assert_eq!(rfc3339_from_unix_seconds(1_791_434_760).as_deref(), Some("2026-10-08T04:46:00.000Z"));
+        assert_eq!(rfc3339_from_unix_seconds(0), None);
+        assert_eq!(rfc3339_from_unix_seconds(u64::MAX), None);
+    }
+
+    #[test]
     fn a_snapshot_round_trips_and_tolerates_a_daemon_without_ports() {
         let json = r#"{"timestampUtc":"t","sensors":[{"id":"cpu","category":"cpu","label":"Tctl","celsiusOrNull":40.5,"sourcePath":"p","isAvailable":true}],
             "fans":[{"id":"f","dutyPercent":50,"rpm":null,"mode":"smartFanIV","stalled":false}],"driveHealth":[],"controlLoopHealthy":true}"#;
         let snapshot: Snapshot = serde_json::from_str(json).unwrap();
 
         assert_eq!(snapshot.sensors[0].port, None);
+        assert_eq!(snapshot.zfs, None);
         assert_eq!(snapshot.fans[0].mode, Some(PwmMode::SmartFanIV));
         assert_eq!(serde_json::from_str::<Snapshot>(&serde_json::to_string(&snapshot).unwrap()).unwrap(), snapshot);
     }

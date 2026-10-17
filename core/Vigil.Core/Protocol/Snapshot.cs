@@ -116,6 +116,12 @@ public sealed record Snapshot
     public required IReadOnlyList<DriveHealth> DriveHealth { get; init; }
 
     /// <summary>
+    /// Null when vigild's <c>[zfs]</c> is off, before its first poll, and from a daemon that
+    /// predates it, which is why it is not required.
+    /// </summary>
+    public ZfsStatus? Zfs { get; init; }
+
+    /// <summary>
     /// False when any channel could not be driven this poll, or (judged at read time) when this
     /// snapshot is older than the deadman timeout, i.e. the loop has hung.
     /// </summary>

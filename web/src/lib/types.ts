@@ -46,7 +46,72 @@ export interface Snapshot {
 	sensors: SensorReading[];
 	fans: FanStatus[];
 	driveHealth: DriveHealth[];
+	/** Null when vigild's [zfs] is off or has not polled yet; absent from daemons that predate it. */
+	zfs?: ZfsStatus | null;
 	controlLoopHealthy: boolean;
+}
+
+// ---- ZFS pool state, from one `zpool status` poll (ADR-018) ----
+// States are zpool's own words, as strings: a state a later ZFS adds must read as "not ONLINE".
+
+export interface ZfsStatus {
+	/** False when zpool gave no usable answer. `pools` is then empty, meaning unknown, never "no pools". */
+	isAvailable: boolean;
+	asOf: string;
+	pools: PoolStatus[];
+}
+
+export interface PoolStatus {
+	name: string;
+	/** ONLINE, DEGRADED, FAULTED, OFFLINE, REMOVED, UNAVAIL, SUSPENDED, or UNKNOWN. */
+	state: string;
+	/** Permanent data errors: blocks ZFS could not repair. */
+	errorCount: number | null;
+	/** Raw space across every disk, parity included, as `zpool list` counts it. */
+	sizeBytes: number | null;
+	allocatedBytes: number | null;
+	/** The latest scrub or resilver. Null when the pool was never scanned. */
+	scan: PoolScan | null;
+	/** Every leaf vdev, hot spares included. */
+	vdevs: VdevStatus[];
+}
+
+export interface PoolScan {
+	/** SCRUB, RESILVER or ERRORSCRUB. */
+	function: string;
+	/** SCANNING, FINISHED or CANCELED. */
+	state: string;
+	startTime: string | null;
+	/** Null while the scan is running. */
+	endTime: string | null;
+	toExamineBytes: number | null;
+	examinedBytes: number | null;
+	/** What zpool's own progress figure counts. */
+	issuedBytes: number | null;
+	processedBytes: number | null;
+	errors: number | null;
+}
+
+export interface VdevStatus {
+	name: string;
+	/** A string: the u64 outgrows the numbers JavaScript holds exactly. */
+	guid: string | null;
+	path: string | null;
+	/** The disk it is on, as DriveHealth.deviceName names it. Null for a vdev not on a disk. */
+	deviceName: string | null;
+	port: string | null;
+	/** The vdev it sits in ("raidz2-0", "spare-5"), or null at the top of the pool. */
+	parent: string | null;
+	/** normal, special, dedup, log, l2cache or spare. */
+	class: string;
+	/** ONLINE, DEGRADED, FAULTED, OFFLINE, REMOVED, UNAVAIL; for a hot spare, AVAIL or INUSE. */
+	state: string;
+	/** Why it is not ONLINE, in zpool's words, e.g. ERR_EXCEEDED. */
+	aux: string | null;
+	readErrors: number | null;
+	writeErrors: number | null;
+	checksumErrors: number | null;
+	slowIos: number | null;
 }
 
 // ---- The UPS, read from NUT's upsd (not from the daemon) ----
