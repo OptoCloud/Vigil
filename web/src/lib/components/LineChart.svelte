@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { formatInstant, formatTick, linearScale, nearestIndex, niceTicks, timeTicks } from '$lib/chart/scale';
-	import type { ChartSeries, SeriesPoints } from '$lib/types';
+	import { formatInstant, formatTick, linearScale, nearestIndex, niceTicks, timeTicks } from '#lib/chart/scale.ts';
+	import type { ChartSeries, SeriesPoints } from '#lib/types.ts';
 
 	interface Props {
 		title: string;

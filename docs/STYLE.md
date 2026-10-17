@@ -284,7 +284,7 @@ reference types as errors in C#; review checklist.
 - The dashboard is a static build: no server code in `web/` at all. Everything it needs comes
   from vigil-core's `/api/*`.
 - Components take typed props via an explicit `interface Props`. No implicit `any` props.
-- A component owns presentation. Data shaping goes in `$lib/`. The rule `+page.svelte` currently
+- A component owns presentation. Data shaping goes in `#lib/`. The rule `+page.svelte` currently
   breaks is that it also owns the live-stream wiring, theme persistence and history fetching.
 - Never `innerHTML` / `{@html}` with anything that did not come from a literal in our source.
 - Prettier decides formatting, with `prettier-plugin-tailwindcss` for class order.
@@ -323,7 +323,7 @@ From Phase 5, `web/` is Tailwind CSS v4 plus shadcn-svelte.
   the same blue in every range and every session.
 - **One definition of the dark palette.** It is currently written out three times. Resolve the
   theme to a concrete class once, at the document root.
-- `$lib/components/ui/**` is vendored by the shadcn CLI: never hand-edited, upgraded through the
+- `#lib/components/ui/**` is vendored by the shadcn CLI: never hand-edited, upgraded through the
   CLI, extended by wrapping.
 - Status colour is never also a series colour, and never the only carrier of meaning: it is
   always paired with an icon and a label.

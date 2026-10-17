@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { humanize, relativeTime } from '$lib/chart/scale';
-	import DriveTable from '$lib/components/DriveTable.svelte';
-	import EventLog from '$lib/components/EventLog.svelte';
-	import FanList from '$lib/components/FanList.svelte';
-	import LineChart from '$lib/components/LineChart.svelte';
-	import StatTile from '$lib/components/StatTile.svelte';
-	import StatusBadge from '$lib/components/StatusBadge.svelte';
-	import UpsPanel from '$lib/components/UpsPanel.svelte';
+	import { humanize, relativeTime } from '#lib/chart/scale.ts';
+	import DriveTable from '#lib/components/DriveTable.svelte';
+	import EventLog from '#lib/components/EventLog.svelte';
+	import FanList from '#lib/components/FanList.svelte';
+	import LineChart from '#lib/components/LineChart.svelte';
+	import StatTile from '#lib/components/StatTile.svelte';
+	import StatusBadge from '#lib/components/StatusBadge.svelte';
+	import UpsPanel from '#lib/components/UpsPanel.svelte';
 	import type {
 		ChartSeries,
 		DriveState,
@@ -19,8 +19,8 @@
 		SeriesPoints,
 		Snapshot,
 		UpsState
-	} from '$lib/types';
-	import { summarizeUps } from '$lib/ups';
+	} from '#lib/types.ts';
+	import { summarizeUps } from '#lib/ups.ts';
 
 	// The page is a static build with no server of its own, so it starts empty: the live stream's
 	// first messages are vigil-core's full current state, and the event log is fetched once.

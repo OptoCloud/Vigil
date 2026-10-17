@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { linearScale } from '$lib/chart/scale';
-	import type { SeriesPoints } from '$lib/types';
+	import { linearScale } from '#lib/chart/scale.ts';
+	import type { SeriesPoints } from '#lib/types.ts';
 
 	interface Props {
 		points: SeriesPoints;
