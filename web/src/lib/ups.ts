@@ -1,6 +1,6 @@
 // How a UPS's state reads to a person. Shared by the page's banner and the UPS panel.
 
-import type { UpsState } from '$lib/types';
+import type { UpsState } from '#lib/types.ts';
 
 export interface UpsSummary {
 	level: 'good' | 'warning' | 'critical' | 'unknown';

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { relativeTime } from '$lib/chart/scale';
-	import type { EventRecord } from '$lib/types';
+	import { relativeTime } from '#lib/chart/scale.ts';
+	import type { EventRecord } from '#lib/types.ts';
 	import StatusBadge from './StatusBadge.svelte';
 
 	let { events, now }: { events: EventRecord[]; now: number } = $props();

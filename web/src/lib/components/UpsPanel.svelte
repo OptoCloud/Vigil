@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { relativeTime } from '$lib/chart/scale';
-	import type { SeriesPoints, UpsState } from '$lib/types';
+	import { relativeTime } from '#lib/chart/scale.ts';
+	import type { SeriesPoints, UpsState } from '#lib/types.ts';
 	import {
 		describeTransferReason,
 		formatDuration,
@@ -9,7 +9,7 @@
 		marginVerdict,
 		shutdownMargin,
 		summarizeUps
-	} from '$lib/ups';
+	} from '#lib/ups.ts';
 	import StatusBadge from './StatusBadge.svelte';
 
 	interface Props {
