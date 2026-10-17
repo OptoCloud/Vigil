@@ -19,6 +19,8 @@ import type {
 	EventRecord,
 	FanStatus,
 	LiveMessage,
+	PoolScan,
+	PoolStatus,
 	PwmMode,
 	SensorCategory,
 	SensorReading,
@@ -26,7 +28,9 @@ import type {
 	Snapshot,
 	UpsLimits,
 	UpsReading,
-	UpsState
+	UpsState,
+	VdevStatus,
+	ZfsStatus
 } from './types';
 
 /** The sections a contract file may have. Each program writes only the ones it owns. */
@@ -78,8 +82,45 @@ const TYPE_KEYS = {
 		sensors: 1,
 		fans: 1,
 		driveHealth: 1,
+		zfs: 1,
 		controlLoopHealthy: 1
 	} satisfies Record<keyof Snapshot, 1>,
+	ZfsStatus: { isAvailable: 1, asOf: 1, pools: 1 } satisfies Record<keyof ZfsStatus, 1>,
+	PoolStatus: {
+		name: 1,
+		state: 1,
+		errorCount: 1,
+		sizeBytes: 1,
+		allocatedBytes: 1,
+		scan: 1,
+		vdevs: 1
+	} satisfies Record<keyof PoolStatus, 1>,
+	PoolScan: {
+		function: 1,
+		state: 1,
+		startTime: 1,
+		endTime: 1,
+		toExamineBytes: 1,
+		examinedBytes: 1,
+		issuedBytes: 1,
+		processedBytes: 1,
+		errors: 1
+	} satisfies Record<keyof PoolScan, 1>,
+	VdevStatus: {
+		name: 1,
+		guid: 1,
+		path: 1,
+		deviceName: 1,
+		port: 1,
+		parent: 1,
+		class: 1,
+		state: 1,
+		aux: 1,
+		readErrors: 1,
+		writeErrors: 1,
+		checksumErrors: 1,
+		slowIos: 1
+	} satisfies Record<keyof VdevStatus, 1>,
 	UpsReading: {
 		timestampUtc: 1,
 		name: 1,

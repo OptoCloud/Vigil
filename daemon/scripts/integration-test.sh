@@ -53,7 +53,20 @@ ln -s ../../sda1 "$WORK/by-path/pci-0000:01:00.1-ata-3-part1"
 
 printf '#!/bin/sh\necho 70\n' > "$WORK/bin/nvidia-smi"
 printf '#!/bin/sh\necho '"'"'{"smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":5,"raw":{"value":7}}]},"power_on_time":{"hours":100}}'"'"'\n' > "$WORK/bin/smartctl"
-chmod +x "$WORK/bin/nvidia-smi" "$WORK/bin/smartctl"
+# A one-disk pool on sda's partition, named by a by-id link the way ZFS names its vdevs.
+mkdir -p "$SYS/block/sda/sda1" "$WORK/by-id"
+echo 1 > "$SYS/block/sda/sda1/partition"
+ln -s ../../sda1 "$WORK/by-id/wwn-0x5000c500aaaa0001-part1"
+cat > "$WORK/bin/zpool" <<EOF
+#!/bin/sh
+[ "\$*" = "status -j --json-int" ] || exit 2
+echo '{"output_version":{"command":"zpool status","vers_major":0,"vers_minor":1},"pools":{"tank":{"name":"tank","state":"DEGRADED",
+  "vdevs":{"tank":{"name":"tank","vdev_type":"root","alloc_space":100,"total_space":400,"vdevs":{"wwn-0x5000c500aaaa0001-part1":
+  {"name":"wwn-0x5000c500aaaa0001-part1","vdev_type":"disk","guid":42,"path":"$WORK/by-id/wwn-0x5000c500aaaa0001-part1",
+  "class":"normal","state":"FAULTED","aux":"ERR_EXCEEDED","read_errors":14,"write_errors":0,"checksum_errors":0,"slow_ios":0}}}},
+  "error_count":0}}}'
+EOF
+chmod +x "$WORK/bin/nvidia-smi" "$WORK/bin/smartctl" "$WORK/bin/zpool"
 
 SOCKET="$WORK/run/vigild.sock"
 cat > "$WORK/vigild.toml" <<EOF
@@ -74,6 +87,12 @@ enabled = false
 
 [drive_health]
 smartctl_path = "$WORK/bin/smartctl"
+
+[zfs]
+enabled = true
+zpool_path = "$WORK/bin/zpool"
+poll_interval_secs = 1
+timeout_secs = 0.5
 
 [[channels]]
 id = "cpu-fan"
@@ -131,6 +150,12 @@ check "drive reading carries its port" "$(echo "$STATUS" | field '[x["port"] for
 check "other sensors have no port" "$(echo "$STATUS" | field '[x["port"] for x in s["sensors"] if x["id"] == "cpu"][0]')" "None"
 check "drive health carries its port" "$(echo "$STATUS" | field 's["driveHealth"][0]["port"]')" "pci-0000:01:00.1-ata-3"
 check "drive health parsed" "$(echo "$STATUS" | field 's["driveHealth"][0]["reallocatedSectorCount"]')" "7"
+check "zpool ran with the read-only argv" "$(echo "$STATUS" | field 's["zfs"]["isAvailable"]')" "True"
+check "pool state" "$(echo "$STATUS" | field 's["zfs"]["pools"][0]["state"]')" "DEGRADED"
+check "a vdev is named as its disk's SMART health is" "$(echo "$STATUS" | field 's["zfs"]["pools"][0]["vdevs"][0]["deviceName"]')" "naa.5000c500aaaa0001"
+check "a vdev carries its disk's port" "$(echo "$STATUS" | field 's["zfs"]["pools"][0]["vdevs"][0]["port"]')" "pci-0000:01:00.1-ata-3"
+check "the guid is text" "$(echo "$STATUS" | field 's["zfs"]["pools"][0]["vdevs"][0]["guid"]')" "42"
+check "a degraded pool is logged" "$(grep -c 'Pool tank is DEGRADED' "$WORK/daemon.log")" "1"
 check "unknown path is 404" "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$SOCKET" http://localhost/nope)" "404"
 check "POST is 405" "$(curl -s -o /dev/null -w '%{http_code}' -X POST --unix-socket "$SOCKET" http://localhost/status)" "405"
 

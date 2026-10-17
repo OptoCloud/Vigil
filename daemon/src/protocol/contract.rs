@@ -11,7 +11,10 @@
 //! the regenerated contract file (`cargo test -p vigild` writes it), and the C# type. Miss any
 //! one and CI fails.
 
-use super::{DriveHealth, FanStatus, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot};
+use super::{
+    DriveHealth, FanStatus, PoolScan, PoolStatus, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot, VdevStatus,
+    ZfsStatus,
+};
 use serde_json::{Value, json};
 
 const CONTRACT_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/contract.json");
@@ -67,11 +70,49 @@ fn samples() -> Value {
         is_available: true,
         as_of: "2026-09-21T23:00:38.412Z".to_owned(),
     };
+    // The night of the fault: a resilver onto the spare, still running.
+    let scan = PoolScan {
+        function: "RESILVER".to_owned(),
+        state: "SCANNING".to_owned(),
+        start_time: Some("2026-10-08T04:46:54.000Z".to_owned()),
+        end_time: Some("2026-10-08T09:10:54.000Z".to_owned()),
+        to_examine_bytes: Some(12_940_000_000_000),
+        examined_bytes: Some(6_100_000_000_000),
+        issued_bytes: Some(980_000_000_000),
+        processed_bytes: Some(975_000_000_000),
+        errors: Some(0),
+    };
+    let vdev = VdevStatus {
+        name: "ata-ST4000VN008-2DR166_ZGY9ZQY6".to_owned(),
+        guid: Some("9000000000000001106".to_owned()),
+        path: Some("/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1".to_owned()),
+        device_name: Some("naa.5000c500bae40598".to_owned()),
+        port: Some("pci-0000:03:00.0-sas-phy4-lun-0".to_owned()),
+        parent: Some("spare-5".to_owned()),
+        class: "normal".to_owned(),
+        state: "FAULTED".to_owned(),
+        aux: Some("ERR_EXCEEDED".to_owned()),
+        read_errors: Some(14),
+        write_errors: Some(0),
+        checksum_errors: Some(0),
+        slow_ios: Some(0),
+    };
+    let pool = PoolStatus {
+        name: "void".to_owned(),
+        state: "DEGRADED".to_owned(),
+        error_count: Some(0),
+        size_bytes: Some(32_000_000_000_000),
+        allocated_bytes: Some(12_940_000_000_000),
+        scan: Some(scan.clone()),
+        vdevs: vec![vdev.clone()],
+    };
+    let zfs = ZfsStatus { is_available: true, as_of: "2026-09-21T23:01:02.004Z".to_owned(), pools: vec![pool.clone()] };
     let snapshot = Snapshot {
         timestamp_utc: "2026-09-21T23:01:34.155Z".to_owned(),
         sensors: vec![sensor.clone()],
         fans: vec![fan.clone()],
         drive_health: vec![drive_health.clone()],
+        zfs: Some(zfs.clone()),
         control_loop_healthy: true,
     };
 
@@ -89,6 +130,10 @@ fn samples() -> Value {
             "SensorReading": sensor,
             "FanStatus": fan,
             "DriveHealth": drive_health,
+            "ZfsStatus": zfs,
+            "PoolStatus": pool,
+            "PoolScan": scan,
+            "VdevStatus": vdev,
             "Snapshot": snapshot,
         },
         // vigil-core's read timeout on /events must exceed twice this, and its tests check it.

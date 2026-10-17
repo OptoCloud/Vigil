@@ -107,8 +107,12 @@ started life as a .NET daemon; that implementation is in the git history.)
   interval (default 15 min), fully decoupled from the 2s control loop, using
   `smartctl -n standby` so a drive already asleep is skipped rather than spun
   up just to answer a health check.
-- **External tools can't hang the daemon.** `nvidia-smi` and `smartctl` both
-  run under a hard timeout and are killed if they exceed it. `nvidia-smi`
+- **ZFS pool state comes from `zpool status`.** Polled every minute on its own
+  thread, as JSON, and read-only: it reads what the kernel already holds and
+  wakes no disk. Each vdev carries the same disk name as its SMART health, so
+  a disk ZFS has faulted can be told apart from one SMART still calls healthy.
+- **External tools can't hang the daemon.** `nvidia-smi`, `smartctl` and
+  `zpool` all run under a hard timeout and are killed if they exceed it. `nvidia-smi`
   stays out-of-process on purpose: a wedged GPU driver can then only hang a
   child that gets killed, never the control loop.
 - **As little state as possible.** The daemon holds the latest snapshot plus
@@ -161,7 +165,22 @@ capped by `api.max_clients`; past that, new ones get `503`.
     // Exactly what the last SMART poll saw. A sleeping drive is not woken, so it shows
     // isAvailable=false with nulls: keep its previous values on the consumer side.
     // pendingSectorCount is null on drives that don't report attribute 197 (most SSDs).
-  ]
+  ],
+  // null when [zfs] is off or has not polled yet. isAvailable=false (zpool missing, hung or
+  // unreadable) comes with pools: [], which means unknown, not "no pools".
+  "zfs": {
+    "isAvailable": true, "asOf": "2026-09-21T23:01:02.004Z",
+    "pools": [
+      { "name": "void", "state": "DEGRADED", "errorCount": 0, "sizeBytes": 32000000000000, "allocatedBytes": 12940000000000,
+        "scan": { "function": "RESILVER", "state": "SCANNING", "startTime": "...", "endTime": null, "issuedBytes": 980000000000, "...": "..." },
+        "vdevs": [
+          { "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6", "deviceName": "naa.5000c500...", "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+            "parent": "spare-5", "class": "normal", "state": "FAULTED", "aux": "ERR_EXCEEDED", "readErrors": 14, "...": "..." }
+          // every leaf vdev, spares included (class "spare", state AVAIL or INUSE). deviceName is
+          // driveHealth's name for the same disk. States are zpool's own words, as strings.
+        ] }
+    ]
+  }
 }
 ```
 
@@ -258,7 +277,8 @@ Status) and need re-verifying there after changes to them.
 **Host prerequisite:** drive SMART health shells out to `smartctl` (package
 `smartmontools`), not installed by default on a minimal Proxmox/Debian host:
 `apt-get install -y smartmontools`. Without it every drive's health is simply
-reported unavailable.
+reported unavailable. Pool state needs `zpool` (`zfsutils-linux`, already on
+any Proxmox host using ZFS) and `[zfs] enabled = true`.
 
 | File | Goes to |
 |---|---|

@@ -197,7 +197,14 @@ mod tests {
     const FRESH: Duration = Duration::from_secs(3600);
 
     fn snapshot(timestamp: &str) -> Snapshot {
-        Snapshot { timestamp_utc: timestamp.to_owned(), sensors: vec![], fans: vec![], drive_health: vec![], control_loop_healthy: true }
+        Snapshot {
+            timestamp_utc: timestamp.to_owned(),
+            sensors: vec![],
+            fans: vec![],
+            drive_health: vec![],
+            zfs: None,
+            control_loop_healthy: true,
+        }
     }
 
     fn hub_with_snapshot() -> Arc<StatusHub> {

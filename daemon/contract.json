@@ -46,6 +46,108 @@
       "isAvailable": true,
       "asOf": "2026-09-21T23:00:38.412Z"
     },
+    "ZfsStatus": {
+      "isAvailable": true,
+      "asOf": "2026-09-21T23:01:02.004Z",
+      "pools": [
+        {
+          "name": "void",
+          "state": "DEGRADED",
+          "errorCount": 0,
+          "sizeBytes": 32000000000000,
+          "allocatedBytes": 12940000000000,
+          "scan": {
+            "function": "RESILVER",
+            "state": "SCANNING",
+            "startTime": "2026-10-08T04:46:54.000Z",
+            "endTime": "2026-10-08T09:10:54.000Z",
+            "toExamineBytes": 12940000000000,
+            "examinedBytes": 6100000000000,
+            "issuedBytes": 980000000000,
+            "processedBytes": 975000000000,
+            "errors": 0
+          },
+          "vdevs": [
+            {
+              "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6",
+              "guid": "9000000000000001106",
+              "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+              "deviceName": "naa.5000c500bae40598",
+              "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+              "parent": "spare-5",
+              "class": "normal",
+              "state": "FAULTED",
+              "aux": "ERR_EXCEEDED",
+              "readErrors": 14,
+              "writeErrors": 0,
+              "checksumErrors": 0,
+              "slowIos": 0
+            }
+          ]
+        }
+      ]
+    },
+    "PoolStatus": {
+      "name": "void",
+      "state": "DEGRADED",
+      "errorCount": 0,
+      "sizeBytes": 32000000000000,
+      "allocatedBytes": 12940000000000,
+      "scan": {
+        "function": "RESILVER",
+        "state": "SCANNING",
+        "startTime": "2026-10-08T04:46:54.000Z",
+        "endTime": "2026-10-08T09:10:54.000Z",
+        "toExamineBytes": 12940000000000,
+        "examinedBytes": 6100000000000,
+        "issuedBytes": 980000000000,
+        "processedBytes": 975000000000,
+        "errors": 0
+      },
+      "vdevs": [
+        {
+          "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6",
+          "guid": "9000000000000001106",
+          "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+          "deviceName": "naa.5000c500bae40598",
+          "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+          "parent": "spare-5",
+          "class": "normal",
+          "state": "FAULTED",
+          "aux": "ERR_EXCEEDED",
+          "readErrors": 14,
+          "writeErrors": 0,
+          "checksumErrors": 0,
+          "slowIos": 0
+        }
+      ]
+    },
+    "PoolScan": {
+      "function": "RESILVER",
+      "state": "SCANNING",
+      "startTime": "2026-10-08T04:46:54.000Z",
+      "endTime": "2026-10-08T09:10:54.000Z",
+      "toExamineBytes": 12940000000000,
+      "examinedBytes": 6100000000000,
+      "issuedBytes": 980000000000,
+      "processedBytes": 975000000000,
+      "errors": 0
+    },
+    "VdevStatus": {
+      "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6",
+      "guid": "9000000000000001106",
+      "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+      "deviceName": "naa.5000c500bae40598",
+      "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+      "parent": "spare-5",
+      "class": "normal",
+      "state": "FAULTED",
+      "aux": "ERR_EXCEEDED",
+      "readErrors": 14,
+      "writeErrors": 0,
+      "checksumErrors": 0,
+      "slowIos": 0
+    },
     "Snapshot": {
       "timestampUtc": "2026-09-21T23:01:34.155Z",
       "sensors": [
@@ -81,6 +183,47 @@
           "asOf": "2026-09-21T23:00:38.412Z"
         }
       ],
+      "zfs": {
+        "isAvailable": true,
+        "asOf": "2026-09-21T23:01:02.004Z",
+        "pools": [
+          {
+            "name": "void",
+            "state": "DEGRADED",
+            "errorCount": 0,
+            "sizeBytes": 32000000000000,
+            "allocatedBytes": 12940000000000,
+            "scan": {
+              "function": "RESILVER",
+              "state": "SCANNING",
+              "startTime": "2026-10-08T04:46:54.000Z",
+              "endTime": "2026-10-08T09:10:54.000Z",
+              "toExamineBytes": 12940000000000,
+              "examinedBytes": 6100000000000,
+              "issuedBytes": 980000000000,
+              "processedBytes": 975000000000,
+              "errors": 0
+            },
+            "vdevs": [
+              {
+                "name": "ata-ST4000VN008-2DR166_ZGY9ZQY6",
+                "guid": "9000000000000001106",
+                "path": "/dev/disk/by-id/ata-ST4000VN008-2DR166_ZGY9ZQY6-part1",
+                "deviceName": "naa.5000c500bae40598",
+                "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+                "parent": "spare-5",
+                "class": "normal",
+                "state": "FAULTED",
+                "aux": "ERR_EXCEEDED",
+                "readErrors": 14,
+                "writeErrors": 0,
+                "checksumErrors": 0,
+                "slowIos": 0
+              }
+            ]
+          }
+        ]
+      },
       "controlLoopHealthy": true
     }
   },
