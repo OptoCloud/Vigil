@@ -206,3 +206,41 @@ against both. vigil-core also checks its client types against the daemon file, a
 50s silence timeout outlasts two of vigild's published keepalives.
 *Consequence:* ADR-013's enforcement now runs in all three languages without one language
 owning types it never sends. A new route that is not a GET fails `ApiTests.EveryRouteIsAGet`.
+
+### ADR-018: ZFS pool state comes from vigild, and zed keeps its own push
+
+*Decided 2026-10-17*, after `docs/incidents/2026-10-17-void-disk-fault.md`. SMART judges a disk
+by its own self-assessment. ZFS judges it by whether its reads succeed, and it faulted a disk
+whose SMART still said PASSED. vigil read only SMART, so the pool sat DEGRADED for nine days
+while the dashboard said Live.
+
+vigild reads pool state, because reading the host's hardware is its job and it is the one on
+the host. vigil-core's unprivileged LXC has no `/dev/zfs`. vigild runs `zpool status -j` and
+`zpool list -j`, which is OpenZFS's own JSON. It does not link libzfs, which would put a C
+library's ABI inside the root daemon and end the static musl build (ADR-005).
+
+vigil only reads pool state. It never clears, detaches, onlines or scrubs: those change the
+hardware (invariant 1), and the dashboard has no authentication (ADR-008). Acting on a pool
+stays a shell on the host.
+
+zed posts to ntfy as well, through its own `ZED_NTFY_*` settings, so a fault reaches a phone
+even when vigil and mail are both down. That night, the mail was the only push, and it was
+broken.
+
+*Consequence:* `zpool` joins `smartctl` and `nvidia-smi` as a vigild subprocess, under the same
+rules (SECURITY.md §5). vigil's delay on a pool change is its `[zfs]` poll interval. One fault
+can produce two notifications, zed's and vigil's, and that is accepted.
+
+### ADR-019: The page's verdict is the worst raised condition, judged once in vigil-core
+
+*Decided 2026-10-17.* The header said Live while a pool was DEGRADED. It judged only the
+connections and `controlLoopHealthy`, so a stalled fan, a UPS on battery or a failed drive did
+not change it either. From now on a green header means nothing is raised.
+
+vigil-core's `Alerting` already decides what is wrong. The page receives the raised conditions
+over the live stream and does not work them out again in TypeScript (STYLE.md §1.1). That way
+the page and ntfy cannot disagree about what is wrong.
+
+*Consequence:* a new condition shows on the page without any web change. Anything that should
+hold the verdict for as long as it lasts has to be a condition, not a one-time event: a drive
+failing SMART is therefore both. A status rule written only in the web is a review flag.

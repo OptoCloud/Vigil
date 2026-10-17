@@ -1,7 +1,7 @@
 # Cleanup plan
 
-Agreed 2026-10-01. Six phases, each ending green and shippable: `scripts/check.sh` passes and
-the tree is deployable. **Review at every phase boundary**; the next phase does not start
+Agreed 2026-10-01 with six phases; Phase 7 was added on 2026-10-17. Each phase ends green and
+shippable: `scripts/check.sh` passes and the tree is deployable. **Review at every phase boundary**; the next phase does not start
 until the previous one is read.
 
 Every item names the evidence that produced it, so nothing here is a guess about what needs
@@ -426,3 +426,155 @@ point at which authentication stops being optional. ADR-008 is rewritten to say 
       **Done when:** the binary is built on Linux with zero AOT warnings; the unit sets
       `MemoryDenyWriteExecute=true` and loses its `NOT set` comment; ADR-016 is amended; and the
       AOT binary passes the database tests and a smoke test against `dev/mock-vigild.mjs`.
+
+## Phase 7: ZFS pool state, and a verdict that covers everything
+
+Added 2026-10-17. **Evidence:** `docs/incidents/2026-10-17-void-disk-fault.md`. ZFS faulted a
+disk on `void`, the hot spare resilvered, and the pool read DEGRADED for nine days while the
+dashboard said Live. vigil has no pool state, and SMART still said PASSED for the faulted disk.
+Decisions: ADR-018 and ADR-019.
+
+**Do the host side first.** zed posting to ntfy needs no vigil code, and it is the push that
+still works when vigil is down (ADR-018). It and the other host items are listed in the incident
+write-up.
+
+### Where this differs from the write-up on the night
+
+That proposal was written before checking the code. It changed in these places:
+
+- **No new `/events` event type.** `/events` already carries every snapshot, one per control
+  poll. Pools ride in the snapshot the way `driveHealth` does. vigil's delay on a pool change is
+  the `[zfs]` poll interval, not the stream. zed is the immediate path.
+- **No ntfy priority per rule.** `NtfyClient` derives priority from `Severity`: critical is
+  `urgent`, warning is `default`, and info is not pushed. Each rule below has a severity, and no
+  fourth level is added.
+- **No `zfs_pool_state` table.** A pool changing state is a condition being raised and cleared,
+  and `events` already records that, under kind `zfs-pool:<pool>`. New tables hold only what
+  events cannot: scans and vdev error counters.
+- **Debounced per ZFS poll, not per snapshot.** `ConditionDebouncer` counts updates, and a pool
+  reading repeats unchanged in every 2 s snapshot until the next 60 s poll. Debouncing on
+  snapshots would therefore debounce nothing. Pool conditions are fed in only when a pool's
+  `asOf` changes.
+- **The time of the last scrub is vigil-core's to remember.** `zpool status` reports only the
+  latest scan, so a resilver hides the scrub before it. History is vigil-core's job
+  (invariant 4).
+
+### Steps, each ending green
+
+- [ ] **7.1 vigild: `zfs.rs` reads pool state.**
+      - `[zfs]` in `vigild.toml`: `enabled` (default false, so a host without ZFS does not log
+        a failing `zpool` every minute; `deploy/vigild.toml` sets it to true), `zpool_path`,
+        `poll_interval_secs = 60` and `timeout_secs = 15`. All of it is checked in
+        `config/validate.rs`, and the timeout must be shorter than the interval.
+      - It runs on its own thread, like `spawn_drive_health_poller`, and the control loop copies
+        the latest result into each snapshot. A hung `zpool` (a SUSPENDED pool, or
+        `failmode=wait`) costs that thread its timeout and never costs a fan poll:
+        `process::run` kills the child and does not block waiting to reap it.
+      - The commands are `zpool status -j --json-int` and `zpool list -j --json-int`, through
+        `process::run`: argv, null stdin, output capped at 1 MiB (SECURITY.md §5). Only these
+        read-only subcommands appear in the code, and config supplies only the binary's path.
+        Neither command touches a disk, so a sleeping drive stays asleep, the same rule as
+        `smart.rs`'s `-n standby`.
+      - Parsing is pure and tested against fixtures **captured on orion's ZFS 2.4.4**, not
+        written by hand, because the JSON layout is ZFS's and not ours. There are four:
+        healthy, DEGRADED with a spare INUSE, resilver in progress, and a scrub finished with
+        errors. A document of an unexpected shape makes the pool unavailable, never ONLINE
+        (SECURITY.md §4.3; invariant 3 applied to pools).
+      - **Wire:** `Snapshot.pools: Option<Vec<PoolStatus>>`, `#[serde(default)]`. `null`
+        means `[zfs]` is off, and the panel is hidden the way UPS `enabled: false` hides
+        the UPS. `[]` means ZFS is on and has no pools. For each pool: `name`, `state`,
+        `errorCount`, `scan` (function, state, start, end, examined, to examine, errors),
+        `size`, `allocated`, `fragmentation`, `isAvailable` and `asOf`. Its `vdevs`, every
+        leaf: `name`, `path`, `wwn`, `port`, `parent` (`raidz2-0`, `spare-5`, …), `role`
+        (member, spare, log, cache, special), `state`, read, write and checksum errors, and
+        `slowIos`. Spares are vdevs with `role: spare`, AVAIL or INUSE, not a second list.
+      - **Keys (ADR-009):** each vdev's `path` is resolved to its disk with the identity
+        `sensors.rs` already gives drives, so `wwn` equals `driveHealth.deviceName`, and `port`
+        is the disk's by-path link. A vdev that is not a disk (the file-backed test pool in 7.8)
+        has a null `wwn` and `port` and keeps its `path`.
+      - **Unit:** no change is expected (`ProtectSystem=full`, no `PrivateDevices`). But `zpool`
+        inherits `RestrictAddressFamilies=AF_UNIX`, so check on the host before deploying:
+        `systemd-run --pty -p RestrictAddressFamilies=AF_UNIX -p ProtectSystem=full zpool status -j`.
+      - *Enforcer:* the parser and identity tests, config validation tests, and a regenerated
+        `daemon/contract.json`. Docs: the ARCHITECTURE module map, `zpool` in SECURITY.md §1 and
+        §5, and the README's API sample.
+- [ ] **7.2 vigil-core: the client types and history.**
+      - The pool records in `Protocol/Snapshot.cs`. The existing round trip against
+        `daemon/contract.json` covers them.
+      - `core/sql/schema.sql` gets two tables. `zfs_scans` has one row per scrub or resilver:
+        pool, function, start, end, examined and errors, keyed by (pool, function, start) and
+        updated while the scan runs. `zfs_vdev_errors` gets rows only when a counter changes:
+        ts, pool, vdev key (`wwn`, else `path`), read, write, checksum and slow. That is the
+        `drive_health_history` pattern. The statements go in `core/sql/`, with values bound.
+      - Both are written through `IRuntimeStore`, so the live view and alerting keep working
+        without a database (invariant 5).
+      - *Enforcer:* database tests, which need `VIGIL_TEST_DATABASE_URL`.
+- [ ] **7.3 vigil-core: the alert rules.** `Alerting/PoolConditions.cs` turns levels into
+      debounced conditions. `Alerting/PoolDiff.cs` turns counters and scans into one-time
+      events, the way `DriveHealthDiff` does. Both are pure, and their tests are the
+      specification.
+
+      | Rule | Kind | Severity |
+      |---|---|---|
+      | pool `state` ≠ ONLINE | condition `zfs-pool:<pool>` | critical |
+      | any vdev ≠ ONLINE, including a spare INUSE (an AVAIL spare is fine) | condition `zfs-vdev:<pool>:<key>` | critical |
+      | `errorCount` > 0: permanent data errors | condition `zfs-data-errors:<pool>` | critical |
+      | a vdev's read, write or checksum errors grew since the last poll | event | warning |
+      | resilver started | event | warning |
+      | resilver finished, with its duration and errors | event | warning with errors, else info |
+      | scrub finished with errors | event | warning |
+      | last completed scrub older than `ZFS_SCRUB_MAX_AGE_DAYS` (35: scrubs are monthly) | condition | warning |
+      | capacity ≥ 80 %, and ≥ 90 % | one condition, severity by level, hysteresis via `IsRaised` | warning, critical |
+      | `pools` unavailable, or `asOf` older than 5 min | condition `zfs-unreadable` | warning |
+      | fewer AVAIL spares than `ZFS_EXPECTED_SPARES` (`void:2`) | condition | warning |
+
+      A failed `zpool` poll feeds the debouncer with `isComplete: false`, so it can never clear
+      DEGRADED. That is the lesson `UpsConditions` learned for "on battery". The new options go
+      through `VigilEnvironment` and `VigilOptionsValidator`. `VigilRuntime.cs` is at 385
+      lines, so the pool feed goes in its own runtime type rather than in the runtime itself.
+      **Decide at review:** the write-up wants each alert sent again when it recovers. A
+      cleared condition is logged as info today, and info is not pushed. Recommendation: push
+      the all-clear of any condition that was itself pushed, for every rule and not only ZFS.
+      A false fault is cheap to undo only for someone who knows it happened, and the same
+      person wants to know when it is over.
+- [ ] **7.4 vigil-core: stream the verdict (ADR-019).** Add a new `alerts` live message with
+      the raised conditions (kind, severity, message, since), sent on connect and on every
+      raise or clear. Add a `pools` message for what only vigil-core knows: each pool's last
+      completed scrub, from `zfs_scans`, null without a database. *Enforcer:* a regenerated
+      `core/contract.json` and the web contract test.
+- [ ] **7.5 web: the verdict, the pool panel, ZFS beside SMART.**
+      - The header shows the worst of the connection states (as it does today) and every raised
+        condition. Green means nothing is raised, not just that the fans are fine. The detail
+        line names the worst condition and how many others there are. This is a pure function in
+        `$lib/`, with vitest.
+      - `PoolPanel.svelte`, one per pool: a state badge, a progress bar for a scrub or resilver
+        with an ETA from its rate, capacity, and how long ago the last scrub ran.
+      - `DriveTable` gains ZFS columns joined by WWN: pool, role, state and errors. A disk that
+        ZFS has faulted reads critical whatever SMART says.
+      - `dev/mock-vigild.mjs` serves pools, with a switch for DEGRADED and for a resilver, so the
+        page can be built without ZFS.
+- [ ] **7.6 SMART: read this disk's only warning sign.** `smart.rs` reads Reported_Uncorrect
+      (187), Command_Timeout (188) and UDMA_CRC_Error_Count (199) as named constants, the serial
+      number, and the last self-test's result and age (`-l selftest` added to the argv;
+      `-n standby` still skips a sleeping drive). In `DriveHealthDiff`, growth in 187 or 188 is
+      a warning, and so is growth in 199, which is usually the cable (the 10-16 `ata2` reset). A
+      failed self-test is critical. A last self-test older than 8 days is a warning, but only
+      once smartd schedules tests (host side). A failed `passed` also becomes a condition, so it
+      holds the verdict (ADR-019). New columns use `alter table … add column if not exists`.
+- [ ] **7.7 The bay view. Decide at review.** It needs a mapping from port to (cage, slot), and
+      none exists yet. Recommendation: `[[bays]]` in `vigild.toml`, which already names and
+      validates ports in its zones, published in the snapshot. Each slot shows the disk's
+      serial and WWN, its ZFS role, state and errors, and SMART, so the bay to pull can be read
+      off the page.
+- [ ] **7.8 Verify on a scratch pool, never `void`.**
+      ```sh
+      truncate -s 1G /tmp/zt{1..5}
+      zpool create ztest raidz2 /tmp/zt1 /tmp/zt2 /tmp/zt3 /tmp/zt4 spare /tmp/zt5
+      zinject -d /tmp/zt1 -e io -T read -f 100 ztest     # I/O errors → zed faults zt1, spare attaches
+      zpool offline ztest /tmp/zt2                        # DEGRADED without errors
+      zinject -c all; zpool destroy ztest
+      ```
+      For each step, check that zed's ntfy push arrives, then vigil's, that the snapshot shows
+      the change within one `[zfs]` poll, that the page goes red, and that everything recovers
+      when the change is undone. **Done when** this has been run on orion and the result is
+      recorded here.
