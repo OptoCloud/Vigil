@@ -14,6 +14,7 @@ mod conditions;
 mod config;
 mod control;
 mod curve;
+mod disks;
 mod fans;
 mod gpu;
 mod hba;
