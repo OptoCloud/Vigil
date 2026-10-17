@@ -5,14 +5,15 @@
 //   node dev/mock-vigild.mjs [port]            then run vigil-core with VIGILD_URL=http://127.0.0.1:5178
 //
 // Type a letter + Enter to inject a fault: s = stall a fan, g = GPU unreadable,
-// u = loop unhealthy, r = grow a drive's reallocated count, c = clear all faults.
+// u = loop unhealthy, r = grow a drive's reallocated count, z = fault a pool disk onto a spare
+// (void's night of 2026-10-08), c = clear all faults.
 
 import http from 'node:http';
 
 const port = Number(process.argv[2] ?? 5178);
 const POLL_MS = 2000;
 
-const faults = { stall: false, gpu: false, unhealthy: false };
+const faults = { stall: false, gpu: false, unhealthy: false, pool: false };
 let reallocated = 1048;
 let driveHealthAsOf = new Date().toISOString();
 
@@ -48,6 +49,63 @@ const fans = [
 const wave = (periodSeconds, phase = 0) => Math.sin((Date.now() / 1000 / periodSeconds) * 2 * Math.PI + phase);
 const noise = (amount) => (Math.random() - 0.5) * amount;
 const duty = (celsius, low, high) => Math.round(Math.min(100, Math.max(30, 30 + ((celsius - low) / (high - low)) * 70)));
+
+const TIB = 2 ** 40;
+
+// void: a raidz2 of the eight LSI disks with the 4-bay pair as hot spares; rpool: the SSD mirror.
+// Under the pool fault, the sixth disk is FAULTED and the first spare stands in for it.
+function zfs() {
+	const leaf = (d, parent, changes = {}) => ({
+		name: `ata-ST4000VN008_${d.wwn.slice(-6).toUpperCase()}`,
+		guid: String(9000000000000000000n + BigInt(d.wwn.length * 1000 + drives.indexOf(d))),
+		path: `/dev/disk/by-id/ata-ST4000VN008_${d.wwn.slice(-6).toUpperCase()}-part1`,
+		deviceName: d.wwn,
+		port: d.port,
+		parent,
+		class: 'normal',
+		state: 'ONLINE',
+		aux: null,
+		readErrors: 0,
+		writeErrors: 0,
+		checksumErrors: 0,
+		slowIos: 0,
+		...changes
+	});
+	const idle = { parent: null, class: 'spare', state: 'AVAIL', readErrors: null, writeErrors: null, checksumErrors: null, slowIos: null };
+	const members = drives.slice(0, 8).map((d, i) =>
+		faults.pool && i === 5 ? leaf(d, 'spare-5', { state: 'FAULTED', aux: 'ERR_EXCEEDED', readErrors: 14 }) : leaf(d, 'raidz2-0')
+	);
+	const spares = faults.pool
+		? [leaf(drives[8], 'spare-5', { class: 'spare', state: 'INUSE' }), leaf(drives[9], null, idle)]
+		: [leaf(drives[8], null, idle), leaf(drives[9], null, idle)];
+	const started = Math.floor(Date.now() / 1000) - 3 * 3600;
+	return {
+		isAvailable: true,
+		asOf: new Date().toISOString(),
+		pools: [
+			{
+				name: 'void',
+				state: faults.pool ? 'DEGRADED' : 'ONLINE',
+				errorCount: 0,
+				sizeBytes: Math.round(29.1 * TIB),
+				allocatedBytes: Math.round(11.8 * TIB),
+				scan: faults.pool
+					? { function: 'RESILVER', state: 'SCANNING', startTime: new Date(started * 1000).toISOString(), endTime: null, toExamineBytes: Math.round(11.8 * TIB), examinedBytes: Math.round(7.1 * TIB), issuedBytes: Math.round(4.2 * TIB), processedBytes: Math.round(0.5 * TIB), errors: 0 }
+					: { function: 'SCRUB', state: 'FINISHED', startTime: '2026-10-11T00:24:01.000Z', endTime: '2026-10-11T09:10:54.000Z', toExamineBytes: Math.round(11.8 * TIB), examinedBytes: Math.round(11.8 * TIB), issuedBytes: Math.round(11.8 * TIB), processedBytes: 0, errors: 0 },
+				vdevs: [...members, ...spares]
+			},
+			{
+				name: 'rpool',
+				state: 'ONLINE',
+				errorCount: 0,
+				sizeBytes: Math.round(0.45 * TIB),
+				allocatedBytes: Math.round(0.12 * TIB),
+				scan: null,
+				vdevs: drives.slice(11).map((d) => leaf(d, 'mirror-0'))
+			}
+		]
+	};
+}
 
 function snapshot() {
 	const cpu = 46 + wave(600) * 12 + noise(1.5);
@@ -106,6 +164,7 @@ function snapshot() {
 			isAvailable: true,
 			asOf: driveHealthAsOf
 		})),
+		zfs: zfs(),
 		controlLoopHealthy: !faults.unhealthy
 	};
 }
@@ -129,7 +188,7 @@ http
 			response.writeHead(404).end();
 		}
 	})
-	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/c + Enter to inject faults)`));
+	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/z/c + Enter to inject faults)`));
 
 process.stdin.on('data', (input) => {
 	const key = input.toString().trim();
@@ -139,6 +198,7 @@ process.stdin.on('data', (input) => {
 	else if (key === 'r') {
 		reallocated += 8;
 		driveHealthAsOf = new Date().toISOString();
-	} else if (key === 'c') faults.stall = faults.gpu = faults.unhealthy = false;
+	} else if (key === 'z') faults.pool = true;
+	else if (key === 'c') faults.stall = faults.gpu = faults.unhealthy = faults.pool = false;
 	console.log('faults:', faults, 'reallocated:', reallocated);
 });

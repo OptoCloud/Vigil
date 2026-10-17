@@ -1,5 +1,12 @@
-/* Design tokens. Every component is written against these roles, never raw hex, so light
-   and dark are swapped in exactly one place. Dark is a selected palette (its own steps,
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Tailwind's dark: variant follows the class static/theme.js and mode-watcher put on <html>,
+   never the media query directly: "auto" is resolved to a class before first paint. */
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens. Every component is written against these roles, never raw hex, so light and
+   dark are swapped in exactly one place each. Dark is a selected palette (its own steps,
    validated against the dark surface), not an automatic inversion. */
 :root {
 	color-scheme: light;
@@ -12,6 +19,7 @@
 	--axis: #c3c2b7;
 	--border: rgba(11, 11, 11, 0.1);
 	--hover: rgba(11, 11, 11, 0.05);
+	--subtle: #efefeb;
 
 	/* Categorical series, fixed order. The order is what makes adjacent series separable under colour-vision deficiency. */
 	--series-1: #2a78d6;
@@ -30,38 +38,13 @@
 	--status-warning: #fab219;
 	--status-serious: #ec835a;
 	--status-critical: #d03b3b;
+	/* Ink on the warning fill, a light yellow in both themes, so it never flips with them. */
+	--on-warning: #0b0b0b;
 
-	font-family:
-		system-ui,
-		-apple-system,
-		'Segoe UI',
-		sans-serif;
+	--radius: 0.625rem;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme='light']) {
-		color-scheme: dark;
-		--page: #0d0d0d;
-		--surface: #1a1a19;
-		--text-primary: #ffffff;
-		--text-secondary: #c3c2b7;
-		--text-muted: #898781;
-		--grid: #2c2c2a;
-		--axis: #383835;
-		--border: rgba(255, 255, 255, 0.1);
-		--hover: rgba(255, 255, 255, 0.06);
-		--series-1: #3987e5;
-		--series-2: #d95926;
-		--series-3: #199e70;
-		--series-4: #c98500;
-		--series-5: #d55181;
-		--series-6: #008300;
-		--meter-fill: #3987e5;
-		--meter-track: #104281;
-	}
-}
-
-:root[data-theme='dark'] {
+.dark {
 	color-scheme: dark;
 	--page: #0d0d0d;
 	--surface: #1a1a19;
@@ -72,6 +55,7 @@
 	--axis: #383835;
 	--border: rgba(255, 255, 255, 0.1);
 	--hover: rgba(255, 255, 255, 0.06);
+	--subtle: #262625;
 	--series-1: #3987e5;
 	--series-2: #d95926;
 	--series-3: #199e70;
@@ -82,59 +66,60 @@
 	--meter-track: #104281;
 }
 
-*,
-*::before,
-*::after {
-	box-sizing: border-box;
+/* vigil's roles under the names shadcn-svelte's components are written against, so the vendored
+   components inherit the palette without being edited (ADR-011). */
+@theme inline {
+	--font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+	--color-background: var(--page);
+	--color-foreground: var(--text-primary);
+	--color-card: var(--surface);
+	--color-card-foreground: var(--text-primary);
+	--color-popover: var(--surface);
+	--color-popover-foreground: var(--text-primary);
+	--color-primary: var(--text-primary);
+	--color-primary-foreground: var(--surface);
+	--color-secondary: var(--subtle);
+	--color-secondary-foreground: var(--text-primary);
+	--color-muted: var(--subtle);
+	--color-muted-foreground: var(--text-secondary);
+	--color-accent: var(--hover);
+	--color-accent-foreground: var(--text-primary);
+	--color-destructive: var(--status-critical);
+	--color-border: var(--border);
+	--color-input: var(--border);
+	--color-ring: var(--series-1);
+
+	/* vigil's own roles, as utilities: text-faint, border-grid, bg-series-1, fill-status-good. */
+	--color-faint: var(--text-muted);
+	--color-grid: var(--grid);
+	--color-axis: var(--axis);
+	--color-series-1: var(--series-1);
+	--color-series-2: var(--series-2);
+	--color-series-3: var(--series-3);
+	--color-series-4: var(--series-4);
+	--color-series-5: var(--series-5);
+	--color-series-6: var(--series-6);
+	--color-meter-fill: var(--meter-fill);
+	--color-meter-track: var(--meter-track);
+	--color-status-good: var(--status-good);
+	--color-status-warning: var(--status-warning);
+	--color-status-serious: var(--status-serious);
+	--color-status-critical: var(--status-critical);
+	--color-on-warning: var(--on-warning);
+
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
 }
 
-body {
-	margin: 0;
-	background: var(--page);
-	color: var(--text-primary);
-	font-size: 14px;
-	line-height: 1.45;
-}
+@layer base {
+	* {
+		@apply border-border;
+	}
 
-h1,
-h2,
-h3,
-p {
-	margin: 0;
-}
-
-button {
-	font: inherit;
-	color: inherit;
-}
-
-.card {
-	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 10px;
-	padding: 16px;
-	min-width: 0;
-}
-
-.card-title {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--text-secondary);
-}
-
-.muted {
-	color: var(--text-muted);
-}
-
-.numeric {
-	font-variant-numeric: tabular-nums;
-}
-
-.visually-hidden {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
+	body {
+		@apply bg-background text-sm leading-[1.45] text-foreground;
+	}
 }

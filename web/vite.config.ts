@@ -1,4 +1,5 @@
 import adapter from '@sveltejs/adapter-static';
+import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 
@@ -12,6 +13,7 @@ const CORE_URL = process.env.VIGIL_CORE_URL ?? 'http://127.0.0.1:3001';
 
 export default defineConfig({
 	plugins: [
+		tailwindcss(),
 		sveltekit({
 			compilerOptions: {
 				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.
@@ -19,9 +21,11 @@ export default defineConfig({
 			},
 
 			// Files only: vigil-core serves build/ from WEB_ROOT, and everything live comes from
-			// its API. There is no Node process in the deployment. One page, prerendered, so no
-			// SPA fallback either: an unknown path is a 404 from vigil-core.
-			adapter: adapter({ pages: 'build', assets: 'build', fallback: undefined, strict: true }),
+			// its API. There is no Node process in the deployment. Every page is prerendered except
+			// a disk's own, whose name is only known at run time: the fallback page renders it in
+			// the browser, and vigil-core serves it for /drives/<name> alone (ADR-020), under the
+			// name Dashboard.FallbackPage gives it there. Any other unknown path stays a 404.
+			adapter: adapter({ pages: 'build', assets: 'build', fallback: 'spa.html', strict: true }),
 
 			// docs/SECURITY.md §8. Everything served is shipped here, so no external origin is
 			// allowed anywhere. 'hash' because the page is prerendered: there is no per-response
