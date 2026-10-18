@@ -77,12 +77,12 @@ timeout_secs = 15
 id = "eight-bay"
 sensor_ids = ["port:pci-0000:03:00.0-sas-*"]
 
-# 4-bay 1 is ata-3 (scratch, SMR), 4-bay 3 is ata-6 and 4-bay 4 is ata-5 (the hot spares).
-# 4-bay 2 would be ata-4, which has nothing attached; add it here if a disk goes in, since
+# 4-bay 1 is ata-3 (scratch, SMR), 4-bay 2 is ata-4 and 4-bay 3 is ata-6 (the hot spares).
+# 4-bay 4 would be ata-5, which has nothing attached; add it here if a disk goes in, since
 # a port named here with no drive on it counts as an unreadable sensor.
 [[zones]]
 id = "four-bay"
-sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-6", "port:pci-0000:01:00.1-ata-5"]
+sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-4", "port:pci-0000:01:00.1-ata-6"]
 
 # The two rpool SSDs on ata-1 and ata-2, bolted to the top compartment's case wall.
 [[zones]]
