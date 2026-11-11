@@ -12,12 +12,14 @@ public sealed class PoolConditionsTests
         DateTimeOffset? now = null,
         Dictionary<string, DateTimeOffset>? scrubs = null,
         Dictionary<string, int>? spares = null,
-        Func<string, bool>? isRaised = null) => new(
+        Severity? raised = null,
+        IReadOnlyList<Bay>? bays = null) => new(
             now ?? At,
             scrubs ?? [],
             TimeSpan.FromDays(35),
             spares ?? [],
-            isRaised ?? (_ => false));
+            _ => raised,
+            BayNames.Of(bays ?? []));
 
     [Fact]
     public void AHealthyPoolHasNoConditions()
@@ -71,19 +73,33 @@ public sealed class PoolConditionsTests
         Assert.Contains(PoolConditions.Unreadable, PoolConditions.Of(Zfs(Pool()), Judge(now: At.AddMinutes(6))).Keys);
     }
 
-    [Fact]
-    public void CapacityWarnsAtEightyIsCriticalAtNinetyAndClearsOnlyTwoPointsBelow()
+    [Theory]
+    [InlineData(799, null, null)]
+    [InlineData(800, null, Severity.Warning)]
+    [InlineData(900, null, Severity.Critical)]
+    // Each level, once reached, holds two points below itself, so a pool hovering at a line does not flap.
+    [InlineData(785, Severity.Warning, Severity.Warning)]
+    [InlineData(779, Severity.Warning, null)]
+    [InlineData(885, Severity.Critical, Severity.Critical)]
+    [InlineData(879, Severity.Critical, Severity.Warning)]
+    [InlineData(885, Severity.Warning, Severity.Warning)]
+    public void CapacityIsOneConditionWhoseSeverityFollowsTheLevel(ulong allocated, Severity? raised, Severity? expected)
     {
-        Assert.Empty(PoolConditions.Of(Zfs(Pool(allocated: 799)), Judge()));
-        Assert.Equal(["zfs-capacity:void"], PoolConditions.Of(Zfs(Pool(allocated: 800)), Judge()).Keys);
+        var conditions = PoolConditions.Of(Zfs(Pool(allocated: allocated)), Judge(raised: raised));
 
-        var full = PoolConditions.Of(Zfs(Pool(allocated: 900)), Judge());
-        Assert.Equal(Severity.Critical, full["zfs-capacity-critical:void"].Severity);
-        Assert.Equal(Severity.Warning, full["zfs-capacity:void"].Severity);
+        Assert.Equal(expected, conditions.TryGetValue("zfs-capacity:void", out var capacity) ? capacity.Severity : null);
+        Assert.True(conditions.Count <= 1);
+    }
 
-        // Raised, it holds down to 78 %, so a pool hovering at the line does not flap.
-        Assert.Contains("zfs-capacity:void", PoolConditions.Of(Zfs(Pool(allocated: 785)), Judge(isRaised: _ => true)).Keys);
-        Assert.Empty(PoolConditions.Of(Zfs(Pool(allocated: 779)), Judge(isRaised: _ => true)));
+    [Fact]
+    public void AFailedDiskSaysWhichBayItIsIn()
+    {
+        var faulted = Disk("a", "1", "FAULTED") with { Port = "pci-0000:03:00.0-sas-phy5-lun-0" };
+        var bays = new[] { new Bay { Port = "pci-0000:03:00.0-sas-phy5-lun-0", Cage = "8-bay", Slot = 6 } };
+
+        var conditions = PoolConditions.Of(Zfs(Pool(state: "DEGRADED", vdevs: [faulted])), Judge(bays: bays));
+
+        Assert.Equal("a (8-bay slot 6) in pool void is FAULTED (ERR_EXCEEDED).", conditions["zfs-vdev:void:1"].Message);
     }
 
     [Fact]

@@ -235,6 +235,16 @@ pub struct VdevStatus {
     pub slow_ios: Option<u64>,
 }
 
+/// One drive bay from `[[bays]]`: the port behind it and where it is in the case. Static
+/// config, published so that the page needs no copy of it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bay {
+    pub port: String,
+    pub cage: String,
+    pub slot: u32,
+}
+
 /// The full read-only view of vigild's state. This is the contract consumers build on:
 /// treat a field rename here as a breaking change.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -247,6 +257,10 @@ pub struct Snapshot {
     /// Null when `[zfs]` is off, before its first poll, and from a daemon that predates it.
     #[serde(default)]
     pub zfs: Option<ZfsStatus>,
+    /// Every configured bay, in config order. Empty without `[[bays]]`, and from a daemon
+    /// that predates them.
+    #[serde(default)]
+    pub bays: Vec<Bay>,
     /// False when any channel couldn't be driven this poll, or (judged at read time) when
     /// this snapshot is older than the deadman timeout, i.e. the loop has hung.
     pub control_loop_healthy: bool,

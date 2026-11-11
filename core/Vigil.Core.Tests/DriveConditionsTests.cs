@@ -36,7 +36,19 @@ public sealed class DriveConditionsTests
 
         Assert.Equal(["drive-failed:naa.1", "drive-self-test:naa.1"], conditions.Keys);
         Assert.All(conditions.Values, c => Assert.Equal(Severity.Critical, c.Severity));
-        Assert.Contains("serial ZDH8XK2P", conditions["drive-failed:naa.1"].Message, StringComparison.Ordinal);
+        Assert.StartsWith("Drive naa.1 (serial ZDH8XK2P) FAILED", conditions["drive-failed:naa.1"].Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AFailedDriveSaysWhichBayItWasLastSeenIn()
+    {
+        var bays = BayNames.Of([new Bay { Port = "pci-0000:01:00.1-ata-4", Cage = "4-bay", Slot = 2 }]);
+
+        var failed = DriveConditions.Of([Drive(passed: false) with { Port = "pci-0000:01:00.1-ata-4" }], null, bays);
+        var unplaced = DriveConditions.Of([Drive(passed: false) with { SerialNumber = null }], null, bays);
+
+        Assert.StartsWith("Drive naa.1 (serial ZDH8XK2P, 4-bay slot 2) FAILED", failed["drive-failed:naa.1"].Message, StringComparison.Ordinal);
+        Assert.StartsWith("Drive naa.1 FAILED", unplaced["drive-failed:naa.1"].Message, StringComparison.Ordinal);
     }
 
     [Fact]

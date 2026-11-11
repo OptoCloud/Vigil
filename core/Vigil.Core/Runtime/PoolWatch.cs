@@ -29,6 +29,7 @@ internal sealed class PoolWatch(VigilOptions options, TimeProvider time)
     private readonly IReadOnlyDictionary<string, int> _expectedSpares = SpareCounts.Of(options);
     private readonly Dictionary<string, DateTimeOffset> _lastScrubs = new(StringComparer.Ordinal);
 
+    private IReadOnlyDictionary<string, string> _bays = BayNames.Of([]);
     private ZfsStatus? _latest;
     private ZfsStatus? _lastReadable;
     private string? _lastAsOf;
@@ -64,9 +65,11 @@ internal sealed class PoolWatch(VigilOptions options, TimeProvider time)
     /// Takes one snapshot's ZFS report. Returns what a NEW poll means against the last readable
     /// one, or null when this is the poll already seen (or vigild does not report ZFS).
     /// </summary>
-    public PoolUpdate? Observe(ZfsStatus? zfs)
+    /// <param name="bays">vigild's <c>[[bays]]</c>, so an alert can say where a failed disk is.</param>
+    public PoolUpdate? Observe(ZfsStatus? zfs, IReadOnlyList<Bay> bays)
     {
         _latest = zfs;
+        _bays = BayNames.Of(bays);
         if (zfs is null || zfs.AsOf == _lastAsOf)
         {
             return null;
@@ -92,7 +95,7 @@ internal sealed class PoolWatch(VigilOptions options, TimeProvider time)
     /// <summary>Judges the pool conditions now; returns what was raised or cleared.</summary>
     public List<NewEvent> Evaluate()
     {
-        var judgement = new PoolJudgement(time.GetUtcNow(), _lastScrubs, _scrubMaxAge, _expectedSpares, _debouncer.IsRaised);
+        var judgement = new PoolJudgement(time.GetUtcNow(), _lastScrubs, _scrubMaxAge, _expectedSpares, _debouncer.RaisedSeverity, _bays);
         return _debouncer.Update(PoolConditions.Of(_latest, judgement), PoolConditions.IsComplete(_latest));
     }
 }

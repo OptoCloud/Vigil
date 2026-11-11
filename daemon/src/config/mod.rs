@@ -3,6 +3,7 @@
 //! Validation lives in `validate.rs`, next door: it is the larger half and a different job.
 //! What it guards is described there.
 
+mod bays;
 mod validate;
 
 use serde::Deserialize;
@@ -34,6 +35,7 @@ pub struct Config {
     pub zones: Vec<ZoneConfig>,
     pub channels: Vec<ChannelConfig>,
     pub curves: Vec<CurveConfig>,
+    pub bays: Vec<BayConfig>,
 }
 
 impl Default for Config {
@@ -52,6 +54,7 @@ impl Default for Config {
             zones: Vec::new(),
             channels: Vec::new(),
             curves: Vec::new(),
+            bays: Vec::new(),
         }
     }
 }
@@ -203,6 +206,19 @@ fn default_minimum_duty() -> i64 {
 pub struct ZoneConfig {
     pub id: String,
     pub sensor_ids: Vec<String>,
+}
+
+/// One drive bay: the port behind it and where it is in the case, as printed on the cage.
+/// Published in the snapshot for the page's bay view; vigild itself never acts on it.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BayConfig {
+    /// The /dev/disk/by-path name, without the "port:" that zone members carry.
+    pub port: String,
+    /// The cage or stack the bay is in ("8-bay").
+    pub cage: String,
+    /// Counted from 1, the way the cage is labelled.
+    pub slot: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

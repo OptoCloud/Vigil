@@ -164,6 +164,7 @@ impl Config {
             ));
         }
 
+        super::bays::validate(&self.bays, &mut errors);
         errors
     }
 }

@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type {
 	Alert,
+	Bay,
 	DriveHealth,
 	DriveHealthRecord,
 	DriveState,
@@ -92,8 +93,10 @@ const TYPE_KEYS = {
 		fans: 1,
 		driveHealth: 1,
 		zfs: 1,
+		bays: 1,
 		controlLoopHealthy: 1
 	} satisfies Record<keyof Snapshot, 1>,
+	Bay: { port: 1, cage: 1, slot: 1 } satisfies Record<keyof Bay, 1>,
 	ZfsStatus: { isAvailable: 1, asOf: 1, pools: 1 } satisfies Record<keyof ZfsStatus, 1>,
 	PoolStatus: {
 		name: 1,

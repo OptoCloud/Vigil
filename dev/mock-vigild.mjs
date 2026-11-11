@@ -21,13 +21,13 @@ const ZFS_POLL_MS = 60_000;
 let reallocated = 1048;
 let driveHealthAsOf = new Date().toISOString();
 
-// orion's ports: eight on the LSI's phys, three in the 4-bay stack (ata-4 is empty), and the
-// two SSDs on ata-1 and ata-2.
+// orion's ports: eight on the LSI's phys, three in the 4-bay stack (ata-3 the SMR scratch disk,
+// ata-4 and ata-6 the hot spares; ata-5 is empty), and the two SSDs on ata-1 and ata-2.
 const PORTS = [
 	...Array.from({ length: 8 }, (_, phy) => `pci-0000:03:00.0-sas-phy${phy}-lun-0`),
 	'pci-0000:01:00.1-ata-3',
+	'pci-0000:01:00.1-ata-4',
 	'pci-0000:01:00.1-ata-6',
-	'pci-0000:01:00.1-ata-5',
 	'pci-0000:01:00.1-ata-1',
 	'pci-0000:01:00.1-ata-2'
 ];
@@ -39,6 +39,12 @@ const drives = Array.from({ length: 13 }, (_, i) => ({
 	base: 30 + ((i * 7) % 9),
 	ssd: i >= 11
 }));
+
+// deploy/vigild.toml's [[bays]]: the 8-bay is phy0-7 top to bottom, the 4-bay ata-3, 4, 6, 5.
+const BAYS = [
+	...Array.from({ length: 8 }, (_, phy) => ({ port: `pci-0000:03:00.0-sas-phy${phy}-lun-0`, cage: '8-bay', slot: phy + 1 })),
+	...[3, 4, 6, 5].map((ata, i) => ({ port: `pci-0000:01:00.1-ata-${ata}`, cage: '4-bay', slot: i + 1 }))
+];
 
 const fans = [
 	{ id: 'drive-cage', rpmPerPercent: 18.6 },
@@ -56,7 +62,7 @@ const duty = (celsius, low, high) => Math.round(Math.min(100, Math.max(30, 30 + 
 
 const TIB = 2 ** 40;
 
-// void: a raidz2 of the eight LSI disks with the 4-bay pair as hot spares; rpool: the SSD mirror.
+// void: a raidz2 of the eight LSI disks with ata-4 and ata-6 as hot spares; rpool: the SSD mirror.
 // Under the pool fault, the sixth disk is FAULTED and the first spare stands in for it.
 let zfsPolledAt = Date.now();
 setInterval(() => (zfsPolledAt = Date.now()), ZFS_POLL_MS);
@@ -87,8 +93,8 @@ function zfs() {
 				: leaf(d, 'raidz2-0')
 	);
 	const spares = faults.pool
-		? [leaf(drives[8], 'spare-5', { class: 'spare', state: 'INUSE' }), leaf(drives[9], null, idle)]
-		: [leaf(drives[8], null, idle), leaf(drives[9], null, idle)];
+		? [leaf(drives[9], 'spare-5', { class: 'spare', state: 'INUSE' }), leaf(drives[10], null, idle)]
+		: [leaf(drives[9], null, idle), leaf(drives[10], null, idle)];
 	const started = Math.floor(Date.now() / 1000) - 3 * 3600;
 	return {
 		isAvailable: true,
@@ -185,6 +191,7 @@ function snapshot() {
 			asOf: driveHealthAsOf
 		})),
 		zfs: zfs(),
+		bays: BAYS,
 		controlLoopHealthy: !faults.unhealthy
 	};
 }

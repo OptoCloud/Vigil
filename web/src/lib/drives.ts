@@ -2,7 +2,7 @@
 // temperatures, vigil-core's remembered SMART state, and ZFS's view of the same disk. Every
 // source names a disk the same way (vigild's daemon/src/disks.rs), which is what the joins rely on.
 
-import type { DriveState, HistoryResponse, PoolStatus, SensorReading, SeriesPoints, VdevStatus, ZfsStatus } from '#lib/types.ts';
+import type { Bay, DriveState, HistoryResponse, PoolStatus, SensorReading, SeriesPoints, VdevStatus, ZfsStatus } from '#lib/types.ts';
 import { vdevVerdict } from '#lib/zfs.ts';
 
 export type Level = 'good' | 'warning' | 'critical' | 'unknown';
@@ -22,6 +22,8 @@ export interface DriveRow {
 
 export interface BayRow {
 	port: string;
+	/** Where it is in the case, from vigild's `[[bays]]`; null for a port no bay names. */
+	place: { cage: string; slot: number } | null;
 	/** The disk in it now, or undefined for a bay that had one earlier in the range. */
 	wwn: string | undefined;
 	sensor: SensorReading | undefined;
@@ -54,8 +56,12 @@ export function driveRows(sensors: SensorReading[], drives: DriveState[], histor
 		.sort((a, b) => (b.sensor?.celsiusOrNull ?? -1) - (a.sensor?.celsiusOrNull ?? -1) || a.wwn.localeCompare(b.wwn));
 }
 
-/** Every bay that has a drive now or had one in the selected range, in physical order. */
-export function bayRows(sensors: SensorReading[], drives: DriveState[], history: HistoryResponse | null): BayRow[] {
+/**
+ * Every bay vigild's `[[bays]]` names, by cage and slot, empty ones included; then any other
+ * port that has a drive now or had one in the selected range, in physical order, so a disk
+ * on a port nobody configured is still listed rather than lost.
+ */
+export function bayRows(sensors: SensorReading[], drives: DriveState[], history: HistoryResponse | null, bays: Bay[] = []): BayRow[] {
 	const health = new Map(drives.map((drive) => [drive.wwn, drive]));
 	const occupants = new Map(
 		driveSensors(sensors)
@@ -66,13 +72,26 @@ export function bayRows(sensors: SensorReading[], drives: DriveState[], history:
 		.filter((id) => id.startsWith(PORT_PREFIX))
 		.map((id) => id.slice(PORT_PREFIX.length));
 
-	return [...new Set([...occupants.keys(), ...recorded])]
-		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-		.map((port) => {
-			const sensor = occupants.get(port);
-			const wwn = sensor ? wwnOf(sensor) : undefined;
-			return { port, wwn, sensor, health: wwn ? health.get(wwn) : undefined, trend: history?.temperatures[`${PORT_PREFIX}${port}`] ?? [] };
-		});
+	const cages = [...new Set(bays.map((bay) => bay.cage))];
+	const configured = [...bays].sort((a, b) => cages.indexOf(a.cage) - cages.indexOf(b.cage) || a.slot - b.slot);
+	const named = new Set(bays.map((bay) => bay.port));
+	const others = [...new Set([...occupants.keys(), ...recorded])]
+		.filter((port) => !named.has(port))
+		.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+	const row = (port: string, place: BayRow['place']): BayRow => {
+		const sensor = occupants.get(port);
+		const wwn = sensor ? wwnOf(sensor) : undefined;
+		return {
+			port,
+			place,
+			wwn,
+			sensor,
+			health: wwn ? health.get(wwn) : undefined,
+			trend: history?.temperatures[`${PORT_PREFIX}${port}`] ?? []
+		};
+	};
+	return [...configured.map((bay) => row(bay.port, { cage: bay.cage, slot: bay.slot })), ...others.map((port) => row(port, null))];
 }
 
 /**

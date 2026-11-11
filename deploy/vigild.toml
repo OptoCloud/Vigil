@@ -70,7 +70,7 @@ timeout_secs = 15
 # id, "drive:naa...") follows the disk and is what history and SMART are keyed on.
 # `ls -l /dev/disk/by-path/` on the host lists them. 0000:03:00.0 is the LSI SAS9300-8i,
 # 0000:01:00.1 the motherboard SATA controller; its ata numbers are the board's own port
-# numbers, not probe order (ata-4 exists with nothing attached).
+# numbers, not probe order (ata-5 exists with nothing attached).
 
 # The LSI's eight phys: 8-bay 1-8 are phy0-phy7. The void pool.
 [[zones]]
@@ -88,6 +88,70 @@ sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-4", "por
 [[zones]]
 id = "component-bay"
 sensor_ids = ["hba", "port:pci-0000:01:00.1-ata-1", "port:pci-0000:01:00.1-ata-2"]
+
+# Bays: where each port is in the case, so the page can say which disk to pull. Slots are
+# numbered as the cages are labelled, top to bottom. A bay is the port alone, without the
+# "port:" a zone member carries. 4-bay 4 (ata-5) is listed although it is empty: it then
+# shows as an empty slot, rather than as no slot at all.
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy0-lun-0"
+cage = "8-bay"
+slot = 1
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy1-lun-0"
+cage = "8-bay"
+slot = 2
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy2-lun-0"
+cage = "8-bay"
+slot = 3
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy3-lun-0"
+cage = "8-bay"
+slot = 4
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy4-lun-0"
+cage = "8-bay"
+slot = 5
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy5-lun-0"
+cage = "8-bay"
+slot = 6
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy6-lun-0"
+cage = "8-bay"
+slot = 7
+
+[[bays]]
+port = "pci-0000:03:00.0-sas-phy7-lun-0"
+cage = "8-bay"
+slot = 8
+
+[[bays]]
+port = "pci-0000:01:00.1-ata-3"
+cage = "4-bay"
+slot = 1
+
+[[bays]]
+port = "pci-0000:01:00.1-ata-4"
+cage = "4-bay"
+slot = 2
+
+[[bays]]
+port = "pci-0000:01:00.1-ata-6"
+cage = "4-bay"
+slot = 3
+
+[[bays]]
+port = "pci-0000:01:00.1-ata-5"
+cage = "4-bay"
+slot = 4
 
 # Header mapping verified on this board (ASRock B550 Pro4, NCT6798D) by walking each
 # channel in manual mode and watching which tach responds. pwm6 is unwired.

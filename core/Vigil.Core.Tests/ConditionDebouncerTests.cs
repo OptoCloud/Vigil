@@ -29,6 +29,27 @@ public sealed class ConditionDebouncerTests
     }
 
     [Fact]
+    public void ARaisedConditionThatWorsensIsAnnouncedAgainAndKeepsItsSince()
+    {
+        var time = new ManualTime();
+        var debouncer = new ConditionDebouncer(1, time);
+        Assert.Single(debouncer.Update(With("zfs-capacity:void", Severity.Warning, "81 % full", "below")));
+        var since = Assert.Single(debouncer.Raised).Since;
+        time.Advance(TimeSpan.FromDays(3));
+
+        var worse = Assert.Single(debouncer.Update(With("zfs-capacity:void", Severity.Critical, "91 % full", "below")));
+        Assert.Equal((Severity.Critical, "91 % full"), (worse.Severity, worse.Message));
+        Assert.Equal((Severity.Critical, since), (Assert.Single(debouncer.Raised).Severity, debouncer.Raised.Single().Since));
+        Assert.Equal(Severity.Critical, debouncer.RaisedSeverity("zfs-capacity:void"));
+
+        // Easing is shown, not announced; the same level again is neither.
+        Assert.Empty(debouncer.Update(With("zfs-capacity:void", Severity.Warning, "87 % full", "below")));
+        Assert.Equal(Severity.Warning, debouncer.RaisedSeverity("zfs-capacity:void"));
+        Assert.Empty(debouncer.Update(With("zfs-capacity:void", Severity.Warning, "86 % full", "below")));
+        Assert.Null(debouncer.RaisedSeverity("unknown"));
+    }
+
+    [Fact]
     public void ABlipShorterThanTheThresholdNeverRaises()
     {
         var debouncer = new ConditionDebouncer(3);

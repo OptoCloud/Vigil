@@ -79,6 +79,21 @@ describe('driveRows', () => {
 });
 
 describe('bayRows', () => {
+	it('lists configured bays by cage and slot, empty ones too, then any port no bay names', () => {
+		const bays = [
+			{ port: BAY_2, cage: '4-bay', slot: 2 },
+			{ port: 'pci-0000:01:00.1-ata-5', cage: '4-bay', slot: 4 },
+			{ port: BAY_1, cage: '4-bay', slot: 1 }
+		];
+		const rows = bayRows([sensor('a', 30, BAY_1), sensor('x', 30, 'pci-0000:01:00.1-ata-9')], [], null, bays);
+		expect(rows.map((row) => [row.place?.slot ?? null, row.wwn])).toEqual([
+			[1, 'a'],
+			[2, undefined],
+			[4, undefined],
+			[null, 'x']
+		]);
+	});
+
 	it('keeps a bay emptied during the range, in physical order', () => {
 		const history = { temperatures: { [`port:${BAY_2}`]: [] } } as unknown as HistoryResponse;
 		const bays = bayRows([sensor('a', 30, BAY_1)], [], history);

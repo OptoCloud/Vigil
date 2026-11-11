@@ -12,3 +12,6 @@ target/
 
 # core/deploy/package.sh staging
 .package/
+
+# The browser tool's screenshots and page dumps, from checking the dashboard by hand.
+.playwright-mcp/

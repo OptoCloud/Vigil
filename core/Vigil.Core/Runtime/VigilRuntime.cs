@@ -184,14 +184,14 @@ public sealed class VigilRuntime
         var events = _snapshotDebouncer.Update(SnapshotConditions.In(snapshot, _knownSensorIds));
         _knownSensorIds.UnionWith(snapshot.Sensors.Select(sensor => sensor.Id));
 
-        var drives = _drives.Observe(snapshot.DriveHealth);
+        var drives = _drives.Observe(snapshot.DriveHealth, snapshot.Bays);
         if (drives is not null)
         {
             events.AddRange(drives.Events);
             events.AddRange(_drives.Evaluate());
         }
 
-        var pools = _pools.Observe(snapshot.Zfs);
+        var pools = _pools.Observe(snapshot.Zfs, snapshot.Bays);
         if (pools is not null)
         {
             events.AddRange(pools.Events);
