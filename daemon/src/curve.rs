@@ -366,19 +366,19 @@ mod tests {
         // Real ports and WWNs from orion.
         let void = drive("naa.5000c500ccd11e3e", "pci-0000:03:00.0-sas-phy2-lun-0", 34.0);
         let scratch = drive("naa.5000c500bae40598", "pci-0000:01:00.1-ata-3", 32.0);
+        let spare2 = drive("naa.5000c5011401e3f1", "pci-0000:01:00.1-ata-4", 37.0);
         let spare3 = drive("naa.5000c50113c687c0", "pci-0000:01:00.1-ata-6", 38.0);
-        let spare4 = drive("naa.5000c5011401e3f1", "pci-0000:01:00.1-ata-5", 37.0);
         let ssd1 = drive("naa.5002538f543365df", "pci-0000:01:00.1-ata-1", 43.0);
         let ssd2 = drive("naa.5002538f3334be53", "pci-0000:01:00.1-ata-2", 40.0);
 
         // Every HDD in both stacks, neither SSD.
         let cage = curve("drive-cage");
-        assert!([&void, &scratch, &spare3, &spare4].iter().all(|r| matched(&cage, r)));
+        assert!([&void, &scratch, &spare2, &spare3].iter().all(|r| matched(&cage, r)));
         assert!(![&ssd1, &ssd2].iter().any(|r| matched(&cage, r)));
 
         // A typical minute from the recorded history: the hottest HDD is a spare at 38C, and
         // it sets the fan. The warmer SSDs don't.
-        let readings = [void.clone(), scratch.clone(), spare3.clone(), spare4.clone(), ssd1.clone(), ssd2.clone()];
+        let readings = [void.clone(), scratch.clone(), spare2.clone(), spare3.clone(), ssd1.clone(), ssd2.clone()];
         assert_eq!(CurveEngine::default().evaluate(&cage, &readings), 65);
 
         // A replacement disk in a 4-bay port is covered with no config change: the zone is
