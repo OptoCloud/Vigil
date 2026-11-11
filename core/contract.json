@@ -80,6 +80,12 @@
       "reallocatedSectorCount": 0,
       "pendingSectorCount": 0,
       "powerOnHours": 8760,
+      "serialNumber": "ZDH8XK2P",
+      "reportedUncorrect": 0,
+      "commandTimeout": 0,
+      "udmaCrcErrorCount": 0,
+      "lastSelfTestPassed": true,
+      "lastSelfTestHours": 8592,
       "sourcePath": "/dev/sdc",
       "asOf": "2026-09-21T23:00:38.412Z"
     },
@@ -88,7 +94,11 @@
       "passed": true,
       "reallocatedSectorCount": 0,
       "pendingSectorCount": 8,
-      "powerOnHours": 8760
+      "powerOnHours": 8760,
+      "reportedUncorrect": 0,
+      "commandTimeout": 0,
+      "udmaCrcErrorCount": 0,
+      "lastSelfTestPassed": true
     },
     "EventRecord": {
       "id": 1,
@@ -161,6 +171,12 @@
             "reallocatedSectorCount": 0,
             "pendingSectorCount": 0,
             "powerOnHours": 8760,
+            "serialNumber": "ZDH8XK2P",
+            "reportedUncorrect": 0,
+            "commandTimeout": 0,
+            "udmaCrcErrorCount": 0,
+            "lastSelfTestPassed": true,
+            "lastSelfTestHours": 8592,
             "sourcePath": "/dev/sdc",
             "isAvailable": true,
             "asOf": "2026-09-21T23:00:38.412Z"
@@ -234,6 +250,12 @@
           "reallocatedSectorCount": 0,
           "pendingSectorCount": 0,
           "powerOnHours": 8760,
+          "serialNumber": "ZDH8XK2P",
+          "reportedUncorrect": 0,
+          "commandTimeout": 0,
+          "udmaCrcErrorCount": 0,
+          "lastSelfTestPassed": true,
+          "lastSelfTestHours": 8592,
           "sourcePath": "/dev/sdc",
           "asOf": "2026-09-21T23:00:38.412Z"
         }

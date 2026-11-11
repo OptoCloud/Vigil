@@ -75,6 +75,12 @@ public sealed class CoreContractTests
         ReallocatedSectorCount = 0,
         PendingSectorCount = 0,
         PowerOnHours = 8760,
+        SerialNumber = "ZDH8XK2P",
+        ReportedUncorrect = 0,
+        CommandTimeout = 0,
+        UdmaCrcErrorCount = 0,
+        LastSelfTestPassed = true,
+        LastSelfTestHours = 8592,
         SourcePath = "/dev/sdc",
         AsOf = "2026-09-21T23:00:38.412Z",
     };
@@ -86,6 +92,10 @@ public sealed class CoreContractTests
         ReallocatedSectorCount = 0,
         PendingSectorCount = 8,
         PowerOnHours = 8760,
+        ReportedUncorrect = 0,
+        CommandTimeout = 0,
+        UdmaCrcErrorCount = 0,
+        LastSelfTestPassed = true,
     };
 
     private static readonly EventRecord Event = new()

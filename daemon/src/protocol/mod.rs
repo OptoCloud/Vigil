@@ -124,6 +124,29 @@ pub struct DriveHealth {
     pub reallocated_sector_count: Option<u64>,
     pub pending_sector_count: Option<u64>,
     pub power_on_hours: Option<u64>,
+    /// The drive's serial number, as printed on its label: what to read off a disk before pulling it.
+    #[serde(default)]
+    pub serial_number: Option<String>,
+    /// ATA attribute 187, Reported_Uncorrect: reads the drive's own ECC could not correct.
+    #[serde(default)]
+    pub reported_uncorrect: Option<u64>,
+    /// ATA attribute 188, Command_Timeout. Raw, and on Seagate drives three counters packed into
+    /// one number, so only its growth is meaningful, never its size.
+    #[serde(default)]
+    pub command_timeout: Option<u64>,
+    /// ATA attribute 199, UDMA_CRC_Error_Count: transfer errors on the link, which is usually
+    /// the cable or the backplane rather than the disk.
+    #[serde(default)]
+    pub udma_crc_error_count: Option<u64>,
+    /// Whether the newest COMPLETED self-test passed. None when the drive has never run one, or
+    /// does not keep an ATA self-test log (SAS drives).
+    #[serde(default)]
+    pub last_self_test_passed: Option<bool>,
+    /// The drive's power-on hours when that self-test ran, so its age can be judged against
+    /// `power_on_hours`. Some drives count this in 16 bits, so it can be below `power_on_hours`
+    /// by more than the age once the drive is past 65535 hours.
+    #[serde(default)]
+    pub last_self_test_hours: Option<u64>,
     /// The live /dev/sdX path smartctl was run against for this read. Not stable, informational only.
     pub source_path: String,
     /// False when the drive was asleep (so deliberately not queried), or smartctl was

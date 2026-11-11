@@ -76,6 +76,12 @@ const TYPE_KEYS = {
 		reallocatedSectorCount: 1,
 		pendingSectorCount: 1,
 		powerOnHours: 1,
+		serialNumber: 1,
+		reportedUncorrect: 1,
+		commandTimeout: 1,
+		udmaCrcErrorCount: 1,
+		lastSelfTestPassed: 1,
+		lastSelfTestHours: 1,
 		sourcePath: 1,
 		isAvailable: 1,
 		asOf: 1
@@ -155,6 +161,12 @@ const TYPE_KEYS = {
 		reallocatedSectorCount: 1,
 		pendingSectorCount: 1,
 		powerOnHours: 1,
+		serialNumber: 1,
+		reportedUncorrect: 1,
+		commandTimeout: 1,
+		udmaCrcErrorCount: 1,
+		lastSelfTestPassed: 1,
+		lastSelfTestHours: 1,
 		sourcePath: 1,
 		asOf: 1
 	} satisfies Record<keyof DriveState, 1>,
@@ -163,7 +175,11 @@ const TYPE_KEYS = {
 		passed: 1,
 		reallocatedSectorCount: 1,
 		pendingSectorCount: 1,
-		powerOnHours: 1
+		powerOnHours: 1,
+		reportedUncorrect: 1,
+		commandTimeout: 1,
+		udmaCrcErrorCount: 1,
+		lastSelfTestPassed: 1
 	} satisfies Record<keyof DriveHealthRecord, 1>,
 	EventRecord: { id: 1, ts: 1, severity: 1, kind: 1, message: 1 } satisfies Record<keyof EventRecord, 1>,
 	Alert: { kind: 1, severity: 1, message: 1, since: 1 } satisfies Record<keyof Alert, 1>,

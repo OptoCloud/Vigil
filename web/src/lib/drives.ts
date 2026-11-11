@@ -75,9 +75,24 @@ export function bayRows(sensors: SensorReading[], drives: DriveState[], history:
 		});
 }
 
+/**
+ * "2 days ago (at 20 001 h)": the newest completed self-test against the drive's own clock, or
+ * null when it has never logged one. The logged hours wrap at 16 bits on some drives, so the
+ * shorter reading wins, as vigil-core's DriveConditions does.
+ */
+export function selfTestAge(drive: DriveState | undefined): string | null {
+	if (drive?.lastSelfTestHours == null || drive.powerOnHours == null) return null;
+	const hours =
+		drive.lastSelfTestHours < 65536
+			? ((drive.powerOnHours % 65536) + 65536 - drive.lastSelfTestHours) % 65536
+			: drive.powerOnHours - drive.lastSelfTestHours;
+	return hours < 48 ? `${hours} h ago` : `${Math.floor(hours / 24)} days ago`;
+}
+
 export function smartVerdict(drive: DriveState | undefined): Verdict {
 	if (!drive || drive.passed === null) return { level: 'unknown', label: 'No data yet' };
 	if (!drive.passed) return { level: 'critical', label: 'FAILED' };
+	if (drive.lastSelfTestPassed === false) return { level: 'critical', label: 'Self-test failed' };
 	if ((drive.pendingSectorCount ?? 0) > 0) return { level: 'warning', label: 'Pending sectors' };
 	if ((drive.reallocatedSectorCount ?? 0) > 0) return { level: 'warning', label: 'Reallocated sectors' };
 	return { level: 'good', label: 'Passed' };

@@ -44,23 +44,49 @@ public sealed class DriveHealthDiffTests
     }
 
     [Fact]
-    public void AlertsOnFailureGrowthAndPendingSectorsAndOnRecovery()
+    public void AlertsOnGrowthAndPendingSectorsAndOnRecoveryButLeavesFailureToTheConditions()
     {
         var previous = FirstSighting(Health(true, 8, 0, true));
 
         var worse = DriveHealthDiff.Diff(previous, Health(false, 16, 2, true));
         Assert.Equal(
             [
-                ("drive-failed:naa.1", Severity.Critical),
                 ("drive-reallocated:naa.1", Severity.Warning),
                 ("drive-pending:naa.1", Severity.Warning),
             ],
             worse.Events.Select(e => (e.Kind, e.Severity)));
-        Assert.Contains("grew from 8 to 16", worse.Events[1].Message, StringComparison.Ordinal);
+        Assert.Contains("grew from 8 to 16", worse.Events[0].Message, StringComparison.Ordinal);
+        Assert.True(worse.Changed);
 
         var better = DriveHealthDiff.Diff(worse.State, Health(true, 16, 0, true));
-        Assert.All(better.Events, e => Assert.Equal(Severity.Info, e.Severity));
-        Assert.Equal(2, better.Events.Count);
+        Assert.Equal(Severity.Info, Assert.Single(better.Events).Severity);
+    }
+
+    [Fact]
+    public void GrowthInTheEarlyWarningCountersIsAWarningEach()
+    {
+        var counters = Health(true, 0, 0, true) with { ReportedUncorrect = 0, CommandTimeout = 4295032833, UdmaCrcErrorCount = 3 };
+        var previous = FirstSighting(counters);
+
+        var update = DriveHealthDiff.Diff(previous, counters with { ReportedUncorrect = 2, CommandTimeout = 4295032834, UdmaCrcErrorCount = 9 });
+
+        Assert.Equal(
+            ["drive-uncorrect:naa.1", "drive-timeout:naa.1", "drive-crc:naa.1"],
+            update.Events.Select(e => e.Kind));
+        Assert.All(update.Events, e => Assert.Equal(Severity.Warning, e.Severity));
+        Assert.Contains("cable", update.Events[2].Message, StringComparison.Ordinal);
+        Assert.True(update.Changed);
+
+        // A first sighting with high counts is history, not news.
+        Assert.Empty(DriveHealthDiff.Diff(null, counters with { UdmaCrcErrorCount = 500 }).Events);
+    }
+
+    [Fact]
+    public void ASelfTestResultChangingIsAHistoryRow()
+    {
+        var previous = FirstSighting(Health(true, 0, 0, true) with { LastSelfTestPassed = true });
+
+        Assert.True(DriveHealthDiff.Diff(previous, Health(true, 0, 0, true) with { LastSelfTestPassed = false }).Changed);
     }
 
     [Fact]
