@@ -271,6 +271,12 @@ Status) and need re-verifying there after changes to them.
 
 ## Deployment
 
+Pushing a tag deploys: `git tag v2026.11.11`, then push that tag to origin. The tag must
+be on master. `release.yml` runs every check, builds vigild and `vigil-core.tar.gz`,
+attests and publishes them, and hands the release to the hosts repo, which pins it and
+installs it on orion with a health check and a rollback ([ADR-022](docs/DECISIONS.md)). The
+manual steps below are what that automates, and what to do without it.
+
 ### vigild
 
 **Host prerequisite:** drive SMART health shells out to `smartctl` (package

@@ -1,0 +1,89 @@
+# A tag like v2026.11.11 on master becomes a deployed release (docs/DECISIONS.md ADR-022):
+# every check, then the two artifacts orion runs, attested, published, and handed to the
+# hosts repo, whose deploy-vigil workflow pins them and installs them on orion.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # the GitHub release
+      id-token: write      # the attestation's signing certificate
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # The tag is the version orion will be pinned to, and hosts refuses any other shape.
+      # Only reviewed code deploys: a tag on a commit master does not contain is refused.
+      - name: Check the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] || { echo "tag must be vYYYY.MM.DD or vYYYY.MM.DD.N, got $TAG"; exit 1; }
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master || { echo "$TAG is not on master"; exit 1; }
+
+      - name: Add the musl target
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # No cache on purpose: what is published is built from nothing but the tagged tree.
+      - name: Build vigild
+        run: cargo build --locked --release --target x86_64-unknown-linux-musl -p vigild
+
+      - name: Build vigil-core and the dashboard
+        run: core/deploy/package.sh
+
+      - name: Collect the artifacts
+        run: |
+          mkdir dist
+          cp target/x86_64-unknown-linux-musl/release/vigild vigil-core.tar.gz dist/
+          (cd dist && sha256sum vigild vigil-core.tar.gz > SHA256SUMS && cat SHA256SUMS)
+
+      # Proves each artifact came from this workflow at this tag. hosts' deploy-vigil verifies
+      # it before pinning anything, so a file uploaded to the release by hand is never deployed.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/vigild
+            dist/vigil-core.tar.gz
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/vigild dist/vigil-core.tar.gz dist/SHA256SUMS --verify-tag --generate-notes
+
+      # HOSTS_DISPATCH_TOKEN: a fine-grained token for OptoCloud/hosts only, Contents: read and
+      # write, which is the least repository_dispatch accepts. It can start hosts' workflows;
+      # it cannot reach orion, which only hosts' own secrets can.
+      - name: Hand the release to hosts
+        env:
+          GH_TOKEN: ${{ secrets.HOSTS_DISPATCH_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh api repos/OptoCloud/hosts/dispatches -f event_type=vigil-release -f "client_payload[tag]=$TAG"
