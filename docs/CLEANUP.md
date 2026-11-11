@@ -674,3 +674,16 @@ is waiting for the OneCall/Telia SIM, and SMS over ice is impossible
         all-clears.
       - **On the host:** the gateway itself, once a test text from `mmcli` arrives
         (`lte-modem.md`, step 4).
+
+## Follow-up: a tag on master deploys (ADR-022)
+
+- [x] **Releases build, attest and deploy themselves.** *Done 2026-11-11.* `release.yml` here; in
+      the hosts repo, `deploy-vigil.yml` and orion's `vigil-deploy`, reached only through the
+      `deploy` user's one-command login shell. vigild now refuses unknown arguments and a
+      second instance, because the deploy runs a candidate vigild as root.
+      *Enforcer:* the tag-on-master and attestation checks in the two workflows; the pinned
+      sha256s, which vigil-deploy and app-vigil both check; `cli.rs` and `instance.rs` tests.
+      vigil-deploy was run against a sandboxed fake host, through the happy path, both
+      rollbacks and each refusal. **Open, once:** the setup in the hosts repo's TODO (secrets,
+      tailnet policy, `make apply-host`), then the first tag. That first run is also the proof
+      that Tailscale SSH runs the `deploy` user's login shell.
