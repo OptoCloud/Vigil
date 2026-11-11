@@ -10,6 +10,7 @@
 // socket server and the HBA ioctl are compiled out and their pure helpers look unused.
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
+mod cli;
 mod conditions;
 mod config;
 mod control;
@@ -18,6 +19,7 @@ mod disks;
 mod fans;
 mod gpu;
 mod hba;
+mod instance;
 mod logging;
 mod mpt3;
 mod notify;
@@ -49,8 +51,6 @@ use zfs::PoolChange;
 /// not every poll, so this stays quiet on a healthy host.
 const DEFAULT_LOG_FILTER: &str = "info";
 
-const DEFAULT_CONFIG_PATH: &str = "/etc/vigil/vigild.toml";
-
 /// Set by SIGTERM/SIGINT. Everything that waits does so in short slices and checks this.
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
@@ -60,22 +60,27 @@ fn main() -> ExitCode {
     // subscriber is installed.
     logging::init(DEFAULT_LOG_FILTER);
 
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let check_only = args.iter().any(|arg| arg == "--check");
-    let config_path =
-        args.iter().position(|arg| arg == "--config").and_then(|i| args.get(i + 1)).map_or(DEFAULT_CONFIG_PATH, String::as_str);
-
-    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
-        println!(
-            "Usage: vigild [--config PATH] [--check]\n\n  --config PATH  config file (default {DEFAULT_CONFIG_PATH})\n  --check        validate the config and exit without touching any fan"
-        );
-        return ExitCode::SUCCESS;
-    }
+    let (config_path, check_only) = match cli::parse(std::env::args().skip(1)) {
+        Ok(cli::Command::Run { config }) => (config, false),
+        Ok(cli::Command::Check { config }) => (config, true),
+        Ok(cli::Command::Help) => {
+            println!("{}", cli::USAGE);
+            return ExitCode::SUCCESS;
+        }
+        Ok(cli::Command::Version) => {
+            println!("vigild {}", cli::VERSION);
+            return ExitCode::SUCCESS;
+        }
+        Err(problem) => {
+            error!("{problem}\n{}", cli::USAGE);
+            return ExitCode::from(2);
+        }
+    };
 
     // Any failure here exits non-zero, so under systemd it counts as a failure and
     // Restart=on-failure applies (the usual cause, nct6775 not loaded yet at boot, is
     // exactly what a restart a few seconds later fixes).
-    match run(config_path, check_only) {
+    match run(&config_path, check_only) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             error!("{error}");
@@ -100,6 +105,9 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
         report_curve_inputs(&config, &LinuxSysFs);
         return Ok(());
     }
+
+    // Before the first PWM write or the socket: a second instance must stop here.
+    let _instance = instance::claim(std::path::Path::new(instance::LOCK_PATH))?;
 
     install_signal_handlers();
 

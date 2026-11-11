@@ -96,6 +96,9 @@ started life as a .NET daemon; that implementation is in the git history.)
   `vigild --check` does only that, then (on the target machine) lists what
   every curve would read and warns about any member that matches
   nothing there, and exits. It reads no temperature and touches no fan.
+- **Only one vigild drives the fans.** It holds `/run/vigild.lock` from before
+  its first PWM write, so a second instance refuses to start. An argument it
+  does not know stops it too, rather than being ignored.
 - **Fan stalls are detected.** A header reading 0 RPM for several consecutive
   polls while being driven is logged and flagged as `stalled`.
 - **HBA temperature is read via a raw ioctl.** `mpt3sas` has no hwmon
