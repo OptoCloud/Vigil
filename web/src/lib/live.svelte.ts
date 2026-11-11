@@ -5,7 +5,17 @@
 // first messages are vigil-core's full current state, and the event log is fetched once.
 
 import { createContext } from 'svelte';
-import type { DriveState, EventRecord, HistoryResponse, LiveMessage, RangeKey, Snapshot, UpsState } from '#lib/types.ts';
+import type {
+	Alert,
+	DriveState,
+	EventRecord,
+	HistoryResponse,
+	LiveMessage,
+	PoolHistory,
+	RangeKey,
+	Snapshot,
+	UpsState
+} from '#lib/types.ts';
 import type { StreamState } from '#lib/status.ts';
 
 /** As many events as the page keeps: the log's first page plus what streamed in since. */
@@ -28,6 +38,10 @@ export class Live {
 	daemonConnected = $state(false);
 	drives = $state<DriveState[]>([]);
 	events = $state<EventRecord[]>([]);
+	/** Every condition vigil-core has raised, worst first. */
+	alerts = $state<Alert[]>([]);
+	/** What vigil-core remembers about each pool, such as its last scrub. */
+	pools = $state<PoolHistory[]>([]);
 	// Disabled, so hidden until vigil-core sends the real one: none of these values is ever shown.
 	ups = $state<UpsState>({
 		enabled: false,
@@ -76,6 +90,8 @@ export class Live {
 		else if (live.type === 'drives') this.drives = live.drives;
 		else if (live.type === 'event') this.events = [live.event, ...this.events].slice(0, MAX_EVENTS);
 		else if (live.type === 'ups') this.ups = live.ups;
+		else if (live.type === 'alerts') this.alerts = live.alerts;
+		else if (live.type === 'pools') this.pools = live.pools;
 	}
 
 	selectRange(range: RangeKey) {

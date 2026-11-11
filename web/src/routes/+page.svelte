@@ -54,7 +54,7 @@
 		<PoolSummary zfs={live.snapshot?.zfs} />
 	</Panel>
 	<Panel title="Drives" more={{ href: resolve('/drives'), label: 'All drives' }}>
-		<DriveSummary {sensors} drives={live.drives} />
+		<DriveSummary {sensors} drives={live.drives} zfs={live.snapshot?.zfs} />
 	</Panel>
 	{#if live.ups.enabled}
 		<Panel title="Power" more={{ href: resolve('/power'), label: 'UPS' }}>

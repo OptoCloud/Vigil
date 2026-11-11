@@ -3,6 +3,7 @@
 // source names a disk the same way (vigild's daemon/src/disks.rs), which is what the joins rely on.
 
 import type { DriveState, HistoryResponse, PoolStatus, SensorReading, SeriesPoints, VdevStatus, ZfsStatus } from '#lib/types.ts';
+import { vdevVerdict } from '#lib/zfs.ts';
 
 export type Level = 'good' | 'warning' | 'critical' | 'unknown';
 
@@ -90,6 +91,37 @@ export interface Membership {
 
 export function membershipsOf(zfs: ZfsStatus | null | undefined, wwn: string): Membership[] {
 	return (zfs?.pools ?? []).flatMap((pool) => pool.vdevs.filter((vdev) => vdev.deviceName === wwn).map((vdev) => ({ pool, vdev })));
+}
+
+const RANK: Record<Level, number> = { good: 0, unknown: 1, warning: 2, critical: 3 };
+
+/** ZFS's view of one disk: the worst of the vdevs on it, or null when it is in no pool. */
+export function zfsDiskVerdict(memberships: Membership[]): Verdict | null {
+	const verdicts = memberships.map((m) => vdevVerdict(m.vdev));
+	return verdicts.length === 0 ? null : verdicts.reduce((a, b) => (RANK[b.level] > RANK[a.level] ? b : a));
+}
+
+/**
+ * One verdict for a disk, from both of the things that judge it. ZFS's wins when it is worse:
+ * a disk ZFS has faulted reads critical whatever SMART says, because on the night of the
+ * void fault SMART still said PASSED for the disk ZFS had thrown out.
+ */
+export function diskVerdict(health: DriveState | undefined, memberships: Membership[]): Verdict {
+	const smart = smartVerdict(health);
+	const zfs = zfsDiskVerdict(memberships);
+	return zfs && RANK[zfs.level] > RANK[smart.level] && zfs.level !== 'good' ? { level: zfs.level, label: `ZFS: ${zfs.label}` } : smart;
+}
+
+/** "void", "void, spare", "void, log": the pool a disk is in and, unless it holds data, its role. */
+export function roleOf(membership: Membership): string {
+	const role = membership.vdev.class === 'normal' ? '' : `, ${membership.vdev.class}`;
+	return `${membership.pool.name}${role}`;
+}
+
+/** Read, write and checksum errors together, as zpool status shows them per vdev. */
+export function zfsErrors(memberships: Membership[]): number | null {
+	if (memberships.length === 0) return null;
+	return memberships.reduce((sum, m) => sum + (m.vdev.readErrors ?? 0) + (m.vdev.writeErrors ?? 0) + (m.vdev.checksumErrors ?? 0), 0);
 }
 
 /** "pci-0000:03:00.0-sas-phy2-lun-0" to "sas-phy2", "pci-0000:01:00.1-ata-3" to "ata-3": the controller is in the title. */

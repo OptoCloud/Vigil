@@ -21,6 +21,7 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
                      ("RAW_RETENTION_DAYS", options.RawRetentionDays),
                      ("NUT_POLL_SECONDS", options.NutPollSeconds),
                      ("DAEMON_LOST_AFTER_SECONDS", options.DaemonLostAfterSeconds),
+                     ("ZFS_SCRUB_MAX_AGE_DAYS", options.ZfsScrubMaxAgeDays),
                  })
         {
             if (!double.IsFinite(value) || value <= 0)
@@ -38,6 +39,11 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
         if (!double.IsFinite(options.UpsBatteryTemperatureWarn) || options.UpsBatteryTemperatureWarn is < 20 or > 80)
         {
             problems.Add($"UPS_BATTERY_TEMPERATURE_WARN must be between 20 and 80 °C, got '{options.UpsBatteryTemperatureWarn}'.");
+        }
+
+        if (!SpareCounts.TryParse(options.ZfsExpectedSpares, out _, out var sparesProblem))
+        {
+            problems.Add($"ZFS_EXPECTED_SPARES {sparesProblem}");
         }
 
         if (options.NutPort is < 1 or > 65535)

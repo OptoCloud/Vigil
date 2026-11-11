@@ -96,9 +96,39 @@
       "severity": "warning",
       "kind": "fan-stalled:drive-cage",
       "message": "drive-cage is being driven at 65% but reads 0 RPM"
+    },
+    "Alert": {
+      "kind": "zfs-pool:void",
+      "severity": "critical",
+      "message": "Pool void is DEGRADED.",
+      "since": "2026-10-08T04:47:30.000Z"
+    },
+    "PoolHistory": {
+      "name": "void",
+      "lastScrub": "2026-10-12T03:10:54.000Z"
     }
   },
   "liveMessages": {
+    "alerts": {
+      "type": "alerts",
+      "alerts": [
+        {
+          "kind": "zfs-pool:void",
+          "severity": "critical",
+          "message": "Pool void is DEGRADED.",
+          "since": "2026-10-08T04:47:30.000Z"
+        }
+      ]
+    },
+    "pools": {
+      "type": "pools",
+      "pools": [
+        {
+          "name": "void",
+          "lastScrub": "2026-10-12T03:10:54.000Z"
+        }
+      ]
+    },
     "snapshot": {
       "type": "snapshot",
       "snapshot": {

@@ -12,19 +12,27 @@ namespace Vigil.Core.Notifications;
 /// Ported from the Rust core's ntfy.rs, which had to run curl because HTTPS in Rust needed a TLS stack
 /// with C in it. .NET has HTTPS built in, so this is an HttpClient (ADR-003 binds vigild only).
 /// </summary>
-public sealed class NtfyClient(HttpClient http, Uri url, ILogger<NtfyClient> logger)
+public sealed class NtfyClient(HttpClient http, Uri url, ILogger<NtfyClient> logger) : INotifier
 {
     /// <summary>The same bound curl's --max-time 10 gave: a notification later than this is noise.</summary>
     public static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
 
-    /// <summary>Starts sending and returns at once; a failure is logged, never thrown.</summary>
-    public void Send(NewEvent newEvent) => _ = SendAsync(newEvent);
+    public string Name => "ntfy";
 
-    internal async Task SendAsync(NewEvent newEvent)
+    /// <summary>Warnings and worse: ntfy is a phone notification, cheap to send and to dismiss.</summary>
+    public Severity MinimumSeverity => Severity.Warning;
+
+    /// <summary>Starts sending and returns at once; a failure is logged, never thrown.</summary>
+    public void Send(Notification notification) => _ = SendAsync(notification);
+
+    internal async Task SendAsync(Notification notification)
     {
-        var (title, priority, tags) = newEvent.Severity == Severity.Critical
-            ? ("vigil: CRITICAL", "urgent", "rotating_light")
-            : ("vigil: warning", "default", "warning");
+        var newEvent = notification.Event;
+        var (title, priority, tags) = notification.IsAllClear
+            ? ("vigil: resolved", "default", "white_check_mark")
+            : newEvent.Severity == Severity.Critical
+                ? ("vigil: CRITICAL", "urgent", "rotating_light")
+                : ("vigil: warning", "default", "warning");
 
         try
         {

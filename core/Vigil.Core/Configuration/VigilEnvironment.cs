@@ -34,6 +34,8 @@ public static class VigilEnvironment
         ("CORE_PORT", nameof(VigilOptions.CorePort)),
         ("DAEMON_LOST_AFTER_SECONDS", nameof(VigilOptions.DaemonLostAfterSeconds)),
         ("WEB_ROOT", nameof(VigilOptions.WebRoot)),
+        ("ZFS_SCRUB_MAX_AGE_DAYS", nameof(VigilOptions.ZfsScrubMaxAgeDays)),
+        ("ZFS_EXPECTED_SPARES", nameof(VigilOptions.ZfsExpectedSpares)),
     ];
 
     /// <summary>Every variable vigil-core reads, for documentation and for tests.</summary>

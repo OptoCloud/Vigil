@@ -25,8 +25,22 @@ internal sealed class FakeRuntimeStore : IRuntimeStore
     /// <summary>What Npgsql throws when the server answered with an error: the connection is fine.</summary>
     public static Exception QueryFailed() => new PostgresException("duplicate key", "ERROR", "ERROR", "23505");
 
-    public Task<IReadOnlyList<DriveState>> PrepareAsync(CancellationToken cancellationToken) =>
-        Record<IReadOnlyList<DriveState>>("prepare", StoredDrives);
+    public Dictionary<string, DateTimeOffset> StoredScrubs { get; } = [];
+
+    public List<PoolUpdate> SavedPools { get; } = [];
+
+    public Task<PreparedState> PrepareAsync(CancellationToken cancellationToken) =>
+        Record("prepare", new PreparedState(StoredDrives, StoredScrubs));
+
+    public Task SavePoolsAsync(string asOf, PoolUpdate update, CancellationToken cancellationToken)
+    {
+        if (Failure is null)
+        {
+            SavedPools.Add(update);
+        }
+
+        return Record("save-pools", 0);
+    }
 
     public Task SaveDriveAsync(DriveState drive, bool changed, CancellationToken cancellationToken) => Record("save-drive", 0);
 

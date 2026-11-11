@@ -248,6 +248,48 @@ public sealed class DataLayerTests
 
         Assert.Contains("insert_sensor_samples", SqlText.Names);
     }
+
+    [Fact]
+    public async Task AScanIsUpdatedInPlaceAndTheLastCompletedScrubSurvivesALaterResilver()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+        var zfs = new ZfsStore(databases);
+
+        const string ScrubStart = "2026-10-05T00:24:01.000Z";
+        var running = PoolSamples.Scan("SCRUB", "SCANNING", ScrubStart);
+        var finished = PoolSamples.Scan("SCRUB", "FINISHED", ScrubStart, "2026-10-05T06:00:00.000Z");
+        var resilver = PoolSamples.Scan("RESILVER", "FINISHED", "2026-10-08T04:46:54.000Z", "2026-10-08T09:10:54.000Z");
+
+        await zfs.SaveAsync(PoolSamples.AsOf, new([new("void", running)], [], []), token);
+        Assert.Empty(await zfs.LastScrubsAsync(token));
+
+        await zfs.SaveAsync(PoolSamples.AsOf, new([new("void", finished)], [], []), token);
+        await zfs.SaveAsync(PoolSamples.AsOf, new([new("void", resilver)], [], []), token);
+
+        Assert.Equal(2, await ScalarAsync(databases.Writer, "select count(*) from zfs_scans", token));
+        var scrubbed = Assert.Single(await zfs.LastScrubsAsync(token));
+        Assert.Equal(("void", DateTimeOffset.Parse("2026-10-05T06:00:00Z", System.Globalization.CultureInfo.InvariantCulture)), (scrubbed.Key, scrubbed.Value));
+    }
+
+    [Fact]
+    public async Task VdevErrorCountersGoInAsOneStatementWithNullsKept()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+
+        await new ZfsStore(databases).SaveAsync(
+            PoolSamples.AsOf,
+            new([], [new("void", "1", 3, 0, 1, null), new("void", "2", 0, 0, 7, 2)], []),
+            token);
+
+        Assert.Equal(2, await ScalarAsync(databases.Writer, "select count(*) from zfs_vdev_errors", token));
+        Assert.Equal(8, await ScalarAsync(databases.Writer, "select sum(checksum) from zfs_vdev_errors", token));
+        Assert.Equal(1, await ScalarAsync(databases.Writer, "select count(*) from zfs_vdev_errors where slow is null", token));
+    }
+
 }
 
 /// <summary>A UPS reading with a representative mix of present and absent metrics.</summary>

@@ -14,12 +14,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type {
+	Alert,
 	DriveHealth,
 	DriveHealthRecord,
 	DriveState,
 	EventRecord,
 	FanStatus,
 	LiveMessage,
+	PoolHistory,
 	PoolScan,
 	PoolStatus,
 	PwmMode,
@@ -163,7 +165,9 @@ const TYPE_KEYS = {
 		pendingSectorCount: 1,
 		powerOnHours: 1
 	} satisfies Record<keyof DriveHealthRecord, 1>,
-	EventRecord: { id: 1, ts: 1, severity: 1, kind: 1, message: 1 } satisfies Record<keyof EventRecord, 1>
+	EventRecord: { id: 1, ts: 1, severity: 1, kind: 1, message: 1 } satisfies Record<keyof EventRecord, 1>,
+	Alert: { kind: 1, severity: 1, message: 1, since: 1 } satisfies Record<keyof Alert, 1>,
+	PoolHistory: { name: 1, lastScrub: 1 } satisfies Record<keyof PoolHistory, 1>
 };
 
 const ENUM_MEMBERS = {
@@ -185,7 +189,9 @@ const LIVE_MESSAGE_KEYS = {
 	daemon: { type: 1, connected: 1 },
 	event: { type: 1, event: 1 },
 	drives: { type: 1, drives: 1 },
-	ups: { type: 1, ups: 1 }
+	ups: { type: 1, ups: 1 },
+	alerts: { type: 1, alerts: 1 },
+	pools: { type: 1, pools: 1 }
 } satisfies Record<LiveMessage['type'], Record<string, 1>>;
 
 describe('the generated wire contract', () => {

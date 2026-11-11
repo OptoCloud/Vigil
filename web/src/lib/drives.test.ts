@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bayRows, driveRows, formatYears, membershipsOf, shortPort, smartVerdict } from './drives';
-import type { DriveState, HistoryResponse, SensorReading, VdevStatus, ZfsStatus } from './types';
+import { bayRows, diskVerdict, driveRows, formatYears, membershipsOf, roleOf, shortPort, smartVerdict, zfsErrors } from './drives';
+import type { DriveState, HistoryResponse, PoolStatus, SensorReading, VdevStatus, ZfsStatus } from './types';
 
 const BAY_1 = 'pci-0000:01:00.1-ata-1';
 const BAY_2 = 'pci-0000:01:00.1-ata-2';
@@ -102,6 +102,43 @@ describe('membershipsOf', () => {
 		expect(membershipsOf(zfs, 'b').map((m) => [m.pool.name, m.vdev.name])).toEqual([['void', 'sdb']]);
 		expect(membershipsOf(zfs, 'z')).toEqual([]);
 		expect(membershipsOf(null, 'a')).toEqual([]);
+	});
+});
+
+describe('diskVerdict', () => {
+	const pool = (vdevs: VdevStatus[]): PoolStatus => ({
+		name: 'void',
+		state: 'DEGRADED',
+		errorCount: 0,
+		sizeBytes: null,
+		allocatedBytes: null,
+		scan: null,
+		vdevs
+	});
+	const passed: DriveState = {
+		wwn: 'a',
+		port: null,
+		passed: true,
+		reallocatedSectorCount: 0,
+		pendingSectorCount: 0,
+		powerOnHours: 1,
+		sourcePath: '/dev/sda',
+		asOf: 't'
+	};
+
+	it('reads a disk ZFS has faulted as critical even while SMART says PASSED', () => {
+		const faulted = vdev('sda', 'a', { state: 'FAULTED', aux: 'ERR_EXCEEDED', readErrors: 14 });
+		const memberships = [{ pool: pool([faulted]), vdev: faulted }];
+		expect(diskVerdict(passed, memberships)).toEqual({ level: 'critical', label: 'ZFS: Faulted (ERR_EXCEEDED)' });
+		expect(zfsErrors(memberships)).toBe(14);
+	});
+
+	it('keeps SMART when ZFS is no worse, and names the role', () => {
+		const spare = vdev('sdk', 'a', { class: 'spare', parent: null, state: 'AVAIL' });
+		const memberships = [{ pool: pool([spare]), vdev: spare }];
+		expect(diskVerdict(passed, memberships)).toEqual({ level: 'good', label: 'Passed' });
+		expect(roleOf(memberships[0])).toBe('void, spare');
+		expect(zfsErrors([])).toBeNull();
 	});
 });
 

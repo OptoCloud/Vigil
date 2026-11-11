@@ -2,8 +2,22 @@
 	import { resolve } from '$app/paths';
 	import { relativeTime } from '#lib/chart/scale.ts';
 	import * as Table from '#lib/components/ui/table/index.ts';
-	import { bayRows, deviceOf, driveRows, formatCount, formatYears, shortPort, shortWwn, smartVerdict } from '#lib/drives.ts';
-	import type { DriveState, HistoryResponse, SensorReading } from '#lib/types.ts';
+	import {
+		bayRows,
+		deviceOf,
+		diskVerdict,
+		driveRows,
+		formatCount,
+		formatYears,
+		membershipsOf,
+		roleOf,
+		shortPort,
+		shortWwn,
+		smartVerdict,
+		zfsDiskVerdict,
+		zfsErrors
+	} from '#lib/drives.ts';
+	import type { DriveState, HistoryResponse, SensorReading, ZfsStatus } from '#lib/types.ts';
 	import Sparkline from './Sparkline.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 
@@ -14,6 +28,8 @@
 		drives: DriveState[];
 		/** The selected range's history, for each row's trend. */
 		history: HistoryResponse | null;
+		/** ZFS's view of the same disks, joined by the name every source shares. */
+		zfs: ZfsStatus | null | undefined;
 		now: number;
 		/**
 		 * Two ways to read the same temperatures. By drive follows a disk wherever it is plugged
@@ -23,7 +39,7 @@
 		view: 'drive' | 'bay';
 	}
 
-	let { sensors, drives, history, now, view }: Props = $props();
+	let { sensors, drives, history, zfs, now, view }: Props = $props();
 
 	// Thirteen drives are far past where colour can tell series apart, so this is a table, with
 	// a small magnitude bar doing the at-a-glance comparison over this range of temperatures.
@@ -45,6 +61,8 @@
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Temperature</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Trend</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">SMART</Table.Head>
+				<Table.Head scope="col" class="text-xs text-muted-foreground">ZFS</Table.Head>
+				<Table.Head scope="col" class="text-right text-xs text-muted-foreground">ZFS errors</Table.Head>
 				<Table.Head scope="col" class="text-right text-xs text-muted-foreground">Reallocated</Table.Head>
 				<Table.Head scope="col" class="text-right text-xs text-muted-foreground">Pending</Table.Head>
 				<Table.Head scope="col" class="text-right text-xs text-muted-foreground">Powered on</Table.Head>
@@ -54,6 +72,8 @@
 		<Table.Body>
 			{#each rows as row (row.wwn)}
 				{@const s = smartVerdict(row.health)}
+				{@const memberships = membershipsOf(zfs, row.wwn)}
+				{@const z = zfsDiskVerdict(memberships)}
 				<Table.Row class="border-grid">
 					<!-- The WWN is the drive's identity: unlike sdX it survives reboots and port changes. -->
 					<Table.Head scope="row" class="pl-0 font-normal" title={row.wwn}>
@@ -66,13 +86,22 @@
 					<Table.Cell>{@render temperature(row.sensor?.celsiusOrNull ?? null)}</Table.Cell>
 					<Table.Cell><Sparkline points={row.trend} /></Table.Cell>
 					<Table.Cell><StatusBadge level={s.level} label={s.label} /></Table.Cell>
+					<Table.Cell>
+						{#if z}
+							<StatusBadge level={z.level} label={z.label} />
+							<span class="ml-1 text-xs text-faint">{memberships.map(roleOf).join('; ')}</span>
+						{:else}
+							<span class="text-faint">not in a pool</span>
+						{/if}
+					</Table.Cell>
+					<Table.Cell class="text-right tabular-nums">{formatCount(zfsErrors(memberships))}</Table.Cell>
 					<Table.Cell class="text-right tabular-nums">{formatCount(row.health?.reallocatedSectorCount)}</Table.Cell>
 					<Table.Cell class="text-right tabular-nums">{formatCount(row.health?.pendingSectorCount)}</Table.Cell>
 					<Table.Cell class="text-right tabular-nums">{formatYears(row.health?.powerOnHours)}</Table.Cell>
 					<Table.Cell class="pr-0 text-right text-faint tabular-nums">{row.health ? relativeTime(row.health.asOf, now) : ''}</Table.Cell>
 				</Table.Row>
 			{:else}
-				<Table.Row><Table.Cell colspan={9} class="text-faint">No drives reported yet.</Table.Cell></Table.Row>
+				<Table.Row><Table.Cell colspan={11} class="text-faint">No drives reported yet.</Table.Cell></Table.Row>
 			{/each}
 		</Table.Body>
 	</Table.Root>
@@ -84,12 +113,12 @@
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Drive in it</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Temperature</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Trend</Table.Head>
-				<Table.Head scope="col" class="pr-0 text-xs text-muted-foreground">SMART</Table.Head>
+				<Table.Head scope="col" class="pr-0 text-xs text-muted-foreground">Health</Table.Head>
 			</Table.Row>
 		</Table.Header>
 		<Table.Body>
 			{#each bays as bay (bay.port)}
-				{@const s = smartVerdict(bay.health)}
+				{@const s = diskVerdict(bay.health, bay.wwn ? membershipsOf(zfs, bay.wwn) : [])}
 				<Table.Row class="border-grid">
 					<!-- The port is the bay's identity: it stays with the location whatever disk is in it. -->
 					<Table.Head scope="row" class="pl-0 font-normal tabular-nums" title={bay.port}>{shortPort(bay.port)}</Table.Head>

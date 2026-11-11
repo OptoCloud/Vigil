@@ -23,7 +23,7 @@ namespace Vigil.Core.Tests;
 /// </para>
 /// <code>
 /// docker compose -f dev/docker-compose.yml up -d
-/// VIGIL_TEST_DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil dotnet run --project core/Vigil.Core.Tests
+/// VIGIL_TEST_DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil dotnet test --project core/Vigil.Core.Tests
 /// </code>
 /// </remarks>
 public static class DatabaseFixture
@@ -59,7 +59,7 @@ public static class DatabaseFixture
     public static async Task TruncateAsync(NpgsqlDataSource writer, CancellationToken cancellationToken)
     {
         await using var command = writer.CreateCommand(
-            "truncate sensor_samples, fan_samples, ups_samples, sensors, fans, bay_occupants, drives, drive_health_history, events");
+            "truncate sensor_samples, fan_samples, ups_samples, sensors, fans, bay_occupants, drives, drive_health_history, events, zfs_scans, zfs_vdev_errors");
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { PoolStatus, VdevStatus } from './types';
-import { describeScan, formatBytes, poolVerdict, scanProgress, usedPercent, vdevGroups, vdevVerdict, zfsVerdict } from './zfs';
+import {
+	describeScan,
+	formatBytes,
+	formatEta,
+	poolVerdict,
+	scanEta,
+	scanProgress,
+	usedPercent,
+	vdevGroups,
+	vdevVerdict,
+	zfsVerdict
+} from './zfs';
 
 function vdev(name: string, changes: Partial<VdevStatus> = {}): VdevStatus {
 	return {
@@ -123,5 +134,35 @@ describe('formatBytes', () => {
 		expect(formatBytes(1536)).toBe('1.5 KiB');
 		expect(formatBytes(32_000_000_000_000)).toBe('29.1 TiB');
 		expect(formatBytes(null)).toBe('n/a');
+	});
+});
+
+describe('scanEta', () => {
+	const start = Date.parse('2026-10-08T04:46:54.000Z');
+	const running = {
+		function: 'RESILVER',
+		state: 'SCANNING',
+		startTime: '2026-10-08T04:46:54.000Z',
+		endTime: null,
+		toExamineBytes: 1000,
+		examinedBytes: 600,
+		issuedBytes: 250,
+		processedBytes: 0,
+		errors: 0
+	};
+
+	it('extrapolates from the rate so far', () => {
+		// A quarter issued in an hour: three more hours to go.
+		const now = start + 3_600_000;
+		expect(scanEta(running, now)).toBe(now + 3 * 3_600_000);
+		expect(formatEta(now + 3 * 3_600_000 + 20 * 60_000, now)).toBe('in 3 h 20 min');
+		expect(formatEta(now + 30_000, now)).toBe('any moment');
+	});
+
+	it('says nothing it cannot back', () => {
+		expect(scanEta(null, start)).toBeNull();
+		expect(scanEta({ ...running, state: 'FINISHED' }, start + 1)).toBeNull();
+		expect(scanEta({ ...running, issuedBytes: 0 }, start + 1)).toBeNull();
+		expect(scanEta(running, start)).toBeNull();
 	});
 });

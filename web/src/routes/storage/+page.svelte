@@ -23,7 +23,7 @@
 {:else}
 	<p class="text-xs text-faint">Polled {relativeTime(zfs.asOf, live.now)}.</p>
 	{#each zfs.pools as pool (pool.name)}
-		<PoolCard {pool} now={live.now} />
+		<PoolCard {pool} lastScrub={live.pools.find((known) => known.name === pool.name)?.lastScrub ?? null} now={live.now} />
 	{:else}
 		<p class="text-faint">No pools imported.</p>
 	{/each}

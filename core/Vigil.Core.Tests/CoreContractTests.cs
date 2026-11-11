@@ -97,8 +97,20 @@ public sealed class CoreContractTests
         Message = "drive-cage is being driven at 65% but reads 0 RPM",
     };
 
+    private static readonly Alert Alert = new()
+    {
+        Kind = "zfs-pool:void",
+        Severity = Severity.Critical,
+        Message = "Pool void is DEGRADED.",
+        Since = "2026-10-08T04:47:30.000Z",
+    };
+
+    private static readonly PoolHistory Pool = new() { Name = "void", LastScrub = "2026-10-12T03:10:54.000Z" };
+
     private static readonly Dictionary<string, LiveMessage> LiveMessages = new(StringComparer.Ordinal)
     {
+        ["alerts"] = new AlertsMessage { Alerts = [Alert] },
+        ["pools"] = new PoolsMessage { Pools = [Pool] },
         ["snapshot"] = new SnapshotMessage { Snapshot = VigildSnapshot() },
         ["daemon"] = new DaemonMessage { Connected = true },
         ["event"] = new EventMessage { Event = Event },
@@ -128,6 +140,8 @@ public sealed class CoreContractTests
             [nameof(DriveState)] = Node(Drive),
             [nameof(DriveHealthRecord)] = Node(DriveHistory),
             [nameof(EventRecord)] = Node(Event),
+            [nameof(Alert)] = Node(Alert),
+            [nameof(PoolHistory)] = Node(Pool),
         },
         ["liveMessages"] = new JsonObject(LiveMessages.Select(entry => KeyValuePair.Create(entry.Key, (JsonNode?)Node(entry.Value)))),
     };

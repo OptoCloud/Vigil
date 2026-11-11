@@ -77,4 +77,16 @@ public sealed class VigilOptions
 
     /// <summary>How long vigild has to be unreachable before that counts as an incident.</summary>
     public double DaemonLostAfterSeconds { get; init; } = 20;
+
+    /// <summary>
+    /// How old a pool's last completed scrub may be before that is a warning. Scrubs are monthly
+    /// (Debian's zfsutils timer runs on the second Sunday), so 35 days is one missed.
+    /// </summary>
+    public double ZfsScrubMaxAgeDays { get; init; } = 35;
+
+    /// <summary>
+    /// Hot spares each pool should have AVAIL, as <c>pool:count</c> pairs separated by commas
+    /// (orion: <c>void:2</c>). A pool not named is not checked. Parsed by <see cref="SpareCounts"/>.
+    /// </summary>
+    public string? ZfsExpectedSpares { get; init; }
 }

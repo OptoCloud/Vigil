@@ -6,14 +6,18 @@
 //
 // Type a letter + Enter to inject a fault: s = stall a fan, g = GPU unreadable,
 // u = loop unhealthy, r = grow a drive's reallocated count, z = fault a pool disk onto a spare
-// (void's night of 2026-10-08), c = clear all faults.
+// (void's night of 2026-10-08), o = take a pool disk offline (DEGRADED, no resilver, no
+// errors), c = clear all faults.
 
 import http from 'node:http';
 
 const port = Number(process.argv[2] ?? 5178);
 const POLL_MS = 2000;
 
-const faults = { stall: false, gpu: false, unhealthy: false, pool: false };
+const faults = { stall: false, gpu: false, unhealthy: false, pool: false, offline: false };
+
+/** vigild polls zpool every 60 s and repeats that poll in every snapshot until the next. */
+const ZFS_POLL_MS = 60_000;
 let reallocated = 1048;
 let driveHealthAsOf = new Date().toISOString();
 
@@ -54,6 +58,9 @@ const TIB = 2 ** 40;
 
 // void: a raidz2 of the eight LSI disks with the 4-bay pair as hot spares; rpool: the SSD mirror.
 // Under the pool fault, the sixth disk is FAULTED and the first spare stands in for it.
+let zfsPolledAt = Date.now();
+setInterval(() => (zfsPolledAt = Date.now()), ZFS_POLL_MS);
+
 function zfs() {
 	const leaf = (d, parent, changes = {}) => ({
 		name: `ata-ST4000VN008_${d.wwn.slice(-6).toUpperCase()}`,
@@ -73,7 +80,11 @@ function zfs() {
 	});
 	const idle = { parent: null, class: 'spare', state: 'AVAIL', readErrors: null, writeErrors: null, checksumErrors: null, slowIos: null };
 	const members = drives.slice(0, 8).map((d, i) =>
-		faults.pool && i === 5 ? leaf(d, 'spare-5', { state: 'FAULTED', aux: 'ERR_EXCEEDED', readErrors: 14 }) : leaf(d, 'raidz2-0')
+		faults.pool && i === 5
+			? leaf(d, 'spare-5', { state: 'FAULTED', aux: 'ERR_EXCEEDED', readErrors: 14 })
+			: faults.offline && i === 2
+				? leaf(d, 'raidz2-0', { state: 'OFFLINE' })
+				: leaf(d, 'raidz2-0')
 	);
 	const spares = faults.pool
 		? [leaf(drives[8], 'spare-5', { class: 'spare', state: 'INUSE' }), leaf(drives[9], null, idle)]
@@ -81,11 +92,12 @@ function zfs() {
 	const started = Math.floor(Date.now() / 1000) - 3 * 3600;
 	return {
 		isAvailable: true,
-		asOf: new Date().toISOString(),
+		// A fault shows at once rather than at the next whole minute, so the page can be watched reacting.
+		asOf: new Date(zfsPolledAt).toISOString(),
 		pools: [
 			{
 				name: 'void',
-				state: faults.pool ? 'DEGRADED' : 'ONLINE',
+				state: faults.pool || faults.offline ? 'DEGRADED' : 'ONLINE',
 				errorCount: 0,
 				sizeBytes: Math.round(29.1 * TIB),
 				allocatedBytes: Math.round(11.8 * TIB),
@@ -188,7 +200,7 @@ http
 			response.writeHead(404).end();
 		}
 	})
-	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/z/c + Enter to inject faults)`));
+	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/z/o/c + Enter to inject faults)`));
 
 process.stdin.on('data', (input) => {
 	const key = input.toString().trim();
@@ -199,6 +211,8 @@ process.stdin.on('data', (input) => {
 		reallocated += 8;
 		driveHealthAsOf = new Date().toISOString();
 	} else if (key === 'z') faults.pool = true;
-	else if (key === 'c') faults.stall = faults.gpu = faults.unhealthy = faults.pool = false;
+	else if (key === 'o') faults.offline = true;
+	else if (key === 'c') faults.stall = faults.gpu = faults.unhealthy = faults.pool = faults.offline = false;
+	zfsPolledAt = Date.now();
 	console.log('faults:', faults, 'reallocated:', reallocated);
 });

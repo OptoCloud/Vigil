@@ -6,11 +6,12 @@
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import { relativeTime } from '#lib/chart/scale.ts';
+	import AlertList from '#lib/components/AlertList.svelte';
 	import Banner from '#lib/components/Banner.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
 	import ThemePicker from '#lib/components/ThemePicker.svelte';
 	import { Live, setLive } from '#lib/live.svelte.ts';
-	import { connectionStatus } from '#lib/status.ts';
+	import { connectionStatus, verdict } from '#lib/status.ts';
 	import { summarizeUps } from '#lib/ups.ts';
 
 	let { children } = $props();
@@ -19,7 +20,8 @@
 	const live = setLive(new Live());
 	onMount(() => live.connect());
 
-	const status = $derived(connectionStatus(live.stream, live.daemonConnected, live.snapshot, live.now));
+	const connection = $derived(connectionStatus(live.stream, live.daemonConnected, live.snapshot, live.now));
+	const status = $derived(verdict(connection, live.alerts));
 	const upsSummary = $derived(summarizeUps(live.ups));
 
 	const NAV = [
@@ -77,8 +79,11 @@
 		{/each}
 	</nav>
 
-	{#if status.detail}
-		<Banner level={status.level} message={status.detail} />
+	{#if connection.detail}
+		<Banner level={connection.level} message={connection.detail} />
+	{/if}
+	{#if live.alerts.length > 0}
+		<AlertList alerts={live.alerts} now={live.now} />
 	{/if}
 	{#if live.ups.enabled && upsSummary.banner}
 		<Banner level={upsSummary.level} message={upsSummary.banner} role="alert" />

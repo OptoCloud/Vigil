@@ -4,21 +4,34 @@
 	import * as Table from '#lib/components/ui/table/index.ts';
 	import { formatCount, shortPort } from '#lib/drives.ts';
 	import type { PoolStatus } from '#lib/types.ts';
-	import { describeScan, formatBytes, poolVerdict, scanProgress, usedPercent, vdevGroups, vdevVerdict } from '#lib/zfs.ts';
+	import {
+		describeScan,
+		formatBytes,
+		formatEta,
+		poolVerdict,
+		scanEta,
+		scanProgress,
+		usedPercent,
+		vdevGroups,
+		vdevVerdict
+	} from '#lib/zfs.ts';
 	import Meter from './Meter.svelte';
 	import Panel from './Panel.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 
 	interface Props {
 		pool: PoolStatus;
+		/** The last completed scrub vigil-core remembers, which a later resilver hides from zpool. */
+		lastScrub: string | null;
 		now: number;
 	}
 
-	let { pool, now }: Props = $props();
+	let { pool, lastScrub, now }: Props = $props();
 
 	const verdict = $derived(poolVerdict(pool));
 	const used = $derived(usedPercent(pool));
 	const progress = $derived(scanProgress(pool.scan));
+	const eta = $derived(scanEta(pool.scan, now));
 	const groups = $derived(vdevGroups(pool));
 </script>
 
@@ -47,10 +60,19 @@
 					{describeScan(pool.scan)}{#if pool.scan.endTime}, {relativeTime(pool.scan.endTime, now)}{:else if pool.scan.startTime}, started {relativeTime(
 							pool.scan.startTime,
 							now
-						)}{/if}{#if pool.scan.errors}: {pool.scan.errors} errors repaired or found{/if}
+						)}{/if}{#if eta !== null}, done {formatEta(eta, now)}{/if}{#if pool.scan.errors}: {pool.scan.errors} errors repaired or found{/if}
 				</span>
 			</div>
 		{/if}
+
+		<div class="flex items-center gap-3">
+			<span class="w-20 text-muted-foreground">Last scrub</span>
+			{#if lastScrub}
+				<time datetime={lastScrub} title={new Date(lastScrub).toLocaleString()}>{relativeTime(lastScrub, now)}</time>
+			{:else}
+				<span class="text-faint">not known: none finished while vigil-core was recording</span>
+			{/if}
+		</div>
 
 		{#if (pool.errorCount ?? 0) > 0}
 			<p class="text-status-critical">

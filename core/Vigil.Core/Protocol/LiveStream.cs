@@ -163,6 +163,31 @@ public sealed record EventRecord
     public required string Message { get; init; }
 }
 
+/// <summary>A condition that holds now: one line of the page's verdict (ADR-019).</summary>
+public sealed record Alert
+{
+    /// <summary>The condition's stable key, the same <see cref="EventRecord.Kind"/> its events carry.</summary>
+    public required string Kind { get; init; }
+
+    public required Severity Severity { get; init; }
+    public required string Message { get; init; }
+
+    /// <summary>When vigil-core raised it (RFC 3339, UTC). A restart raises again, so this is since then at the earliest.</summary>
+    public required string Since { get; init; }
+}
+
+/// <summary>What vigil-core knows about a pool that one <c>zpool status</c> cannot say.</summary>
+public sealed record PoolHistory
+{
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// The last COMPLETED scrub (RFC 3339, UTC), which a later resilver hides from zpool. Null
+    /// when none is known: never scrubbed, or scrubbed while vigil-core had no database.
+    /// </summary>
+    public required string? LastScrub { get; init; }
+}
+
 /// <summary>
 /// What vigil-core streams on <c>/live</c>: the current state on connect, then every change.
 /// </summary>
@@ -177,6 +202,8 @@ public sealed record EventRecord
 [JsonDerivedType(typeof(EventMessage), "event")]
 [JsonDerivedType(typeof(DrivesMessage), "drives")]
 [JsonDerivedType(typeof(UpsMessage), "ups")]
+[JsonDerivedType(typeof(AlertsMessage), "alerts")]
+[JsonDerivedType(typeof(PoolsMessage), "pools")]
 public abstract record LiveMessage;
 
 public sealed record SnapshotMessage : LiveMessage
@@ -203,4 +230,19 @@ public sealed record DrivesMessage : LiveMessage
 public sealed record UpsMessage : LiveMessage
 {
     public required UpsState Ups { get; init; }
+}
+
+/// <summary>
+/// Every condition raised now, worst first: sent on connect and whenever one is raised or
+/// cleared. Empty means nothing vigil-core watches is wrong, which is what green means.
+/// </summary>
+public sealed record AlertsMessage : LiveMessage
+{
+    public required IReadOnlyList<Alert> Alerts { get; init; }
+}
+
+/// <summary>Each pool's remembered history, sent on connect and when it changes.</summary>
+public sealed record PoolsMessage : LiveMessage
+{
+    public required IReadOnlyList<PoolHistory> Pools { get; init; }
 }

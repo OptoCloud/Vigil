@@ -11,18 +11,29 @@ namespace Vigil.Core.Alerting;
 /// Not thread-safe, deliberately: it has one owner, the loop that feeds it updates in the
 /// order they happened.
 /// </remarks>
-public sealed class ConditionDebouncer(uint threshold)
+/// <param name="time">When a condition counts as raised, for <see cref="Raised"/>. The system clock when omitted.</param>
+public sealed class ConditionDebouncer(uint threshold, TimeProvider? time = null)
 {
     private readonly uint _threshold = Math.Max(threshold, 1);
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     /// <summary>How many consecutive updates each not-yet-raised condition has held for.</summary>
     private readonly SortedDictionary<string, uint> _pending = new(StringComparer.Ordinal);
 
-    /// <summary>Raised conditions, with how many consecutive updates each has been absent for.</summary>
-    private readonly SortedDictionary<string, (Condition Condition, uint AbsentFor)> _raised = new(StringComparer.Ordinal);
+    /// <summary>Raised conditions, with when each was raised and how many consecutive updates it has been absent for.</summary>
+    private readonly SortedDictionary<string, (Condition Condition, string Since, uint AbsentFor)> _raised = new(StringComparer.Ordinal);
 
     /// <summary>Whether <paramref name="kind"/> is raised: a condition with hysteresis needs to know.</summary>
     public bool IsRaised(string kind) => _raised.ContainsKey(kind);
+
+    /// <summary>Every condition raised now, in key order: the verdict the page shows (ADR-019).</summary>
+    public IEnumerable<Alert> Raised => _raised.Select(entry => new Alert
+    {
+        Kind = entry.Key,
+        Severity = entry.Value.Condition.Severity,
+        Message = entry.Value.Condition.Message,
+        Since = entry.Value.Since,
+    });
 
     /// <summary>Feeds one update's conditions in; returns what was raised, then what cleared.</summary>
     /// <param name="conditions">Every condition this update saw hold.</param>
@@ -48,7 +59,7 @@ public sealed class ConditionDebouncer(uint threshold)
             if (seen >= _threshold)
             {
                 _pending.Remove(kind);
-                _raised[kind] = (condition, 0);
+                _raised[kind] = (condition, Rfc3339.From(_time.GetUtcNow()), 0);
                 events.Add(new NewEvent(condition.Severity, kind, condition.Message));
             }
             else
@@ -68,7 +79,7 @@ public sealed class ConditionDebouncer(uint threshold)
             _pending.Remove(kind);
         }
 
-        foreach (var (kind, (condition, absentFor)) in _raised.Where(entry => !conditions.ContainsKey(entry.Key)).ToList())
+        foreach (var (kind, (condition, since, absentFor)) in _raised.Where(entry => !conditions.ContainsKey(entry.Key)).ToList())
         {
             var absent = absentFor + 1;
             if (absent >= _threshold)
@@ -78,7 +89,7 @@ public sealed class ConditionDebouncer(uint threshold)
             }
             else
             {
-                _raised[kind] = (condition, absent);
+                _raised[kind] = (condition, since, absent);
             }
         }
 
