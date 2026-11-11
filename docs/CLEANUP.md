@@ -629,3 +629,48 @@ That proposal was written before checking the code. It changed in these places:
       the change within one `[zfs]` poll, that the page goes red, and that everything recovers
       when the change is undone. **Done when** this has been run on orion and the result is
       recorded here.
+
+## Follow-up: SMS notifications through the self-hosted gateway
+
+Added 2026-11-11. Not started, on purpose: the gateway does not exist yet. The MC7455 on orion
+is waiting for the OneCall/Telia SIM, and SMS over ice is impossible
+(homelab `hosts/machines/orion/lte-modem.md`). The seam is ready: `INotifier` and
+`AlertRouter` (ADR-021). Decided with the user on 2026-11-11:
+
+- **vigil defines the contract, and the gateway implements it.** vigil-core runs in a LAN guest
+  and the modem is on orion, so this is HTTP. vigil-core never drives the modem itself
+  (invariant 1).
+  ```
+  POST <SMS_URL>
+  Authorization: Bearer <SMS_TOKEN>
+  Content-Type: application/json
+
+  { "message": "vigil CRITICAL: Pool void is DEGRADED." }
+
+  → 2xx means accepted (202 expected); anything else is logged as a failed send
+  ```
+- **The gateway holds the phone numbers.** vigil-core knows only `SMS_URL` and `SMS_TOKEN`, so
+  no number is in its config or its log.
+- **Warning and above**, the same as ntfy, with the all-clear for each.
+- **Auth is a bearer token.** `SMS_TOKEN` is a secret like `DATABASE_URL`: it is never logged
+  and never put in an error (SECURITY.md §7). The URL is never logged either.
+
+- [ ] **The SMS channel, once the gateway answers.**
+      - `Notifications/SmsClient.cs`, an `INotifier` named `sms` with a minimum of warning, built
+        like `NtfyClient`: fire and forget, a hard send timeout, and failures logged, never
+        thrown. The body goes through a source-generated JSON context, as everything does under
+        NativeAOT (ADR-016). The message is prefixed `vigil CRITICAL:`, `vigil warning:` or
+        `vigil resolved:`.
+      - `SMS_URL` and `SMS_TOKEN` go through `VigilEnvironment`. `VigilOptionsValidator` requires
+        both or neither, and an absolute http(s) URL, without repeating either value in the
+        error. The channel is registered in `VigilServices` only when they are set.
+      - `dev/mock-sms.mjs`, which prints what it receives and has a key that makes it refuse
+        sends, so the channel can be watched without the modem.
+      - Docs: the env table in README, `core/deploy/vigil-core.env`, and the contract above in
+        README beside the API, for whoever writes the gateway.
+      - *Enforcer:* `SmsClientTests` (the body, the bearer header, the prefixes, a failure
+        logged without the URL or the token), validator tests, the `VigilServicesTests`
+        registration test, and the router tests that already cover per-channel minimums and
+        all-clears.
+      - **On the host:** the gateway itself, once a test text from `mmcli` arrives
+        (`lte-modem.md`, step 4).
