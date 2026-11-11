@@ -132,6 +132,17 @@ one-sided rename fails CI. Adding a field means regenerating the contract in the
 vulnerabilities at any level. The gate stays at moderate: that threshold was the reason for
 this record, but nothing now depends on it.
 
+**Depended on again, 2026-11-11.** Two advisories with no upstream fix in the range their
+dependents ask for:
+
+- *minimatch* (moderate, ReDoS through glob-part amplification) is fixed only in 11.x, while
+  eslint and typescript-eslint ask for `^10`. `web/package.json` overrides it to `^11`: both
+  call only `Minimatch#match` and `minimatch()`, which 11 keeps. Drop the override when they
+  move to 11 themselves.
+- *deepmerge* (low, prototype poisoning) reaches the tree through
+  `@sveltejs/vite-plugin-svelte`, which merges Vite config at build time. No deepmerge release
+  fixes it, and none of it ships in the static build. Accepted below the gate.
+
 `cookie@0.6.0` reaches the tree through `@sveltejs/kit@2.70.3`, which is the latest 2.x
 release; there is no upstream fix, and the only version `npm audit fix --force` offers is a
 prerelease major of `adapter-node`. The advisory (out-of-bounds characters accepted in a cookie

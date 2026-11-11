@@ -8,20 +8,21 @@
 
 	const live = getLive();
 
-	const FILTERS: { key: 'all' | 'warning' | 'critical'; label: string; severities?: Severity[] }[] = [
+	type Filter = 'all' | 'warning' | 'critical';
+	const FILTERS: { key: Filter; label: string; severities?: Severity[] }[] = [
 		{ key: 'all', label: 'All' },
 		{ key: 'warning', label: 'Warnings and worse', severities: ['warning', 'critical'] },
 		{ key: 'critical', label: 'Critical', severities: ['critical'] }
 	];
 
-	let filter = $state<'all' | 'warning' | 'critical'>('all');
+	let filter = $state<Filter>('all');
 </script>
 
 <svelte:head><title>Events · vigil</title></svelte:head>
 
 <Panel title="Events" subtitle="The newest {live.events.length}, live">
 	{#snippet actions()}
-		<Segmented label="Severity" options={FILTERS} value={filter} onselect={(key) => (filter = key)} />
+		<Segmented label="Severity" options={FILTERS} value={filter} onselect={(key: Filter) => (filter = key)} />
 	{/snippet}
 	<EventLog events={live.events} now={live.now} severities={FILTERS.find((f) => f.key === filter)?.severities} />
 </Panel>

@@ -8,7 +8,8 @@
 
 	const live = getLive();
 
-	let view = $state<'drive' | 'bay'>('drive');
+	type View = 'drive' | 'bay';
+	let view = $state<View>('drive');
 
 	const VIEWS = [
 		{ key: 'drive', label: 'By drive' },
@@ -22,7 +23,7 @@
 
 <Panel title="Drives">
 	{#snippet actions()}
-		<Segmented label="Group temperatures by" options={VIEWS} value={view} onselect={(key) => (view = key)} />
+		<Segmented label="Group temperatures by" options={VIEWS} value={view} onselect={(key: View) => (view = key)} />
 	{/snippet}
 	<DriveTable sensors={live.snapshot?.sensors ?? []} drives={live.drives} history={live.history} now={live.now} {view} />
 </Panel>
