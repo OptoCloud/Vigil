@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>Vigil.Core</RootNamespace>
     <UserSecretsId>vigil-core</UserSecretsId>
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>

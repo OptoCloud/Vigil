@@ -23,11 +23,11 @@ public sealed class VigilDataSources : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logger);
 
         var settings = options.Value;
-        Writer = new NpgsqlDataSourceBuilder(PostgresUri.ToConnectionString(settings.DatabaseUrl, "vigil-core")).Build();
+        Writer = Build(PostgresUri.ToConnectionString(settings.DatabaseUrl, "vigil-core"));
 
         if (settings.DatabaseUrlReadonly is { Length: > 0 } readonlyUrl)
         {
-            Reader = new NpgsqlDataSourceBuilder(PostgresUri.ToConnectionString(readonlyUrl, "vigil-core (read-only)")).Build();
+            Reader = Build(PostgresUri.ToConnectionString(readonlyUrl, "vigil-core (read-only)"));
             SeparateReadRole = true;
         }
         else
@@ -41,6 +41,15 @@ public sealed class VigilDataSources : IAsyncDisposable
             SeparateReadRole = false;
         }
     }
+
+    /// <summary>
+    /// The slim builder, so the NativeAOT build carries only the type handling vigil uses:
+    /// the base types, arrays (every batch insert is an <c>unnest</c> of arrays), and TLS for a
+    /// server that asks for it. A query needing more fails in the database tests, which build
+    /// their data sources here too.
+    /// </summary>
+    private static NpgsqlDataSource Build(string connectionString) =>
+        new NpgsqlSlimDataSourceBuilder(connectionString).EnableArrays().EnableTransportSecurity().Build();
 
     /// <summary>The schema owner: samples, drives, events.</summary>
     public NpgsqlDataSource Writer { get; }

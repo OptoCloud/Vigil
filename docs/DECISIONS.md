@@ -210,6 +210,15 @@ NativeAOT is a planned follow-up, not a rejection: docs/CLEANUP.md tracks what i
 .NET 10 LTS. Self-contained is what makes that safe: the runtime ships inside the build, so
 the guest never has to have it, and moving to the next release is a rebuild. Its SDK also fixed
 `dotnet test`'s discovery of xunit.v3 tests, which is what the tests run with again.
+*Amended 2026-11-11, again:* NativeAOT now, and the unit sets `MemoryDenyWriteExecute=true`.
+`package.sh` builds with `clang` where it is installed and in the .NET SDK image, pinned by
+digest, anywhere else. JSON goes through a source-generated context, Npgsql through its slim
+builder (base types, arrays, TLS), and the build has no trim or AOT warnings. The options are
+bound by a source generator now, and that generator cannot set an `init` property: it skipped
+every one without a word, and the first native build started on all defaults. `VigilOptions`
+is therefore settable, and its tests bind through vigil-core's own `VigilEnvironment.Read`, so
+they run the generated binder. Debugging the native binary needs `vigil-core.dbg`, which
+`package.sh` leaves out of the package; publish again to get it.
 
 ### ADR-017: One listener on the LAN; the contract described by each producer
 

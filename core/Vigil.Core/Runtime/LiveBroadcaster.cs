@@ -69,5 +69,5 @@ public sealed class LiveBroadcaster
     }
 
     /// <summary>As the base type, so the "type" discriminator is written.</summary>
-    public static string Serialize(LiveMessage message) => JsonSerializer.Serialize(message, VigilJson.Options);
+    public static string Serialize(LiveMessage message) => JsonSerializer.Serialize(message, VigilJsonContext.Default.LiveMessage);
 }

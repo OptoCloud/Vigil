@@ -9,7 +9,7 @@ Type=notify
 # Needs read access to vigild's socket: its group must be the socket's (socket_gid in vigild.toml).
 User=vigil
 EnvironmentFile=/etc/vigil-core.env
-# A self-contained single-file build (core/deploy/package.sh): no .NET runtime on the host.
+# One NativeAOT binary (core/deploy/package.sh): no .NET runtime on the host.
 ExecStart=/opt/vigil-core/vigil-core
 Environment=WEB_ROOT=/opt/vigil-core/web
 Restart=always
@@ -39,9 +39,8 @@ RestrictSUIDSGID=true
 RestrictRealtime=true
 SystemCallArchitectures=native
 LockPersonality=true
-# MemoryDenyWriteExecute: NOT set, .NET's JIT writes the machine code it then executes, so
-# the process would not start. NativeAOT would allow it; moving to it is a tracked follow-up
-# (docs/CLEANUP.md, ADR-016), and it puts this directive back.
+# NativeAOT compiled the code ahead of time, so nothing writes code it then executes (ADR-016).
+MemoryDenyWriteExecute=true
 # Runs as an unprivileged user and needs no capability whatsoever: it binds a port above
 # 1024 and opens no device.
 CapabilityBoundingSet=

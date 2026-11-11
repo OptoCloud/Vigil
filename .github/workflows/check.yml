@@ -62,7 +62,7 @@ jobs:
 
   # vigild's static Linux binary is what actually gets deployed to the host, so a change that
   # breaks the musl cross-build must not be mergeable (docs/DECISIONS.md ADR-005).
-  # vigil-core is .NET and packaged by core/deploy/package.sh instead.
+  # vigil-core's NativeAOT build is checked by the job after this one.
   musl-build:
     runs-on: ubuntu-latest
     steps:
@@ -91,3 +91,29 @@ jobs:
           # A dynamically linked binary would not run on a minimal host, which is the whole
           # point of the musl target.
           file "$path" | grep -q 'static' || { echo "vigild is not statically linked"; exit 1; }
+
+  # vigil-core ships as a NativeAOT binary (docs/DECISIONS.md ADR-016). The trimmer and the AOT
+  # compiler warn about reflection only when they run, which an ordinary build never does, and
+  # warnings are errors: a change that would break the native build must not be mergeable.
+  # ubuntu-latest has clang and zlib's headers already.
+  vigil-core-aot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+
+      - name: Publish vigil-core with NativeAOT
+        run: dotnet publish core/Vigil.Core -c Release -r linux-x64 -p:AssemblyName=vigil-core -o out
+
+      - name: Check that it starts and refuses a bad configuration
+        run: |
+          # Validation runs before anything is opened, so this needs no database or vigild,
+          # and it proves the binary binds the environment: PERSIST_INTERVAL_SECONDS has to
+          # reach the validator to be refused.
+          if PERSIST_INTERVAL_SECONDS=-1 ./out/vigil-core > log.txt 2>&1; then
+            echo "vigil-core accepted PERSIST_INTERVAL_SECONDS=-1"; exit 1
+          fi
+          grep -q 'PERSIST_INTERVAL_SECONDS must be a positive number' log.txt || { cat log.txt; exit 1; }
