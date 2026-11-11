@@ -122,6 +122,18 @@ public sealed record DriveHealth
     public required string AsOf { get; init; }
 }
 
+/// <summary>One drive bay: the port behind it and where it is in the case, as labelled.</summary>
+public sealed record Bay
+{
+    /// <summary>The /dev/disk/by-path name, as sensors and drives carry it.</summary>
+    public required string Port { get; init; }
+
+    public required string Cage { get; init; }
+
+    /// <summary>Counted from 1, the way the cage is labelled.</summary>
+    public required uint Slot { get; init; }
+}
+
 /// <summary>
 /// The full read-only view of vigild's state. This is the contract consumers build on: treat a
 /// field rename here as a breaking change.
@@ -138,6 +150,12 @@ public sealed record Snapshot
     /// predates it, which is why it is not required.
     /// </summary>
     public ZfsStatus? Zfs { get; init; }
+
+    /// <summary>
+    /// Every bay in vigild's <c>[[bays]]</c>, in config order. Empty without them, and from a
+    /// daemon that predates them, which is why it is not required.
+    /// </summary>
+    public IReadOnlyList<Bay> Bays { get; init; } = [];
 
     /// <summary>
     /// False when any channel could not be driven this poll, or (judged at read time) when this

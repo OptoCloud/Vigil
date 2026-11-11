@@ -20,13 +20,17 @@ public static class DriveConditions
     /// How old the newest completed self-test may be, <c>SMART_SELF_TEST_MAX_AGE_DAYS</c>. Null
     /// leaves age unjudged: without smartd scheduling tests every drive would be overdue.
     /// </param>
-    public static Conditions Of(IEnumerable<DriveState> drives, TimeSpan? selfTestMaxAge)
+    /// <param name="bays">Each port's bay name (<see cref="BayNames"/>); a drive's last known port finds it.</param>
+    public static Conditions Of(IEnumerable<DriveState> drives, TimeSpan? selfTestMaxAge, IReadOnlyDictionary<string, string>? bays = null)
     {
+        bays ??= BayNames.Of([]);
         ArgumentNullException.ThrowIfNull(drives);
         var conditions = new Conditions();
         foreach (var drive in drives)
         {
-            var name = $"Drive {drive.Wwn}{(drive.SerialNumber is { } serial ? $" (serial {serial})" : string.Empty)}";
+            var serial = drive.SerialNumber is { } number ? $", serial {number}" : string.Empty;
+            var bay = bays.TryGetValue(drive.Port ?? string.Empty, out var place) ? $", {place}" : string.Empty;
+            var name = $"Drive {drive.Wwn}{(serial.Length + bay.Length > 0 ? $" ({(serial + bay)[2..]})" : string.Empty)}";
 
             if (drive.Passed == false)
             {

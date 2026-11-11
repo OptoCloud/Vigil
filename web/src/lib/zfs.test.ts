@@ -72,7 +72,7 @@ describe('poolVerdict', () => {
 describe('vdevVerdict', () => {
 	it('says why a disk is out, and tells a ready spare from one standing in', () => {
 		expect(vdevVerdict(FAULT.vdevs[1])).toEqual({ level: 'critical', label: 'Faulted (ERR_EXCEEDED)' });
-		expect(vdevVerdict(FAULT.vdevs[2]).label).toBe('Spare, in use');
+		expect(vdevVerdict(FAULT.vdevs[2])).toEqual({ level: 'critical', label: 'Spare, in use' });
 		expect(vdevVerdict(FAULT.vdevs[3]).level).toBe('good');
 	});
 });

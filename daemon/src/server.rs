@@ -203,6 +203,7 @@ mod tests {
             fans: vec![],
             drive_health: vec![],
             zfs: None,
+            bays: vec![],
             control_loop_healthy: true,
         }
     }

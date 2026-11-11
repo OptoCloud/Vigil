@@ -223,6 +223,13 @@
             }
           ]
         },
+        "bays": [
+          {
+            "port": "pci-0000:03:00.0-sas-phy4-lun-0",
+            "cage": "8-bay",
+            "slot": 5
+          }
+        ],
         "controlLoopHealthy": true
       }
     },

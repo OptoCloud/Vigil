@@ -34,6 +34,7 @@ use config::Config;
 use control::ControlLoop;
 use curve::{FanCurve, Member};
 use fans::{FanSafetyGuard, SysfsFanController};
+use protocol::Bay;
 use sensors::{DEFAULT_WHITELIST, HwmonResolver, SensorCategory, SensorReading};
 use status::{Snapshot, StatusHub};
 use std::process::ExitCode;
@@ -132,6 +133,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
     info!("Control loop starting: {} fan channel(s), poll every {:?}.", config.channels.len(), config.poll_interval());
     notify::ready();
 
+    let bays: Vec<Bay> = config.bays.iter().map(|bay| Bay { port: bay.port.clone(), cage: bay.cage.clone(), slot: bay.slot }).collect();
     let mut next_poll = Instant::now();
     while !SHUTDOWN.load(Ordering::Relaxed) {
         let result = control.poll(vec![gpu.read(), hba.read()]);
@@ -148,6 +150,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
             fans: result.fans,
             drive_health: drive_health.lock().unwrap_or_else(|e| e.into_inner()).clone(),
             zfs: pools.lock().unwrap_or_else(|e| e.into_inner()).clone(),
+            bays: bays.clone(),
             control_loop_healthy: result.healthy,
         });
 

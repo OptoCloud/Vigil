@@ -12,8 +12,8 @@
 //! one and CI fails.
 
 use super::{
-    DriveHealth, FanStatus, PoolScan, PoolStatus, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot, VdevStatus,
-    ZfsStatus,
+    Bay, DriveHealth, FanStatus, PoolScan, PoolStatus, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot,
+    VdevStatus, ZfsStatus,
 };
 use serde_json::{Value, json};
 
@@ -113,12 +113,14 @@ fn samples() -> Value {
         vdevs: vec![vdev.clone()],
     };
     let zfs = ZfsStatus { is_available: true, as_of: "2026-09-21T23:01:02.004Z".to_owned(), pools: vec![pool.clone()] };
+    let bay = Bay { port: "pci-0000:03:00.0-sas-phy4-lun-0".to_owned(), cage: "8-bay".to_owned(), slot: 5 };
     let snapshot = Snapshot {
         timestamp_utc: "2026-09-21T23:01:34.155Z".to_owned(),
         sensors: vec![sensor.clone()],
         fans: vec![fan.clone()],
         drive_health: vec![drive_health.clone()],
         zfs: Some(zfs.clone()),
+        bays: vec![bay.clone()],
         control_loop_healthy: true,
     };
 
@@ -140,6 +142,7 @@ fn samples() -> Value {
             "PoolStatus": pool,
             "PoolScan": scan,
             "VdevStatus": vdev,
+            "Bay": bay,
             "Snapshot": snapshot,
         },
         // vigil-core's read timeout on /events must exceed twice this, and its tests check it.

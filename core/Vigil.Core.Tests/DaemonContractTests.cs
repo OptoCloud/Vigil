@@ -23,7 +23,7 @@ public sealed class DaemonContractTests
     /// <summary>Every vigild type mirrored here, so one added in Rust and missed here fails.</summary>
     private static readonly string[] MirroredTypes =
     [
-        nameof(DriveHealth), nameof(FanStatus), nameof(PoolScan), nameof(PoolStatus), nameof(SensorReading), nameof(Snapshot),
+        nameof(Bay), nameof(DriveHealth), nameof(FanStatus), nameof(PoolScan), nameof(PoolStatus), nameof(SensorReading), nameof(Snapshot),
         nameof(VdevStatus), nameof(ZfsStatus),
     ];
 
@@ -53,6 +53,7 @@ public sealed class DaemonContractTests
     [Fact] public void PoolStatusRoundTrips() => RoundTrips<PoolStatus>(nameof(PoolStatus));
     [Fact] public void PoolScanRoundTrips() => RoundTrips<PoolScan>(nameof(PoolScan));
     [Fact] public void VdevStatusRoundTrips() => RoundTrips<VdevStatus>(nameof(VdevStatus));
+    [Fact] public void BayRoundTrips() => RoundTrips<Bay>(nameof(Bay));
 
     [Theory]
     [InlineData("SensorCategory", typeof(SensorCategory))]

@@ -17,7 +17,7 @@
 		zfsDiskVerdict,
 		zfsErrors
 	} from '#lib/drives.ts';
-	import type { DriveState, HistoryResponse, SensorReading, ZfsStatus } from '#lib/types.ts';
+	import type { Bay, DriveState, HistoryResponse, SensorReading, ZfsStatus } from '#lib/types.ts';
 	import Sparkline from './Sparkline.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 
@@ -30,6 +30,8 @@
 		history: HistoryResponse | null;
 		/** ZFS's view of the same disks, joined by the name every source shares. */
 		zfs: ZfsStatus | null | undefined;
+		/** Where each port is in the case, from vigild's `[[bays]]`. */
+		bayConfig: Bay[];
 		now: number;
 		/**
 		 * Two ways to read the same temperatures. By drive follows a disk wherever it is plugged
@@ -39,7 +41,7 @@
 		view: 'drive' | 'bay';
 	}
 
-	let { sensors, drives, history, zfs, now, view }: Props = $props();
+	let { sensors, drives, history, zfs, bayConfig, now, view }: Props = $props();
 
 	// Thirteen drives are far past where colour can tell series apart, so this is a table, with
 	// a small magnitude bar doing the at-a-glance comparison over this range of temperatures.
@@ -47,7 +49,7 @@
 	const BAR_MAX = 60;
 
 	const rows = $derived(driveRows(sensors, drives, history));
-	const bays = $derived(bayRows(sensors, drives, history));
+	const bays = $derived(bayRows(sensors, drives, history, bayConfig));
 
 	const barWidth = (celsius: number) => Math.min(100, Math.max(3, ((celsius - BAR_MIN) / (BAR_MAX - BAR_MIN)) * 100));
 </script>
@@ -111,6 +113,8 @@
 			<Table.Row class="border-grid hover:bg-transparent">
 				<Table.Head scope="col" class="pl-0 text-xs text-muted-foreground">Bay</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Drive in it</Table.Head>
+				<Table.Head scope="col" class="text-xs text-muted-foreground">ZFS</Table.Head>
+				<Table.Head scope="col" class="text-right text-xs text-muted-foreground">ZFS errors</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Temperature</Table.Head>
 				<Table.Head scope="col" class="text-xs text-muted-foreground">Trend</Table.Head>
 				<Table.Head scope="col" class="pr-0 text-xs text-muted-foreground">Health</Table.Head>
@@ -118,28 +122,55 @@
 		</Table.Header>
 		<Table.Body>
 			{#each bays as bay (bay.port)}
-				{@const s = diskVerdict(bay.health, bay.wwn ? membershipsOf(zfs, bay.wwn) : [])}
+				{@const memberships = bay.wwn ? membershipsOf(zfs, bay.wwn) : []}
+				{@const s = diskVerdict(bay.health, memberships)}
+				{@const z = zfsDiskVerdict(memberships)}
 				<Table.Row class="border-grid">
-					<!-- The port is the bay's identity: it stays with the location whatever disk is in it. -->
-					<Table.Head scope="row" class="pl-0 font-normal tabular-nums" title={bay.port}>{shortPort(bay.port)}</Table.Head>
+					<!-- The bay is the place: it stays put whatever disk is in it, so it is what to read before pulling one. -->
+					<Table.Head scope="row" class="pl-0 font-normal" title={bay.port}>
+						{#if bay.place}
+							<span class="font-medium">{bay.place.cage} · {bay.place.slot}</span>
+							<span class="block text-xs text-faint tabular-nums">{shortPort(bay.port)}</span>
+						{:else}
+							<span class="tabular-nums">{shortPort(bay.port)}</span>
+							<span class="block text-xs text-faint">not in [[bays]]</span>
+						{/if}
+					</Table.Head>
 					<Table.Cell title={bay.wwn ?? ''}>
 						{#if bay.wwn}
 							<a class="font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: bay.wwn })}
-								>{shortWwn(bay.wwn)}</a
+								>{bay.health?.serialNumber ?? shortWwn(bay.wwn)}</a
 							>
+							{#if bay.health?.serialNumber}<span class="block text-xs text-faint tabular-nums">{shortWwn(bay.wwn)}</span>{/if}
 						{:else}
-							<span class="text-faint">empty now</span>
+							<span class="text-faint">empty</span>
 						{/if}
 					</Table.Cell>
-					<Table.Cell>{@render temperature(bay.sensor?.celsiusOrNull ?? null)}</Table.Cell>
-					<Table.Cell><Sparkline points={bay.trend} /></Table.Cell>
+					<Table.Cell>
+						{#if z}
+							<StatusBadge level={z.level} label={z.label} />
+							<span class="block text-xs text-faint">{memberships.map(roleOf).join('; ')}</span>
+						{:else if bay.wwn}
+							<span class="text-faint">not in a pool</span>
+						{/if}
+					</Table.Cell>
+					<Table.Cell class="text-right tabular-nums">{bay.wwn ? formatCount(zfsErrors(memberships)) : ''}</Table.Cell>
+					<!-- A bay that is empty now but had a disk earlier in the range keeps its trend. -->
+					<Table.Cell
+						>{#if bay.wwn}{@render temperature(bay.sensor?.celsiusOrNull ?? null)}{/if}</Table.Cell
+					>
+					<Table.Cell
+						>{#if bay.wwn || bay.trend.length > 0}<Sparkline points={bay.trend} />{/if}</Table.Cell
+					>
 					<Table.Cell class="pr-0"
 						>{#if bay.wwn}<StatusBadge level={s.level} label={s.label} />{/if}</Table.Cell
 					>
 				</Table.Row>
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={5} class="text-faint">No bays reported yet: that needs a daemon that reports each drive's port.</Table.Cell>
+					<Table.Cell colspan={7} class="text-faint"
+						>No bays yet: list them as [[bays]] in vigild.toml, or wait for a drive that reports its port.</Table.Cell
+					>
 				</Table.Row>
 			{/each}
 		</Table.Body>

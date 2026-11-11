@@ -26,6 +26,9 @@ public sealed class ConditionDebouncer(uint threshold, TimeProvider? time = null
     /// <summary>Whether <paramref name="kind"/> is raised: a condition with hysteresis needs to know.</summary>
     public bool IsRaised(string kind) => _raised.ContainsKey(kind);
 
+    /// <summary>The severity <paramref name="kind"/> is raised at, or null: hysteresis per level needs it.</summary>
+    public Severity? RaisedSeverity(string kind) => _raised.TryGetValue(kind, out var held) ? held.Condition.Severity : null;
+
     /// <summary>Every condition raised now, in key order: the verdict the page shows (ADR-019).</summary>
     public IEnumerable<Alert> Raised => _raised.Select(entry => new Alert
     {
@@ -51,6 +54,19 @@ public sealed class ConditionDebouncer(uint threshold, TimeProvider? time = null
         {
             if (_raised.TryGetValue(kind, out var held))
             {
+                // One condition, one alert, at whatever level it has reached: a pool going
+                // from 80 % to 90 % full is the same problem, worse, so it keeps its since. Worse
+                // is news and is announced; easing is not, and shows in the verdict alone.
+                if (condition.Severity != held.Condition.Severity)
+                {
+                    if (condition.Severity > held.Condition.Severity)
+                    {
+                        events.Add(new NewEvent(condition.Severity, kind, condition.Message));
+                    }
+
+                    held = held with { Condition = condition };
+                }
+
                 _raised[kind] = held with { AbsentFor = 0 };
                 continue;
             }

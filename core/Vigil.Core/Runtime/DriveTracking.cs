@@ -24,6 +24,7 @@ internal sealed class DriveTracking(VigilOptions options, TimeProvider time)
     private readonly ConditionDebouncer _debouncer = new(Threshold, time);
     private readonly SortedDictionary<string, DriveState> _drives = new(StringComparer.Ordinal);
     private readonly TimeSpan? _selfTestMaxAge = options.SmartSelfTestMaxAgeDays is { } days ? TimeSpan.FromDays(days) : null;
+    private IReadOnlyDictionary<string, string> _bays = BayNames.Of([]);
     private string _lastAsOf = string.Empty;
 
     public IEnumerable<Alert> Raised => _debouncer.Raised;
@@ -40,8 +41,10 @@ internal sealed class DriveTracking(VigilOptions options, TimeProvider time)
     }
 
     /// <summary>Takes one snapshot's SMART results; null when this poll was already seen.</summary>
-    public DriveObservation? Observe(IReadOnlyList<DriveHealth> health)
+    /// <param name="bays">vigild's <c>[[bays]]</c>, so an alert can say where a failed drive is.</param>
+    public DriveObservation? Observe(IReadOnlyList<DriveHealth> health, IReadOnlyList<Bay> bays)
     {
+        _bays = BayNames.Of(bays);
         var asOf = health.Count > 0 ? health[0].AsOf : string.Empty;
         if (asOf.Length == 0 || asOf == _lastAsOf)
         {
@@ -66,5 +69,5 @@ internal sealed class DriveTracking(VigilOptions options, TimeProvider time)
     }
 
     /// <summary>Judges the drive conditions now; returns what was raised or cleared.</summary>
-    public List<NewEvent> Evaluate() => _debouncer.Update(DriveConditions.Of(_drives.Values, _selfTestMaxAge));
+    public List<NewEvent> Evaluate() => _debouncer.Update(DriveConditions.Of(_drives.Values, _selfTestMaxAge, _bays));
 }

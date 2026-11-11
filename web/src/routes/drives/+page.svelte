@@ -30,6 +30,7 @@
 		drives={live.drives}
 		history={live.history}
 		zfs={live.snapshot?.zfs}
+		bayConfig={live.snapshot?.bays ?? []}
 		now={live.now}
 		{view}
 	/>

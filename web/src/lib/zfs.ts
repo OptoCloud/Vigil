@@ -19,11 +19,12 @@ export function vdevVerdict(vdev: VdevStatus): Verdict {
 	switch (vdev.state) {
 		case 'ONLINE':
 			return hasErrors(vdev) ? { level: 'warning', label: 'Online, with errors' } : { level: 'good', label: 'Online' };
-		// A hot spare's own states: AVAIL is ready, INUSE is standing in for a failed disk.
+		// A hot spare's own states: AVAIL is ready, INUSE is standing in for a failed disk. That
+		// is critical, as vigil-core's condition for it is: the pool runs with no spare margin.
 		case 'AVAIL':
 			return { level: 'good', label: 'Spare, available' };
 		case 'INUSE':
-			return { level: 'warning', label: 'Spare, in use' };
+			return { level: 'critical', label: 'Spare, in use' };
 		case 'DEGRADED':
 			return { level: 'warning', label: `Degraded${reason}` };
 		default:

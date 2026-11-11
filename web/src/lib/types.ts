@@ -53,6 +53,14 @@ export interface DriveHealth {
 	asOf: string;
 }
 
+/** One drive bay from vigild's `[[bays]]`: the port behind it and where it is in the case. */
+export interface Bay {
+	port: string;
+	cage: string;
+	/** Counted from 1, the way the cage is labelled. */
+	slot: number;
+}
+
 export interface Snapshot {
 	timestampUtc: string;
 	sensors: SensorReading[];
@@ -60,6 +68,8 @@ export interface Snapshot {
 	driveHealth: DriveHealth[];
 	/** Null when vigild's [zfs] is off or has not polled yet; absent from daemons that predate it. */
 	zfs?: ZfsStatus | null;
+	/** Every configured bay, in config order; absent from a daemon that predates them. */
+	bays?: Bay[];
 	controlLoopHealthy: boolean;
 }
 

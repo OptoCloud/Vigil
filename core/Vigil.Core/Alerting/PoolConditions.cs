@@ -8,13 +8,15 @@ namespace Vigil.Core.Alerting;
 /// <param name="LastScrubs">Each pool's last completed scrub that vigil-core remembers, from <c>zfs_scans</c>.</param>
 /// <param name="ScrubMaxAge">How old the last completed scrub may get, <c>ZFS_SCRUB_MAX_AGE_DAYS</c>.</param>
 /// <param name="ExpectedSpares">Hot spares each pool should have AVAIL, <c>ZFS_EXPECTED_SPARES</c>.</param>
-/// <param name="IsRaised">Whether a condition is raised now: capacity has hysteresis.</param>
+/// <param name="RaisedSeverity">The severity a condition is raised at now, or null: capacity has hysteresis per level.</param>
+/// <param name="Bays">Each port's bay name (<see cref="BayNames"/>), so a failed disk's alert says where it is.</param>
 public sealed record PoolJudgement(
     DateTimeOffset Now,
     IReadOnlyDictionary<string, DateTimeOffset> LastScrubs,
     TimeSpan ScrubMaxAge,
     IReadOnlyDictionary<string, int> ExpectedSpares,
-    Func<string, bool> IsRaised);
+    Func<string, Severity?> RaisedSeverity,
+    IReadOnlyDictionary<string, string> Bays);
 
 /// <summary>
 /// The ZFS problems that hold right now (ADR-018, docs/CLEANUP.md 7.3), as conditions the
@@ -75,7 +77,7 @@ public static class PoolConditions
 
         foreach (var pool in zfs.Pools)
         {
-            Levels(pool, conditions);
+            Levels(pool, judgement.Bays, conditions);
             Capacity(pool, judgement, conditions);
             ScrubAge(pool, judgement, conditions);
             Spares(pool, judgement, conditions);
@@ -87,7 +89,7 @@ public static class PoolConditions
     /// <summary>Whether this check can judge every condition: false when zpool gave no answer.</summary>
     public static bool IsComplete(ZfsStatus? zfs) => zfs is null || zfs.IsAvailable;
 
-    private static void Levels(PoolStatus pool, Conditions conditions)
+    private static void Levels(PoolStatus pool, IReadOnlyDictionary<string, string> bays, Conditions conditions)
     {
         if (pool.State != "ONLINE")
         {
@@ -107,10 +109,11 @@ public static class PoolConditions
 
             var why = vdev.Aux is { } aux ? $" ({aux})" : string.Empty;
             var role = vdev.State == "INUSE" ? "hot spare, standing in for a failed disk" : $"{vdev.State}{why}";
+            var name = $"{vdev.Name}{BayNames.Suffix(bays, vdev.Port)}";
             conditions[$"zfs-vdev:{pool.Name}:{vdev.Guid ?? vdev.Name}"] = new Condition(
                 Severity.Critical,
-                $"{vdev.Name} in pool {pool.Name} is {role}.",
-                $"{vdev.Name} in pool {pool.Name} is back to normal.");
+                $"{name} in pool {pool.Name} is {role}.",
+                $"{name} in pool {pool.Name} is back to normal.");
         }
 
         if (pool.ErrorCount is > 0)
@@ -130,20 +133,24 @@ public static class PoolConditions
         }
 
         var percent = allocated * 100.0 / pool.SizeBytes.Value;
-        void Level(string kind, double level, Severity severity)
-        {
-            var holds = percent >= (judgement.IsRaised(kind) ? level - CapacityHysteresis : level);
-            if (holds)
-            {
-                conditions[kind] = new Condition(
-                    severity,
-                    $"Pool {pool.Name} is {percent.ToString("0", CultureInfo.InvariantCulture)} % full (at {level} % ZFS starts to slow down).",
-                    $"Pool {pool.Name} is below {level} % full again.");
-            }
-        }
 
-        Level($"zfs-capacity:{pool.Name}", CapacityWarn, Severity.Warning);
-        Level($"zfs-capacity-critical:{pool.Name}", CapacityCritical, Severity.Critical);
+        // One condition whose severity follows the level, so a filling pool is one alert that
+        // worsens rather than two. Each level holds CapacityHysteresis below itself once reached.
+        var kind = $"zfs-capacity:{pool.Name}";
+        var raised = judgement.RaisedSeverity(kind);
+        double Threshold(double level, bool reached) => reached ? level - CapacityHysteresis : level;
+        var severity =
+            percent >= Threshold(CapacityCritical, raised == Severity.Critical) ? Severity.Critical
+            : percent >= Threshold(CapacityWarn, raised is not null) ? Severity.Warning
+            : (Severity?)null;
+        if (severity is { } level)
+        {
+            var at = level == Severity.Critical ? CapacityCritical : CapacityWarn;
+            conditions[kind] = new Condition(
+                level,
+                $"Pool {pool.Name} is {percent.ToString("0", CultureInfo.InvariantCulture)} % full (past {at} % ZFS slows down{(level == Severity.Critical ? " sharply" : string.Empty)}).",
+                $"Pool {pool.Name} is below {CapacityWarn} % full again.");
+        }
     }
 
     /// <summary>
