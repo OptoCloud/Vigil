@@ -12,7 +12,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 time = { version = "0.3.55", features = ["formatting", "macros"] }
 toml = "1"
-tokio = { version = "1.53.1", features = ["rt-multi-thread", "net", "time", "macros"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "net", "time", "macros"] }
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
@@ -32,7 +32,7 @@ workspace = true
 serde_json = { version = "1", features = ["preserve_order"] }
 futures-util = "0.3.34"
 http-body-util = "0.1.5"
-tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5.3", features = ["util"] }
 
 # Linux-only: there is no systemd to notify anywhere else, and the daemon is unit-tested on
