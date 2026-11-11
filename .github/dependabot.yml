@@ -1,0 +1,36 @@
+# Weekly dependency updates, one grouped pull request per ecosystem, so a week's bumps are
+# reviewed and run through scripts/check.sh together rather than as a stream of single PRs.
+#
+# Not covered, deliberately:
+#   - dev/docker-compose.yml's TimescaleDB image matches the production database in CT 300.
+#     It moves when that database does, not when a newer image appears.
+#   - Microsoft.Extensions major versions: they must match ASP.NET Core's shared framework, so
+#     they move with the target framework and global.json, by hand, never on their own.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      cargo: { patterns: ['*'] }
+
+  - package-ecosystem: nuget
+    directory: /core
+    schedule: { interval: weekly, day: monday }
+    ignore:
+      - dependency-name: 'Microsoft.Extensions.*'
+        update-types: ['version-update:semver-major']
+    groups:
+      nuget: { patterns: ['*'] }
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly, day: monday }
+    groups:
+      npm: { patterns: ['*'] }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      github-actions: { patterns: ['*'] }
