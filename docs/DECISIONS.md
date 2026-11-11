@@ -312,3 +312,30 @@ and one that cleared while vigil-core was down gets no all-clear.
 options validated like `NTFY_URL`. Its address is a secret in the way a private ntfy topic is:
 a phone number, gateway URL or token is never logged and never put in an error or a response
 (SECURITY.md). A rule's severity now decides who gets woken, not only what colour it is.
+
+### ADR-022: A tag on master is a deploy
+
+*Decided 2026-11-11.* Releases were built by hand on the host's build guest (a build guest) and
+installed by a runbook, so a fix reached the NAS whenever someone found an evening for it.
+
+Now pushing a tag `vYYYY.MM.DD` (or `.N` for a second that day) on a commit master contains runs
+`.github/workflows/release.yml`: every check in `check.yml`, then vigild and `vigil-core.tar.gz`
+built from the tagged tree, attested with GitHub's build provenance and published as the
+release. It dispatches `vigil-release` to the deployment repo, which owns what the host runs: its
+`deploy workflow` workflow verifies the attestations, pins the two sha256s in the repo, commits,
+and asks the host to apply that commit.
+
+The chain's trust is arranged so no single secret is worth much:
+
+- `HOSTS_DISPATCH_TOKEN`, here, can only start the deployment's workflows.
+- the deployment's credentials reach the host only as a `deploy` user whose login shell runs one command,
+  `deploy command <tag> <commit>`, through one sudo rule. the host installs only what its own
+  clone of the deployment repo pins at that commit, after checking each sha256. A leaked key can
+  re-deploy a release that was already verified, nothing else.
+- A new vigild is checked against the live config before it replaces the old one, and both
+  components are health-checked after the restart and rolled back if that fails.
+
+*Rejected:* vigil as a submodule of the apps repo, bumped by each release. A submodule records
+source, but the host runs built artifacts, and the deployment's pin already records exactly which. A
+second record of "the version" could only disagree with the first. *Rejected:* CI with root
+SSH to the host, simpler but a root shell on the NAS in GitHub's secret store.
