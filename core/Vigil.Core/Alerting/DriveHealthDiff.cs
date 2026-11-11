@@ -32,6 +32,12 @@ public static class DriveHealthDiff
             ReallocatedSectorCount = current.ReallocatedSectorCount,
             PendingSectorCount = current.PendingSectorCount,
             PowerOnHours = current.PowerOnHours,
+            SerialNumber = current.SerialNumber,
+            ReportedUncorrect = current.ReportedUncorrect,
+            CommandTimeout = current.CommandTimeout,
+            UdmaCrcErrorCount = current.UdmaCrcErrorCount,
+            LastSelfTestPassed = current.LastSelfTestPassed,
+            LastSelfTestHours = current.LastSelfTestHours,
             SourcePath = current.SourcePath,
             AsOf = current.AsOf,
         };
@@ -40,27 +46,27 @@ public static class DriveHealthDiff
         var name = $"Drive {current.DeviceName} ({current.SourcePath})";
         NewEvent Event(Severity severity, string kind, string message) => new(severity, $"{kind}:{state.Wwn}", message);
 
-        var previousPassed = previous?.Passed;
-        if (current.Passed == false && previousPassed != false)
-        {
-            events.Add(Event(Severity.Critical, "drive-failed", $"{name} FAILED its SMART overall-health self-assessment."));
-        }
-        else if (current.Passed == true && previousPassed == false)
-        {
-            events.Add(Event(Severity.Info, "drive-failed", $"{name} passes its SMART self-assessment again."));
-        }
+        // A failed assessment or self-test is not announced here: they are conditions
+        // (DriveConditions), so they hold the verdict for as long as they last.
 
         // Growth only, and only against a known previous count: a first sighting of a drive
         // with old reallocations is history, not news.
-        if (current.ReallocatedSectorCount is { } reallocated
-            && previous?.ReallocatedSectorCount is { } previousReallocated
-            && reallocated > previousReallocated)
+        void Grew(ulong? now, ulong? before, string kind, string what)
         {
-            events.Add(Event(
-                Severity.Warning,
-                "drive-reallocated",
-                $"{name}: reallocated sector count grew from {previousReallocated} to {reallocated}."));
+            if (now is { } count && before is { } previousCount && count > previousCount)
+            {
+                events.Add(Event(Severity.Warning, kind, $"{name}: {what} grew from {previousCount} to {count}."));
+            }
         }
+
+        Grew(current.ReallocatedSectorCount, previous?.ReallocatedSectorCount, "drive-reallocated", "reallocated sector count");
+        Grew(current.ReportedUncorrect, previous?.ReportedUncorrect, "drive-uncorrect", "reported uncorrectable errors (187)");
+        Grew(current.CommandTimeout, previous?.CommandTimeout, "drive-timeout", "command timeouts (188)");
+        Grew(
+            current.UdmaCrcErrorCount,
+            previous?.UdmaCrcErrorCount,
+            "drive-crc",
+            "UDMA CRC errors (199), which usually means the cable or the backplane,");
 
         // Pending sectors are different: any nonzero count is news, because they either get
         // reallocated or read back, and both are worth knowing.
@@ -78,7 +84,11 @@ public static class DriveHealthDiff
         var changed = previous is null
             || previous.Passed != state.Passed
             || previous.ReallocatedSectorCount != state.ReallocatedSectorCount
-            || previous.PendingSectorCount != state.PendingSectorCount;
+            || previous.PendingSectorCount != state.PendingSectorCount
+            || previous.ReportedUncorrect != state.ReportedUncorrect
+            || previous.CommandTimeout != state.CommandTimeout
+            || previous.UdmaCrcErrorCount != state.UdmaCrcErrorCount
+            || previous.LastSelfTestPassed != state.LastSelfTestPassed;
 
         return new DriveUpdate(state, changed, events);
     }

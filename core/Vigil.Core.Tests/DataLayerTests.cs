@@ -168,6 +168,39 @@ public sealed class DataLayerTests
     }
 
     [Fact]
+    public async Task TheEarlyWarningCountersAndTheSelfTestSurviveTheRoundTrip()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+
+        var store = new DriveStore(databases);
+        var drive = new DriveState
+        {
+            Wwn = "naa.5000c500bae40598",
+            Port = null,
+            Passed = true,
+            ReallocatedSectorCount = 0,
+            PendingSectorCount = 0,
+            PowerOnHours = 20112,
+            SerialNumber = "ZDH8XK2P",
+            ReportedUncorrect = 3,
+            CommandTimeout = 4295032833,
+            UdmaCrcErrorCount = null,
+            LastSelfTestPassed = false,
+            LastSelfTestHours = 20001,
+            SourcePath = "/dev/sda",
+            AsOf = Rfc3339.From(DateTimeOffset.UtcNow),
+        };
+
+        await store.SaveAsync(drive, changed: true, token);
+
+        Assert.Equal(drive, Assert.Single(await store.LoadAsync(token)) with { AsOf = drive.AsOf });
+        var row = Assert.Single(await store.HistoryAsync(drive.Wwn, 10, token));
+        Assert.Equal((3ul, 4295032833ul, (ulong?)null, (bool?)false), (row.ReportedUncorrect!.Value, row.CommandTimeout!.Value, row.UdmaCrcErrorCount, row.LastSelfTestPassed));
+    }
+
+    [Fact]
     public async Task ReadsOneDrivesHealthChangesNewestFirst()
     {
         var token = TestContext.Current.CancellationToken;

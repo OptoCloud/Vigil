@@ -89,4 +89,11 @@ public sealed class VigilOptions
     /// (orion: <c>void:2</c>). A pool not named is not checked. Parsed by <see cref="SpareCounts"/>.
     /// </summary>
     public string? ZfsExpectedSpares { get; init; }
+
+    /// <summary>
+    /// How old a drive's newest completed SMART self-test may be before that is a warning. Unset
+    /// leaves it unjudged, which is right until smartd schedules tests on the host: otherwise
+    /// every drive would be overdue. 8 suits a weekly long test (CLEANUP 7.6).
+    /// </summary>
+    public double? SmartSelfTestMaxAgeDays { get; init; }
 }

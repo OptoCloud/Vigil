@@ -172,6 +172,14 @@ function snapshot() {
 			reallocatedSectorCount: i === 2 ? reallocated : 0,
 			pendingSectorCount: d.ssd ? null : 0,
 			powerOnHours: 9000 + i * 1300,
+			serialNumber: `ZDH8${d.wwn.slice(-4).toUpperCase()}`,
+			// SSDs answer neither the ATA counters nor a self-test log here, as orion's NVMe does not.
+			reportedUncorrect: d.ssd ? null : 0,
+			commandTimeout: d.ssd ? null : 0,
+			// The 4-bay's flaky cable (the 10-16 ata2 reset): a few CRC errors that the r key grows too.
+			udmaCrcErrorCount: d.ssd ? null : i === 9 ? 3 + (reallocated - 1048) / 8 : 0,
+			lastSelfTestPassed: d.ssd ? null : true,
+			lastSelfTestHours: d.ssd ? null : 9000 + i * 1300 - 30,
 			sourcePath: `/dev/${d.device}`,
 			isAvailable: true,
 			asOf: driveHealthAsOf

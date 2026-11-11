@@ -39,6 +39,12 @@ public sealed class DriveStore(VigilDataSources databases)
                 // Epoch milliseconds, formatted here, so no date handling crosses the boundary
                 // as text in either direction.
                 AsOf = Rfc3339.From(DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(7))),
+                SerialNumber = reader.IsDBNull(8) ? null : reader.GetString(8),
+                ReportedUncorrect = Count(reader, 9),
+                CommandTimeout = Count(reader, 10),
+                UdmaCrcErrorCount = Count(reader, 11),
+                LastSelfTestPassed = reader.IsDBNull(12) ? null : reader.GetBoolean(12),
+                LastSelfTestHours = Count(reader, 13),
             });
         }
 
@@ -66,6 +72,10 @@ public sealed class DriveStore(VigilDataSources databases)
                 ReallocatedSectorCount = Count(reader, 2),
                 PendingSectorCount = Count(reader, 3),
                 PowerOnHours = Count(reader, 4),
+                ReportedUncorrect = Count(reader, 5),
+                CommandTimeout = Count(reader, 6),
+                UdmaCrcErrorCount = Count(reader, 7),
+                LastSelfTestPassed = reader.IsDBNull(8) ? null : reader.GetBoolean(8),
             });
         }
 
@@ -88,7 +98,7 @@ public sealed class DriveStore(VigilDataSources databases)
 
         await using (var upsert = new NpgsqlCommand(UpsertDrive, connection, transaction))
         {
-            AddDriveParameters(upsert, drive, includePortAndPath: true);
+            AddDriveParameters(upsert, drive);
             await upsert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -101,29 +111,33 @@ public sealed class DriveStore(VigilDataSources databases)
             history.Parameters.Add(Big(drive.ReallocatedSectorCount));
             history.Parameters.Add(Big(drive.PendingSectorCount));
             history.Parameters.Add(Big(drive.PowerOnHours));
+            history.Parameters.Add(Big(drive.ReportedUncorrect));
+            history.Parameters.Add(Big(drive.CommandTimeout));
+            history.Parameters.Add(Big(drive.UdmaCrcErrorCount));
+            history.Parameters.Add(Nullable(drive.LastSelfTestPassed, NpgsqlDbType.Boolean));
             await history.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static void AddDriveParameters(NpgsqlCommand command, DriveState drive, bool includePortAndPath)
+    /// <summary>upsert_drive's parameters, in its order.</summary>
+    private static void AddDriveParameters(NpgsqlCommand command, DriveState drive)
     {
         command.Parameters.Add(Text(drive.Wwn));
-        if (includePortAndPath)
-        {
-            command.Parameters.Add(Nullable(drive.Port, NpgsqlDbType.Text));
-        }
-
+        command.Parameters.Add(Nullable(drive.Port, NpgsqlDbType.Text));
         command.Parameters.Add(Nullable(drive.Passed, NpgsqlDbType.Boolean));
         command.Parameters.Add(Big(drive.ReallocatedSectorCount));
         command.Parameters.Add(Big(drive.PendingSectorCount));
         command.Parameters.Add(Big(drive.PowerOnHours));
-        if (includePortAndPath)
-        {
-            command.Parameters.Add(Text(drive.SourcePath));
-            command.Parameters.Add(Text(drive.AsOf));
-        }
+        command.Parameters.Add(Text(drive.SourcePath));
+        command.Parameters.Add(Text(drive.AsOf));
+        command.Parameters.Add(Nullable(drive.SerialNumber, NpgsqlDbType.Text));
+        command.Parameters.Add(Big(drive.ReportedUncorrect));
+        command.Parameters.Add(Big(drive.CommandTimeout));
+        command.Parameters.Add(Big(drive.UdmaCrcErrorCount));
+        command.Parameters.Add(Nullable(drive.LastSelfTestPassed, NpgsqlDbType.Boolean));
+        command.Parameters.Add(Big(drive.LastSelfTestHours));
     }
 
     /// <summary>SMART reports these unsigned; the columns are bigint.</summary>

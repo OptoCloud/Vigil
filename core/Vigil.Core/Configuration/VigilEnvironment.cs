@@ -36,6 +36,7 @@ public static class VigilEnvironment
         ("WEB_ROOT", nameof(VigilOptions.WebRoot)),
         ("ZFS_SCRUB_MAX_AGE_DAYS", nameof(VigilOptions.ZfsScrubMaxAgeDays)),
         ("ZFS_EXPECTED_SPARES", nameof(VigilOptions.ZfsExpectedSpares)),
+        ("SMART_SELF_TEST_MAX_AGE_DAYS", nameof(VigilOptions.SmartSelfTestMaxAgeDays)),
     ];
 
     /// <summary>Every variable vigil-core reads, for documentation and for tests.</summary>

@@ -551,6 +551,9 @@ before it starts, with every problem listed:
 | `CORE_PORT` | `3001` | the production template sets `3000` |
 | `DAEMON_LOST_AFTER_SECONDS` | `20` | how long `vigild` must be unreachable before that is an event |
 | `WEB_ROOT` | | the dashboard's build; unset serves the API only, as in development |
+| `ZFS_EXPECTED_SPARES` | | hot spares each pool should have `AVAIL`, as `pool:count,…` (orion: `void:2`); a pool not named is not checked |
+| `ZFS_SCRUB_MAX_AGE_DAYS` | `35` | how old a pool's last completed scrub may get before that is a warning |
+| `SMART_SELF_TEST_MAX_AGE_DAYS` | | how old a drive's last completed self-test may get; unset leaves it unjudged, as it should be until smartd schedules tests |
 
 ## The dashboard
 

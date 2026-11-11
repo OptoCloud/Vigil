@@ -123,6 +123,25 @@ public sealed record DriveState
     public required ulong? ReallocatedSectorCount { get; init; }
     public required ulong? PendingSectorCount { get; init; }
     public required ulong? PowerOnHours { get; init; }
+
+    /// <summary>The serial on the drive's label: what to read off a disk before pulling it.</summary>
+    public string? SerialNumber { get; init; }
+
+    /// <summary>ATA 187, Reported_Uncorrect: reads the drive's own ECC could not correct.</summary>
+    public ulong? ReportedUncorrect { get; init; }
+
+    /// <summary>ATA 188, Command_Timeout. Packed counters on Seagate: only growth means anything.</summary>
+    public ulong? CommandTimeout { get; init; }
+
+    /// <summary>ATA 199, UDMA_CRC_Error_Count: link errors, usually the cable or backplane.</summary>
+    public ulong? UdmaCrcErrorCount { get; init; }
+
+    /// <summary>Whether the newest completed self-test passed; null if none is logged.</summary>
+    public bool? LastSelfTestPassed { get; init; }
+
+    /// <summary>Power-on hours when it ran; may have wrapped at 16 bits (see <see cref="Alerting.DriveConditions"/>).</summary>
+    public ulong? LastSelfTestHours { get; init; }
+
     public required string SourcePath { get; init; }
 
     /// <summary>When the drive last actually answered.</summary>
@@ -140,6 +159,10 @@ public sealed record DriveHealthRecord
     public required ulong? ReallocatedSectorCount { get; init; }
     public required ulong? PendingSectorCount { get; init; }
     public required ulong? PowerOnHours { get; init; }
+    public ulong? ReportedUncorrect { get; init; }
+    public ulong? CommandTimeout { get; init; }
+    public ulong? UdmaCrcErrorCount { get; init; }
+    public bool? LastSelfTestPassed { get; init; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<Severity>))]

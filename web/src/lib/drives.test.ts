@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { bayRows, diskVerdict, driveRows, formatYears, membershipsOf, roleOf, shortPort, smartVerdict, zfsErrors } from './drives';
+import {
+	bayRows,
+	diskVerdict,
+	driveRows,
+	formatYears,
+	membershipsOf,
+	roleOf,
+	selfTestAge,
+	shortPort,
+	smartVerdict,
+	zfsErrors
+} from './drives';
 import type { DriveState, HistoryResponse, PoolStatus, SensorReading, VdevStatus, ZfsStatus } from './types';
 
 const BAY_1 = 'pci-0000:01:00.1-ata-1';
@@ -25,6 +36,12 @@ function drive(wwn: string, changes: Partial<DriveState> = {}): DriveState {
 		reallocatedSectorCount: 0,
 		pendingSectorCount: 0,
 		powerOnHours: 8766,
+		serialNumber: null,
+		reportedUncorrect: null,
+		commandTimeout: null,
+		udmaCrcErrorCount: null,
+		lastSelfTestPassed: null,
+		lastSelfTestHours: null,
 		sourcePath: '/dev/sda',
 		asOf: '2026-10-17T00:00:00.000Z',
 		...changes
@@ -82,6 +99,18 @@ describe('smartVerdict', () => {
 	});
 });
 
+describe('self-tests', () => {
+	it('reads a failed self-test as critical', () => {
+		expect(smartVerdict(drive('a', { lastSelfTestPassed: false }))).toEqual({ level: 'critical', label: 'Self-test failed' });
+	});
+
+	it('ages the last self-test by the drive clock, allowing for 16-bit hours', () => {
+		expect(selfTestAge(drive('a', { powerOnHours: 20112, lastSelfTestHours: 20100 }))).toBe('12 h ago');
+		expect(selfTestAge(drive('a', { powerOnHours: 70000, lastSelfTestHours: 4400 }))).toBe('2 days ago');
+		expect(selfTestAge(drive('a'))).toBeNull();
+	});
+});
+
 describe('membershipsOf', () => {
 	it('finds the vdev on a disk by the name every source shares', () => {
 		const zfs: ZfsStatus = {
@@ -115,16 +144,7 @@ describe('diskVerdict', () => {
 		scan: null,
 		vdevs
 	});
-	const passed: DriveState = {
-		wwn: 'a',
-		port: null,
-		passed: true,
-		reallocatedSectorCount: 0,
-		pendingSectorCount: 0,
-		powerOnHours: 1,
-		sourcePath: '/dev/sda',
-		asOf: 't'
-	};
+	const passed = drive('a');
 
 	it('reads a disk ZFS has faulted as critical even while SMART says PASSED', () => {
 		const faulted = vdev('sda', 'a', { state: 'FAULTED', aux: 'ERR_EXCEEDED', readErrors: 14 });

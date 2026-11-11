@@ -30,6 +30,11 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
             }
         }
 
+        if (options.SmartSelfTestMaxAgeDays is { } selfTestDays && (!double.IsFinite(selfTestDays) || selfTestDays <= 0))
+        {
+            problems.Add($"SMART_SELF_TEST_MAX_AGE_DAYS must be a positive number of days when set, got '{selfTestDays}'.");
+        }
+
         if (options.HostShutdownSeconds is { } shutdown && (!double.IsFinite(shutdown) || shutdown <= 0))
         {
             problems.Add($"HOST_SHUTDOWN_SECONDS must be a positive number of seconds when set, got '{shutdown}'.");

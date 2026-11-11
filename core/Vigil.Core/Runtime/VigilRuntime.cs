@@ -43,7 +43,7 @@ public sealed class VigilRuntime
     private bool _daemonConnected;
     private (long Since, string Reason)? _daemonLostSince;
     private bool _daemonLostRaised;
-    private readonly SortedDictionary<string, DriveState> _drives = new(StringComparer.Ordinal);
+    private readonly DriveTracking _drives;
     private readonly UpsTracking _ups;
 
     private readonly ConditionDebouncer _snapshotDebouncer;
@@ -52,7 +52,6 @@ public sealed class VigilRuntime
     private IReadOnlyList<PoolHistory> _poolHistory = [];
     private string? _daemonLostAt;
     private readonly HashSet<string> _knownSensorIds = new(StringComparer.Ordinal);
-    private string _lastDriveHealthAsOf = string.Empty;
     private long? _lastPersisted;
     private long? _lastUpsPersisted;
     private long? _lastInventory;
@@ -64,6 +63,7 @@ public sealed class VigilRuntime
         _router = new AlertRouter(notifiers);
         _snapshotDebouncer = new ConditionDebouncer(SnapshotThreshold, time);
         _pools = new PoolWatch(options, time);
+        _drives = new DriveTracking(options, time);
         _logger = logger;
         _time = time;
         _database = new DatabaseGate(logger, time);
@@ -169,13 +169,10 @@ public sealed class VigilRuntime
                 .ConfigureAwait(false);
             if (prepared is not null)
             {
-                foreach (var drive in prepared.Drives)
-                {
-                    _drives.TryAdd(drive.Wwn, drive);
-                }
-
+                _drives.Remember(prepared.Drives);
                 _pools.Remember(prepared.LastScrubs);
-                _live.Broadcast(new DrivesMessage { Drives = DriveList() });
+                _live.Broadcast(new DrivesMessage { Drives = _drives.List });
+                await RaiseAllAsync(_drives.Evaluate(), cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -187,24 +184,11 @@ public sealed class VigilRuntime
         var events = _snapshotDebouncer.Update(SnapshotConditions.In(snapshot, _knownSensorIds));
         _knownSensorIds.UnionWith(snapshot.Sensors.Select(sensor => sensor.Id));
 
-        // Drive health only changes when vigild's slow SMART poll runs, which shows up as a new asOf.
-        var asOf = snapshot.DriveHealth.Count > 0 ? snapshot.DriveHealth[0].AsOf : string.Empty;
-        var drivesToSave = new List<(DriveState State, bool Changed)>();
-        if (asOf.Length > 0 && asOf != _lastDriveHealthAsOf)
+        var drives = _drives.Observe(snapshot.DriveHealth);
+        if (drives is not null)
         {
-            _lastDriveHealthAsOf = asOf;
-            foreach (var health in snapshot.DriveHealth)
-            {
-                var update = DriveHealthDiff.Diff(_drives.GetValueOrDefault(health.DeviceName), health);
-                if (update.State is not { } state)
-                {
-                    continue;
-                }
-
-                _drives[state.Wwn] = state;
-                drivesToSave.Add((state, update.Changed));
-                events.AddRange(update.Events);
-            }
+            events.AddRange(drives.Events);
+            events.AddRange(_drives.Evaluate());
         }
 
         var pools = _pools.Observe(snapshot.Zfs);
@@ -226,7 +210,7 @@ public sealed class VigilRuntime
 
         await _database.TryAsync("writing history", async () =>
         {
-            foreach (var (state, changed) in drivesToSave)
+            foreach (var (state, changed) in drives?.ToSave ?? [])
             {
                 await _store.SaveDriveAsync(state, changed, cancellationToken).ConfigureAwait(false);
             }
@@ -249,9 +233,9 @@ public sealed class VigilRuntime
 
         _live.Broadcast(new SnapshotMessage { Snapshot = snapshot });
         _latest = snapshot;
-        if (drivesToSave.Count > 0)
+        if (drives is { ToSave.Count: > 0 })
         {
-            _live.Broadcast(new DrivesMessage { Drives = DriveList() });
+            _live.Broadcast(new DrivesMessage { Drives = _drives.List });
         }
 
         await RaiseAllAsync(events, cancellationToken).ConfigureAwait(false);
@@ -337,7 +321,7 @@ public sealed class VigilRuntime
     /// </summary>
     private List<Alert> Verdict()
     {
-        IEnumerable<Alert> alerts = [.. _snapshotDebouncer.Raised, .. _ups.Raised, .. _pools.Raised];
+        IEnumerable<Alert> alerts = [.. _snapshotDebouncer.Raised, .. _ups.Raised, .. _pools.Raised, .. _drives.Raised];
         if (_daemonLostRaised && _daemonLostAt is { } since)
         {
             alerts = alerts.Append(new Alert
@@ -372,8 +356,6 @@ public sealed class VigilRuntime
 
     private bool IsDue(long? last, TimeSpan interval) => last is not { } at || _time.GetElapsedTime(at) >= interval;
 
-    private List<DriveState> DriveList() => [.. _drives.Values];
-
     private IEnumerable<LiveMessage> CurrentState()
     {
         yield return new DaemonMessage { Connected = _daemonConnected };
@@ -382,7 +364,7 @@ public sealed class VigilRuntime
             yield return new SnapshotMessage { Snapshot = _latest };
         }
 
-        yield return new DrivesMessage { Drives = DriveList() };
+        yield return new DrivesMessage { Drives = _drives.List };
         yield return new UpsMessage { Ups = _ups.State };
         yield return new AlertsMessage { Alerts = _alerts };
         yield return new PoolsMessage { Pools = _poolHistory };

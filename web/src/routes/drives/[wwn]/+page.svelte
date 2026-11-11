@@ -9,7 +9,7 @@
 	import Panel from '#lib/components/Panel.svelte';
 	import RangeBar from '#lib/components/RangeBar.svelte';
 	import StatusBadge from '#lib/components/StatusBadge.svelte';
-	import { deviceOf, formatCount, formatYears, membershipsOf, shortPort, shortWwn, smartVerdict } from '#lib/drives.ts';
+	import { deviceOf, formatCount, formatYears, membershipsOf, selfTestAge, shortPort, shortWwn, smartVerdict } from '#lib/drives.ts';
 	import { getLive } from '#lib/live.svelte.ts';
 	import { chartWindow, driveTemperatureSeries } from '#lib/series.ts';
 	import type { DriveHealthRecord } from '#lib/types.ts';
@@ -76,10 +76,26 @@
 		>
 			<dt>Temperature</dt>
 			<dd>{sensor?.celsiusOrNull == null ? 'asleep or unreadable' : `${sensor.celsiusOrNull.toFixed(0)}°C`}</dd>
+			<dt>Serial</dt>
+			<dd>{health?.serialNumber ?? 'n/a'}</dd>
 			<dt>Reallocated sectors</dt>
 			<dd>{formatCount(health?.reallocatedSectorCount)}</dd>
 			<dt>Pending sectors</dt>
 			<dd>{formatCount(health?.pendingSectorCount)}</dd>
+			<dt>Uncorrectable (187)</dt>
+			<dd>{formatCount(health?.reportedUncorrect)}</dd>
+			<dt>Command timeouts (188)</dt>
+			<dd>{formatCount(health?.commandTimeout)}</dd>
+			<dt title="Link errors: usually the cable or the backplane, not the disk">CRC errors (199)</dt>
+			<dd>{formatCount(health?.udmaCrcErrorCount)}</dd>
+			<dt>Last self-test</dt>
+			<dd>
+				{#if health?.lastSelfTestPassed == null}
+					none logged
+				{:else}
+					{health.lastSelfTestPassed ? 'passed' : 'FAILED'}, {selfTestAge(health) ?? 'age unknown'}
+				{/if}
+			</dd>
 			<dt>Powered on</dt>
 			<dd>{formatYears(health?.powerOnHours)}</dd>
 			<dt>Last answered</dt>

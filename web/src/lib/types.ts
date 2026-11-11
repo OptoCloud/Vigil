@@ -36,6 +36,18 @@ export interface DriveHealth {
 	reallocatedSectorCount: number | null;
 	pendingSectorCount: number | null;
 	powerOnHours: number | null;
+	/** The serial on the drive's label: what to read off a disk before pulling it. */
+	serialNumber: string | null;
+	/** ATA 187, Reported_Uncorrect: reads the drive's own ECC could not correct. */
+	reportedUncorrect: number | null;
+	/** ATA 188, Command_Timeout. Packed counters on Seagate, so only its growth means anything. */
+	commandTimeout: number | null;
+	/** ATA 199, UDMA_CRC_Error_Count: link errors, usually the cable or the backplane. */
+	udmaCrcErrorCount: number | null;
+	/** Whether the newest completed self-test passed; null when none is logged. */
+	lastSelfTestPassed: boolean | null;
+	/** Power-on hours when it ran (some drives wrap this at 16 bits). */
+	lastSelfTestHours: number | null;
 	sourcePath: string;
 	isAvailable: boolean;
 	asOf: string;
@@ -187,6 +199,18 @@ export interface DriveState {
 	reallocatedSectorCount: number | null;
 	pendingSectorCount: number | null;
 	powerOnHours: number | null;
+	/** The serial on the drive's label: what to read off a disk before pulling it. */
+	serialNumber: string | null;
+	/** ATA 187, Reported_Uncorrect: reads the drive's own ECC could not correct. */
+	reportedUncorrect: number | null;
+	/** ATA 188, Command_Timeout. Packed counters on Seagate, so only its growth means anything. */
+	commandTimeout: number | null;
+	/** ATA 199, UDMA_CRC_Error_Count: link errors, usually the cable or the backplane. */
+	udmaCrcErrorCount: number | null;
+	/** Whether the newest completed self-test passed; null when none is logged. */
+	lastSelfTestPassed: boolean | null;
+	/** Power-on hours when it ran (some drives wrap this at 16 bits). */
+	lastSelfTestHours: number | null;
 	sourcePath: string;
 	/** When the drive last actually answered. */
 	asOf: string;
@@ -199,6 +223,10 @@ export interface DriveHealthRecord {
 	reallocatedSectorCount: number | null;
 	pendingSectorCount: number | null;
 	powerOnHours: number | null;
+	reportedUncorrect: number | null;
+	commandTimeout: number | null;
+	udmaCrcErrorCount: number | null;
+	lastSelfTestPassed: boolean | null;
 }
 
 export type Severity = 'info' | 'warning' | 'critical';
