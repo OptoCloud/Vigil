@@ -62,6 +62,8 @@ testable against an in-memory sysfs, with no hardware and no root.
 | Module | Job |
 |---|---|
 | `main.rs` | the loop, signals, startup, `--check` |
+| `cli.rs` | the command line, which refuses anything it does not know |
+| `instance.rs` | the lock that keeps a second vigild off the fans |
 | `control.rs` | **one** poll: read, evaluate, drive, report. No timing, signals or sockets |
 | `config/` | the config shape and defaults (`mod.rs`), the validation that runs before any fan is touched (`validate.rs`), and `[[bays]]`, published for the page and never acted on (`bays.rs`) |
 | `curve.rs` | piecewise-linear curves with asymmetric hysteresis |

@@ -54,6 +54,8 @@ jobs:
 
       # No cache on purpose: what is published is built from nothing but the tagged tree.
       - name: Build vigild
+        env:
+          VIGIL_VERSION: ${{ github.ref_name }}   # what `vigild --version` prints
         run: cargo build --locked --release --target x86_64-unknown-linux-musl -p vigild
 
       - name: Build vigil-core and the dashboard
