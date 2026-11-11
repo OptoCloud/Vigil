@@ -674,3 +674,16 @@ is waiting for the SIM, and SMS over the current carrier is impossible
         all-clears.
       - **On the host:** the gateway itself, once a test text from `mmcli` arrives
         (`the modem's notes`, step 4).
+
+## Follow-up: a tag on master deploys (ADR-022)
+
+- [x] **Releases build, attest and deploy themselves.** *Done 2026-11-11.* `release.yml` here; in
+      the deployment repo, `deploy workflow.yml` and the host's `deploy command`, reached only through the
+      `deploy` user's one-command login shell. vigild now refuses unknown arguments and a
+      second instance, because the deploy runs a candidate vigild as root.
+      *Enforcer:* the tag-on-master and attestation checks in the two workflows; the pinned
+      sha256s, which deploy command and guest recipe both check; `cli.rs` and `instance.rs` tests.
+      deploy command was run against a sandboxed fake host, through the happy path, both
+      rollbacks and each refusal. **Open, once:** the setup in the deployment repo's TODO (secrets,
+      network policy, `the host's apply step`), then the first tag. That first run is also the proof
+      that SSH runs the `deploy` user's login shell.
