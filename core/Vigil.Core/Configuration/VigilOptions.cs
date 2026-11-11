@@ -6,17 +6,24 @@ namespace Vigil.Core.Configuration;
 /// Everything vigil-core is configured with, all from the environment, as the Rust version was
 /// (/etc/vigil-core.env in production).
 /// </summary>
+/// <remarks>
+/// Settable, not <c>init</c>, and it has to stay that way. NativeAOT binds configuration with a
+/// source generator, and the code it generates cannot set an <c>init</c> property: it skipped
+/// every one without a warning, so the native build started on all defaults, the database
+/// password and the listen address included. <c>VigilEnvironmentTests</c> catches a regression,
+/// because it binds through <see cref="VigilEnvironment.Read"/>, which is compiled here.
+/// </remarks>
 public sealed class VigilOptions
 {
     /// <summary>vigild's unix socket, bind-mounted into the container.</summary>
-    public string? VigildSocket { get; init; }
+    public string? VigildSocket { get; set; }
 
     /// <summary>host:port of a TCP stand-in. Development only, against dev/mock-vigild.mjs.</summary>
-    public string? VigildUrl { get; init; }
+    public string? VigildUrl { get; set; }
 
     /// <summary>The role that owns the schema and writes every row.</summary>
     [Required]
-    public string DatabaseUrl { get; init; } = Limits.DatabaseUrlDefault;
+    public string DatabaseUrl { get; set; } = Limits.DatabaseUrlDefault;
 
     /// <summary>
     /// A SELECT-only role for the read path (history, the event log). Optional: unset, the read
@@ -28,72 +35,72 @@ public sealed class VigilOptions
     /// address space cannot give that back, but a SELECT-only role still means a bug in a query
     /// path cannot write. docs/SECURITY.md §3.4.
     /// </remarks>
-    public string? DatabaseUrlReadonly { get; init; }
+    public string? DatabaseUrlReadonly { get; set; }
 
     /// <summary>vigild publishes every 2s. That resolution matters live, not in history.</summary>
-    public double PersistIntervalSeconds { get; init; } = 10;
+    public double PersistIntervalSeconds { get; set; } = 10;
 
-    public double RawRetentionDays { get; init; } = 30;
+    public double RawRetentionDays { get; set; } = 30;
 
     /// <summary>Unset leaves the UPS out entirely rather than showing it as broken.</summary>
-    public string? NutHost { get; init; }
+    public string? NutHost { get; set; }
 
-    public int NutPort { get; init; } = 3493;
+    public int NutPort { get; set; } = 3493;
 
     /// <summary>The UPS's name on upsd ([apc] in ups.conf), which its history is stored under.</summary>
-    public string NutUps { get; init; } = "apc";
+    public string NutUps { get; set; } = "apc";
 
-    public double NutPollSeconds { get; init; } = 5;
+    public double NutPollSeconds { get; set; } = 5;
 
     /// <summary>
     /// How long the host takes to shut down once upsmon starts it, guests included. Optional;
     /// with it the dashboard shows what the UPS's <c>battery.runtime.low</c> leaves to spare,
     /// and an alert says when it leaves nothing.
     /// </summary>
-    public double? HostShutdownSeconds { get; init; }
+    public double? HostShutdownSeconds { get; set; }
 
     /// <summary>
     /// °C. A lead-acid battery's life roughly halves for every 8 to 10 °C it spends above 25 °C;
     /// 40 is where that becomes worth acting on rather than watching.
     /// </summary>
-    public double UpsBatteryTemperatureWarn { get; init; } = 40;
+    public double UpsBatteryTemperatureWarn { get; set; } = 40;
 
     /// <summary>Optional. HTTPS is free in .NET, so this no longer goes through curl.</summary>
-    public string? NtfyUrl { get; init; }
+    public string? NtfyUrl { get; set; }
 
     /// <summary>
     /// The one address vigil-core listens on, which serves the dashboard to the LAN: every
     /// interface by default. There is deliberately no second, private listener (ADR-008).
     /// </summary>
-    public string CoreHost { get; init; } = "0.0.0.0";
+    public string CoreHost { get; set; } = "0.0.0.0";
 
-    public int CorePort { get; init; } = Limits.CoreDefaultPort;
+    public int CorePort { get; set; } = Limits.CoreDefaultPort;
 
     /// <summary>
     /// The dashboard's static build (SvelteKit's output directory). Unset serves the API only,
     /// which is what development wants: there, Vite serves the page and proxies the API.
     /// </summary>
-    public string? WebRoot { get; init; }
+    public string? WebRoot { get; set; }
 
     /// <summary>How long vigild has to be unreachable before that counts as an incident.</summary>
-    public double DaemonLostAfterSeconds { get; init; } = 20;
+    public double DaemonLostAfterSeconds { get; set; } = 20;
 
     /// <summary>
     /// How old a pool's last completed scrub may be before that is a warning. Scrubs are monthly
     /// (Debian's zfsutils timer runs on the second Sunday), so 35 days is one missed.
     /// </summary>
-    public double ZfsScrubMaxAgeDays { get; init; } = 35;
+    public double ZfsScrubMaxAgeDays { get; set; } = 35;
 
     /// <summary>
     /// Hot spares each pool should have AVAIL, as <c>pool:count</c> pairs separated by commas
     /// (orion: <c>void:2</c>). A pool not named is not checked. Parsed by <see cref="SpareCounts"/>.
     /// </summary>
-    public string? ZfsExpectedSpares { get; init; }
+    public string? ZfsExpectedSpares { get; set; }
 
     /// <summary>
     /// How old a drive's newest completed SMART self-test may be before that is a warning. Unset
     /// leaves it unjudged, which is right until smartd schedules tests on the host: otherwise
     /// every drive would be overdue. 8 suits a weekly long test (CLEANUP 7.6).
     /// </summary>
-    public double? SmartSelfTestMaxAgeDays { get; init; }
+    public double? SmartSelfTestMaxAgeDays { get; set; }
 }

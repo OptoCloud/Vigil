@@ -141,7 +141,7 @@ public sealed class VigildClient(IOptions<VigilOptions> options, ILogger<VigildC
             Snapshot? snapshot = null;
             try
             {
-                snapshot = JsonSerializer.Deserialize<Snapshot>(item.Data, VigilJson.Options);
+                snapshot = JsonSerializer.Deserialize(item.Data, VigilJsonContext.Default.Snapshot);
             }
             catch (JsonException error)
             {

@@ -13,9 +13,9 @@ public sealed class VigilEnvironmentTests
             .AddVigilEnvironment(name => values.TryGetValue(name, out var value) ? value : null)
             .Build();
 
-        var options = new VigilOptions();
-        configuration.Bind(options);
-        return options;
+        // Through vigil-core's own Read, not a Bind here: the binding has to be compiled in
+        // vigil-core, where NativeAOT's source-generated binder is what runs.
+        return VigilEnvironment.Read(configuration);
     }
 
     [Fact]

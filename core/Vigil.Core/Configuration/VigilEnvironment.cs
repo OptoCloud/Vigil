@@ -42,6 +42,13 @@ public static class VigilEnvironment
     /// <summary>Every variable vigil-core reads, for documentation and for tests.</summary>
     public static IEnumerable<string> Variables => Names.Select(name => name.Variable);
 
+    /// <summary>
+    /// The options, read from <paramref name="configuration"/>. Here rather than at the call
+    /// site so the binding is compiled in vigil-core, where NativeAOT's source-generated binder
+    /// is what runs, and the tests exercise that binder rather than the reflection one.
+    /// </summary>
+    public static VigilOptions Read(IConfiguration configuration) => configuration.Get<VigilOptions>() ?? new VigilOptions();
+
     public static IConfigurationBuilder AddVigilEnvironment(this IConfigurationBuilder builder) =>
         builder.AddVigilEnvironment(Environment.GetEnvironmentVariable);
 

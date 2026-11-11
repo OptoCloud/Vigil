@@ -383,16 +383,18 @@ container's bind mount.
 
 `vigil-core` runs in an unprivileged LXC, with `vigild`'s socket directory
 bind-mounted in as described above. `core/deploy/package.sh` builds
-`vigil-core.tar.gz`: a self-contained, single-file `linux-x64` build of about
-100 MB (the guest needs no .NET runtime; [ADR-016](docs/DECISIONS.md) has why
-not NativeAOT), the dashboard's static build beside it as `web/`, and the unit
-and env template.
+`vigil-core.tar.gz`: one NativeAOT `linux-x64` binary of about 21 MB (the guest
+needs no .NET runtime; [ADR-016](docs/DECISIONS.md)), the dashboard's static
+build beside it as `web/`, and the unit and env template. NativeAOT needs
+`clang` and does not cross-compile, so the script builds on Linux with `clang`
+and `zlib1g-dev` installed, and anywhere else inside the .NET SDK image, with
+only docker or podman needed.
 
-The guest is Debian. Self-contained still leaves a few native libraries to the
-system, all in a standard install:
+The guest is Debian. The binary links only libc; OpenSSL is loaded for TLS (ntfy,
+and Postgres if it asks for it):
 
 ```bash
-apt install libstdc++6 libgcc-s1 libssl3 zlib1g ca-certificates
+apt install libssl3 ca-certificates
 ```
 
 No `libicu`: vigil-core runs with invariant globalization.

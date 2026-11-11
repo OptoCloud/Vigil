@@ -413,7 +413,7 @@ point at which authentication stops being optional. ADR-008 is rewritten to say 
 
 ### Follow-up: vigil-core on NativeAOT
 
-- [ ] **Build vigil-core with NativeAOT instead of as a self-contained JIT build.** Not done in
+- [x] **Build vigil-core with NativeAOT instead of as a self-contained JIT build.** Not done in
       6.7 (ADR-016) because nothing here could build it, and porting the behaviour came first.
       **What it buys:** vigil-core's unit can set `MemoryDenyWriteExecute=true`, closing the one
       gap in its hardening baseline (the JIT is what forces the omission today). A smaller
@@ -434,6 +434,16 @@ point at which authentication stops being optional. ADR-008 is rewritten to say 
       **Done when:** the binary is built on Linux with zero AOT warnings; the unit sets
       `MemoryDenyWriteExecute=true` and loses its `NOT set` comment; ADR-016 is amended; and the
       AOT binary passes the database tests and a smoke test against `dev/mock-vigild.mjs`.
+      - **Done 2026-11-11.** All four, and the binary is 21 MB against about 100. The smoke test
+        was worth having: the first native build started on all defaults, because the
+        source-generated configuration binder cannot set `init` properties and skips them
+        silently (ADR-016's second amendment has the fix). After the fix it served every route,
+        the live stream and the dashboard against the mock and the database, also under a
+        transient unit with `MemoryDenyWriteExecute=yes`. *Enforcer:* the `vigil-core-aot` CI
+        job publishes it with warnings as errors and checks that the binary reads its
+        environment; `VigilEnvironmentTests` runs the generated binder; the database tests
+        build their connections with the slim builder. **Open, on the host:** install the
+        package in the guest and restart the unit.
 
 ## Phase 7: ZFS pool state, and a verdict that covers everything
 

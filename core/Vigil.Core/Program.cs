@@ -26,8 +26,7 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<VigilOptions>, VigilOptionsValidator>();
 
-var startup = new VigilOptions();
-builder.Configuration.Bind(startup);
+var startup = VigilEnvironment.Read(builder.Configuration);
 var listen = VigilOptionsValidator.ListenAddress(startup);
 if (listen is not null)
 {

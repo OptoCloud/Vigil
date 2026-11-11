@@ -30,7 +30,7 @@ public static class VigilApi
 
     /// <summary>Range names from the enum's own wire spelling, so there is one list of them.</summary>
     private static readonly Dictionary<string, RangeKey> RangeNames = Enum.GetValues<RangeKey>()
-        .ToDictionary(range => JsonSerializer.Serialize(range, VigilJson.Options).Trim('"'), StringComparer.Ordinal);
+        .ToDictionary(range => JsonSerializer.Serialize(range, VigilJsonContext.Default.RangeKey).Trim('"'), StringComparer.Ordinal);
 
     private static readonly string RangeProblem = $"range must be one of {string.Join(", ", RangeNames.Keys)}\n";
 
@@ -66,7 +66,7 @@ public static class VigilApi
         try
         {
             var response = await history.QueryAsync(key, ups, DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false);
-            return TypedResults.Json(response, VigilJson.Options);
+            return TypedResults.Json(response, VigilJsonContext.Default.HistoryResponse);
         }
         catch (Exception error) when (error is DbException or TimeoutException)
         {
@@ -89,7 +89,7 @@ public static class VigilApi
 
         try
         {
-            return TypedResults.Json(await drives.HistoryAsync(wwn, DriveHistoryRows, cancellationToken).ConfigureAwait(false), VigilJson.Options);
+            return TypedResults.Json(await drives.HistoryAsync(wwn, DriveHistoryRows, cancellationToken).ConfigureAwait(false), VigilJsonContext.Default.ListDriveHealthRecord);
         }
         catch (Exception error) when (error is DbException or TimeoutException)
         {
@@ -107,12 +107,12 @@ public static class VigilApi
     {
         try
         {
-            return TypedResults.Json(await events.RecentAsync(RecentEventCount, cancellationToken).ConfigureAwait(false), VigilJson.Options);
+            return TypedResults.Json(await events.RecentAsync(RecentEventCount, cancellationToken).ConfigureAwait(false), VigilJsonContext.Default.ListEventRecord);
         }
         catch (Exception error) when (error is DbException or TimeoutException)
         {
             logging.CreateLogger(typeof(VigilApi)).LogError("event log query failed: {Error}", error.Message);
-            return TypedResults.Json(Array.Empty<EventRecord>(), VigilJson.Options);
+            return TypedResults.Json(Array.Empty<EventRecord>(), VigilJsonContext.Default.EventRecordArray);
         }
     }
 }
