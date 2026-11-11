@@ -2,14 +2,20 @@
 // subset a linter can actually check. Prettier owns formatting, so no stylistic rules here.
 
 import js from '@eslint/js';
+import prettier from 'eslint-config-prettier';
+import { defineConfig } from 'eslint/config';
 import svelte from 'eslint-plugin-svelte';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 
-export default ts.config(
+// defineConfig rather than typescript-eslint's ts.config, which it deprecates in its favour.
+export default defineConfig(
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
+	// Prettier owns formatting: switch off every core and plugin rule that would argue with it.
+	prettier,
+	...svelte.configs.prettier,
 	{
 		languageOptions: { globals: { ...globals.browser, ...globals.node } }
 	},
