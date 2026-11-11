@@ -511,7 +511,7 @@ That proposal was written before checking the code. It changed in these places:
         tests passing against it. And check that `zpool` works under the unit's sandbox, since
         it inherits `RestrictAddressFamilies=AF_UNIX`:
         `systemd-run --pty -p RestrictAddressFamilies=AF_UNIX -p ProtectSystem=full /usr/sbin/zpool status -j`.
-- [ ] **7.2 vigil-core: history.**
+- [x] **7.2 vigil-core: history.**
       - `core/sql/schema.sql` gets two tables. `zfs_scans` has one row per scrub or resilver:
         pool, function, start, end, examined and errors, keyed by (pool, function, start) and
         updated while the scan runs. `zfs_vdev_errors` gets rows only when a counter changes:
@@ -520,7 +520,11 @@ That proposal was written before checking the code. It changed in these places:
       - Both are written through `IRuntimeStore`, so the live view and alerting keep working
         without a database (invariant 5).
       - *Enforcer:* database tests, which need `VIGIL_TEST_DATABASE_URL`.
-- [ ] **7.3 vigil-core: the alert rules.** `Alerting/PoolConditions.cs` turns levels into
+      - **Done 2026-11-11.** `ZfsStore` writes both tables in one transaction through
+        `IRuntimeStore.SavePoolsAsync`; `select_last_scrubs.sql` gives the runtime each pool's
+        last completed scrub on connect. *Enforcer:* `DataLayerTests` (a scan updated in place,
+        the last scrub surviving a resilver, nulls kept in the vdev counters).
+- [x] **7.3 vigil-core: the alert rules.** `Alerting/PoolConditions.cs` turns levels into
       debounced conditions. `Alerting/PoolDiff.cs` turns counters and scans into one-time
       events, the way `DriveHealthDiff` does. Both are pure, and their tests are the
       specification.
@@ -548,12 +552,21 @@ That proposal was written before checking the code. It changed in these places:
       the all-clear of any condition that was itself pushed, for every rule and not only ZFS.
       A false fault is cheap to undo only for someone who knows it happened, and the same
       person wants to know when it is over.
-- [ ] **7.4 vigil-core: stream the verdict (ADR-019).** Add a new `alerts` live message with
+      - **Done 2026-11-11, as the table says.** The all-clear was decided as recommended: it
+        goes to every channel that heard the problem, for every rule (ADR-021). Capacity is one
+        condition whose severity follows the level; the debouncer carries a raised condition's
+        new severity, announcing a worsening and keeping its `since`. `PoolWatch` is the runtime
+        type. *Enforcer:* `PoolConditionsTests`, `PoolDiffTests`, `AlertRouterTests`,
+        `ConditionDebouncerTests` and the runtime's verdict tests, including a failed zpool poll
+        that must not clear DEGRADED.
+- [x] **7.4 vigil-core: stream the verdict (ADR-019).** Add a new `alerts` live message with
       the raised conditions (kind, severity, message, since), sent on connect and on every
       raise or clear. Add a `pools` message for what only vigil-core knows: each pool's last
       completed scrub, from `zfs_scans`, null without a database. *Enforcer:* a regenerated
       `core/contract.json` and the web contract test.
-- [ ] **7.5 web: the verdict, the pool panel, ZFS beside SMART.**
+      - **Done 2026-11-11.** `alerts` and `pools` are sent on connect and whenever either
+        changes. *Enforcer:* `core/contract.json` and `types.contract.test.ts`.
+- [x] **7.5 web: the verdict, the pool panel, ZFS beside SMART.**
       - The header shows the worst of the connection states (as it does today) and every raised
         condition. Green means nothing is raised, not just that the fans are fine. The detail
         line names the worst condition and how many others there are. This is a pure function in
@@ -564,7 +577,12 @@ That proposal was written before checking the code. It changed in these places:
         ZFS has faulted reads critical whatever SMART says.
       - `dev/mock-vigild.mjs` serves pools, with a switch for DEGRADED and for a resilver, so the
         page can be built without ZFS.
-- [ ] **7.6 SMART: read this disk's only warning sign.** `smart.rs` reads Reported_Uncorrect
+      - **Done 2026-11-11.** `verdict()` in `#lib/status.ts`; `AlertList` under the header on
+        every page; the pool card's ETA and last scrub; ZFS columns and `diskVerdict()` in the
+        drive table. The mock's `z` key gives a resilver, `o` a DEGRADED pool without one.
+        Checked by hand against the mock in a browser. *Enforcer:* vitest (`status`, `zfs`,
+        `drives`).
+- [x] **7.6 SMART: read this disk's only warning sign.** `smart.rs` reads Reported_Uncorrect
       (187), Command_Timeout (188) and UDMA_CRC_Error_Count (199) as named constants, the serial
       number, and the last self-test's result and age (`-l selftest` added to the argv;
       `-n standby` still skips a sleeping drive). In `DriveHealthDiff`, growth in 187 or 188 is
@@ -572,11 +590,23 @@ That proposal was written before checking the code. It changed in these places:
       failed self-test is critical. A last self-test older than 8 days is a warning, but only
       once smartd schedules tests (host side). A failed `passed` also becomes a condition, so it
       holds the verdict (ADR-019). New columns use `alter table … add column if not exists`.
-- [ ] **7.7 The bay view. Decide at review.** It needs a mapping from port to (cage, slot), and
+      - **Done 2026-11-11.** A failed assessment and a failed self-test are `DriveConditions`,
+        judged on the last good state, so they hold the verdict while the drive sleeps. Self-test
+        age is `SMART_SELF_TEST_MAX_AGE_DAYS`, unset until smartd schedules tests, and allows for
+        hours logged in 16 bits. Drive state moved into `DriveTracking`. *Enforcer:* `smart.rs`
+        tests, `DriveHealthDiffTests`, `DriveConditionsTests`, the verdict test across a
+        restart, `DataLayerTests` and all three contracts. **Open, on the host:** have smartd
+        schedule tests, then set the option.
+- [x] **7.7 The bay view. Decide at review.** It needs a mapping from port to (cage, slot), and
       none exists yet. Recommendation: `[[bays]]` in `vigild.toml`, which already names and
       validates ports in its zones, published in the snapshot. Each slot shows the disk's
       serial and WWN, its ZFS role, state and errors, and SMART, so the bay to pull can be read
       off the page.
+      - **Done 2026-11-11, as recommended.** `[[bays]]` (port, cage, slot), validated in
+        `config/bays.rs` and published as `Snapshot.bays`; orion's twelve are in
+        `deploy/vigild.toml`. Pool and drive alerts name the bay. *Enforcer:* `config::bays`
+        tests (orion's mapping is pinned), the contracts, and `bayRows` in vitest. **Open, on
+        the host:** confirm the 8-bay's slot order against phy0-7 by its activity lights.
 - [ ] **7.8 Verify on a scratch pool, never `void`.**
       ```sh
       truncate -s 1G /tmp/zt{1..5}

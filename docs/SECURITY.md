@@ -231,6 +231,8 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
   an error message, never in an HTTP response, and never committed. `PostgresUri` redacts them
   from its own errors.
 - A private ntfy topic's name is its only secret, so `NTFY_URL` is treated the same way.
+- So is every other notification channel's address (ADR-021): a phone number, an SMS
+  gateway's URL or token. A channel logs that a send failed and why, never where it was sent.
 - upsd publishes each driver's configuration as `driver.parameter.*`, credentials included
   (snmp-ups's community and SNMPv3 passwords, the network drivers' logins), and the dashboard
   shows every variable. `NutProtocol` masks them as they are parsed, so nothing downstream can

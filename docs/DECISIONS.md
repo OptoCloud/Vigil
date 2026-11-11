@@ -284,3 +284,22 @@ is the one new route: a GET, bound to 200 rows, the name bound as a parameter. A
 
 *Consequence:* a new page that needs a run-time name needs its own mapped route in
 `Dashboard.MapDashboardPages` and a line here; nothing falls through to the fallback by itself.
+
+### ADR-021: Notifications go out through channels, each with its own minimum severity
+
+*Decided 2026-11-11,* with CLEANUP 7.3's "decide at review": push the all-clear of anything
+that was pushed. ntfy was the only way vigil reached a person, called straight from the
+runtime. An SMS gateway on orion's LTE modem is to be the second, for when the LAN or the
+internet is the thing that is down, and a text for every warning would be noise.
+
+So delivery is `INotifier` channels behind one `AlertRouter`. Each channel has a minimum
+severity (ntfy: warning). The router remembers which channels it told about each kind, and
+sends the all-clear (an info event of that kind) to exactly those channels, once. A channel
+never throws and never blocks the runtime; it logs its own failures. What it remembers is in
+memory, so a restart forgets: a condition still holding is raised and pushed again on start,
+and one that cleared while vigil-core was down gets no all-clear.
+
+*Consequence:* a new channel is a class and one registration in `VigilServices.cs`, with its
+options validated like `NTFY_URL`. Its address is a secret in the way a private ntfy topic is:
+a phone number, gateway URL or token is never logged and never put in an error or a response
+(SECURITY.md). A rule's severity now decides who gets woken, not only what colour it is.

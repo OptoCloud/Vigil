@@ -63,7 +63,7 @@ testable against an in-memory sysfs, with no hardware and no root.
 |---|---|
 | `main.rs` | the loop, signals, startup, `--check` |
 | `control.rs` | **one** poll: read, evaluate, drive, report. No timing, signals or sockets |
-| `config/` | the config shape and defaults (`mod.rs`), and the validation that runs before any fan is touched (`validate.rs`) |
+| `config/` | the config shape and defaults (`mod.rs`), the validation that runs before any fan is touched (`validate.rs`), and `[[bays]]`, published for the page and never acted on (`bays.rs`) |
 | `curve.rs` | piecewise-linear curves with asymmetric hysteresis |
 | `fans/` | split by failure mode: `controller.rs` (the only code that writes a header), `stall.rs`, `safety.rs` (the `Drop` guard and the deadman) |
 | `sensors.rs` | hwmon discovery by chip name |
@@ -92,10 +92,10 @@ messages on one channel, so there are no locks and events are ordered as they ha
 | `Protocol` | the wire types and their JSON options; the source of `core/contract.json` | nothing |
 | `Configuration` | `VigilOptions` from the environment's published names, validated before start | nothing |
 | `Clients` | `VigildClient` (vigild's socket, SSE via the framework's parser) and `NutClient` (upsd) | Protocol, Configuration |
-| `Alerting` | **pure** condition logic: snapshot and UPS conditions, the debouncer, the drive diff. No I/O | Protocol |
+| `Alerting` | **pure** condition logic: snapshot, UPS, pool and drive conditions, the debouncer, the drive and pool diffs, bay names for messages. No I/O | Protocol |
 | `Data` | Npgsql: two data sources, `SchemaSetup` (tables, hypertables, aggregates, policies, applied on every connect), the writers and the history and event queries. SQL from `core/sql/` | Protocol, Configuration |
-| `Notifications` | `NtfyClient`, over HTTPS | Alerting, Protocol |
-| `Runtime` | `VigilRuntime`, the one owner of state; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
+| `Notifications` | `AlertRouter` and the `INotifier` channels behind it, each with a minimum severity (ADR-021); `NtfyClient`, over HTTPS, is the one so far | Alerting, Protocol |
+| `Runtime` | `VigilRuntime`, the one owner of state, with `PoolWatch`, `DriveTracking` and `UpsTracking` holding each source's state for it; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
 | `Api` | the routes (`/api/live`, `/api/history`, `/api/events`, `/api/drives/{name}/history`, `/health`), the static dashboard's pages and its security headers | Runtime, Data, Protocol |
 
 `Program.cs` and `VigilServices.cs` only compose these. Nothing below `Runtime` knows it is in a
