@@ -100,3 +100,33 @@ create table if not exists ups_samples (
     primary key (ups, ts)
 );
 create index if not exists ups_samples_ts on ups_samples (ts);
+
+-- ZFS (ADR-018). A pool changing state is a condition raised and cleared, which `events`
+-- already records; these hold only what events cannot.
+--
+-- One row per scrub or resilver, updated while it runs. `zpool status` reports only the
+-- latest scan, so a resilver hides the scrub before it: this is what remembers it.
+create table if not exists zfs_scans (
+    pool text not null,
+    function text not null,
+    started timestamptz not null,
+    ended timestamptz,
+    state text not null,
+    examined bigint,
+    errors bigint,
+    updated timestamptz not null default now(),
+    primary key (pool, function, started)
+);
+
+-- A vdev's error counters, a row only when one of them changes: the drive_health_history
+-- pattern. A vdev is its guid, which survives the disk being renamed or moved.
+create table if not exists zfs_vdev_errors (
+    ts timestamptz not null,
+    pool text not null,
+    guid text not null,
+    read bigint,
+    write bigint,
+    checksum bigint,
+    slow bigint
+);
+create index if not exists zfs_vdev_errors_guid_ts on zfs_vdev_errors (pool, guid, ts desc);

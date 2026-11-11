@@ -1,8 +1,10 @@
-// Whether what the page shows is live, as one verdict for the header: the stream to vigil-core,
-// vigil-core's link to vigild, and the snapshot itself, in that order, the first problem winning.
+// The header's one verdict (ADR-019). First whether what the page shows is live: the stream to
+// vigil-core, vigil-core's link to vigild, and the snapshot itself, in that order, the first
+// problem winning. Then everything vigil-core has raised. Green means nothing is raised, not
+// just that the fans are fine: a DEGRADED pool once sat behind a page that said Live for nine days.
 
 import { relativeTime } from '#lib/chart/scale.ts';
-import type { Snapshot } from '#lib/types.ts';
+import type { Alert, Snapshot } from '#lib/types.ts';
 
 export type StreamState = 'connecting' | 'open' | 'lost';
 
@@ -44,3 +46,25 @@ export function connectionStatus(stream: StreamState, daemonConnected: boolean, 
 		};
 	return { level: 'good', label: 'Live', detail: '' };
 }
+
+const RANK = { good: 0, warning: 1, critical: 2 } as const;
+
+/**
+ * The connection's state and every raised condition, as one verdict: whichever is worse, the
+ * connection on a tie, since a page that is not live cannot vouch for anything it shows. The
+ * detail names the worst condition and how many others there are.
+ */
+export function verdict(connection: ConnectionStatus, alerts: Alert[]): ConnectionStatus {
+	const worst = alerts.reduce<Alert | null>((a, b) => (a && RANK[levelOf(a)] >= RANK[levelOf(b)] ? a : b), null);
+	if (!worst || RANK[levelOf(worst)] <= RANK[connection.level]) return connection;
+
+	const others = alerts.length - 1;
+	return {
+		level: levelOf(worst),
+		label: alerts.length === 1 ? (worst.severity === 'critical' ? 'Critical' : 'Warning') : `${alerts.length} problems`,
+		detail: others === 0 ? worst.message : `${worst.message} And ${others} other ${others === 1 ? 'problem' : 'problems'}.`
+	};
+}
+
+/** An info alert cannot be raised, but the type allows it: it reads as a warning rather than as nothing. */
+const levelOf = (alert: Alert): 'warning' | 'critical' => (alert.severity === 'critical' ? 'critical' : 'warning');

@@ -212,13 +212,33 @@ export interface EventRecord {
 	message: string;
 }
 
+/** A condition that holds now: one line of the verdict (ADR-019). */
+export interface Alert {
+	/** The condition's stable key, the same kind its events carry. */
+	kind: string;
+	severity: Severity;
+	message: string;
+	/** When vigil-core raised it. A restart raises it again, so this is since then at the earliest. */
+	since: string;
+}
+
+/** What vigil-core remembers about a pool that one zpool status cannot say. */
+export interface PoolHistory {
+	name: string;
+	/** The last completed scrub, which a later resilver hides from zpool. Null when none is known. */
+	lastScrub: string | null;
+}
+
 /** The live stream: what vigil-core sends on /api/live, the current state first, then every change. */
 export type LiveMessage =
 	| { type: 'snapshot'; snapshot: Snapshot }
 	| { type: 'daemon'; connected: boolean }
 	| { type: 'event'; event: EventRecord }
 	| { type: 'drives'; drives: DriveState[] }
-	| { type: 'ups'; ups: UpsState };
+	| { type: 'ups'; ups: UpsState }
+	/** Every raised condition, worst first. Empty is what green means. */
+	| { type: 'alerts'; alerts: Alert[] }
+	| { type: 'pools'; pools: PoolHistory[] };
 
 export type RangeKey = '1h' | '6h' | '24h' | '7d' | '30d' | '1y';
 

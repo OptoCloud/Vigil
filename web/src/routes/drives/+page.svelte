@@ -25,5 +25,12 @@
 	{#snippet actions()}
 		<Segmented label="Group temperatures by" options={VIEWS} value={view} onselect={(key: View) => (view = key)} />
 	{/snippet}
-	<DriveTable sensors={live.snapshot?.sensors ?? []} drives={live.drives} history={live.history} now={live.now} {view} />
+	<DriveTable
+		sensors={live.snapshot?.sensors ?? []}
+		drives={live.drives}
+		history={live.history}
+		zfs={live.snapshot?.zfs}
+		now={live.now}
+		{view}
+	/>
 </Panel>

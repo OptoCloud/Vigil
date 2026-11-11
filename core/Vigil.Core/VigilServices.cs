@@ -19,6 +19,7 @@ public static class VigilServices
         services.AddSingleton<SchemaSetup>();
         services.AddSingleton<SampleWriter>();
         services.AddSingleton<DriveStore>();
+        services.AddSingleton<ZfsStore>();
         services.AddSingleton<EventStore>();
         services.AddSingleton<HistoryQueries>();
         services.AddSingleton<IRuntimeStore, DatabaseRuntimeStore>();
@@ -35,6 +36,7 @@ public static class VigilServices
                 new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) }),
                 new Uri(ntfy),
                 provider.GetRequiredService<ILogger<NtfyClient>>()));
+            services.AddSingleton<INotifier>(provider => provider.GetRequiredService<NtfyClient>());
         }
 
         // The runtime's one input. Unbounded, as the Rust core's channel was: the producers are two
@@ -44,7 +46,7 @@ public static class VigilServices
         services.AddSingleton(provider => new VigilRuntime(
             provider.GetRequiredService<IOptions<VigilOptions>>().Value,
             provider.GetRequiredService<IRuntimeStore>(),
-            provider.GetService<NtfyClient>(),
+            provider.GetServices<INotifier>().ToList(),
             provider.GetRequiredService<ILogger<VigilRuntime>>(),
             provider.GetRequiredService<TimeProvider>()));
 

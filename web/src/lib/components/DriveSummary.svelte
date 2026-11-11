@@ -1,13 +1,16 @@
 <script lang="ts">
 	// The drives at a glance, for the dashboard: how many, and the ones that need looking at.
 	import { resolve } from '$app/paths';
-	import { driveRows, shortWwn, smartVerdict } from '#lib/drives.ts';
-	import type { DriveState, SensorReading } from '#lib/types.ts';
+	import { diskVerdict, driveRows, membershipsOf, shortWwn } from '#lib/drives.ts';
+	import type { DriveState, SensorReading, ZfsStatus } from '#lib/types.ts';
 	import StatusBadge from './StatusBadge.svelte';
 
-	let { sensors, drives }: { sensors: SensorReading[]; drives: DriveState[] } = $props();
+	let { sensors, drives, zfs }: { sensors: SensorReading[]; drives: DriveState[]; zfs: ZfsStatus | null | undefined } = $props();
 
-	const rows = $derived(driveRows(sensors, drives, null).map((row) => ({ ...row, smart: smartVerdict(row.health) })));
+	// SMART and ZFS together: a disk ZFS has faulted needs attention whatever SMART says.
+	const rows = $derived(
+		driveRows(sensors, drives, null).map((row) => ({ ...row, smart: diskVerdict(row.health, membershipsOf(zfs, row.wwn)) }))
+	);
 	const attention = $derived(rows.filter((row) => row.smart.level === 'warning' || row.smart.level === 'critical'));
 	const unknown = $derived(rows.filter((row) => row.smart.level === 'unknown').length);
 	const asleep = $derived(rows.filter((row) => row.sensor?.celsiusOrNull == null).length);
@@ -20,9 +23,7 @@
 		<StatusBadge
 			class="font-semibold"
 			level={attention.length === 0 ? 'good' : attention.some((row) => row.smart.level === 'critical') ? 'critical' : 'warning'}
-			label={attention.length === 0
-				? `${rows.length} drives, SMART passing`
-				: `${attention.length} of ${rows.length} drives need attention`}
+			label={attention.length === 0 ? `${rows.length} drives, healthy` : `${attention.length} of ${rows.length} drives need attention`}
 		/>
 		{#if attention.length > 0}
 			<ul class="flex flex-col">

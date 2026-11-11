@@ -30,14 +30,8 @@ public sealed class VigilRuntime
     /// <summary>Three polls (6s at vigild's 2s cadence), so one odd read never notifies anyone.</summary>
     private const uint SnapshotThreshold = 3;
 
-    /// <summary>
-    /// The UPS reports its own state, so one poll is enough: an OB flag is a real power event,
-    /// not a flaky read.
-    /// </summary>
-    private const uint UpsThreshold = 1;
-
     private readonly IRuntimeStore _store;
-    private readonly NtfyClient? _ntfy;
+    private readonly AlertRouter _router;
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
     private readonly DatabaseGate _database;
@@ -50,41 +44,33 @@ public sealed class VigilRuntime
     private (long Since, string Reason)? _daemonLostSince;
     private bool _daemonLostRaised;
     private readonly SortedDictionary<string, DriveState> _drives = new(StringComparer.Ordinal);
-    private UpsState _ups;
-    private long? _upsUnreadableSince;
-    private long? _upsUnguardedSince;
+    private readonly UpsTracking _ups;
 
-    private readonly ConditionDebouncer _snapshotDebouncer = new(SnapshotThreshold);
-    private readonly ConditionDebouncer _upsDebouncer = new(UpsThreshold);
+    private readonly ConditionDebouncer _snapshotDebouncer;
+    private readonly PoolWatch _pools;
+    private IReadOnlyList<Alert> _alerts = [];
+    private IReadOnlyList<PoolHistory> _poolHistory = [];
+    private string? _daemonLostAt;
     private readonly HashSet<string> _knownSensorIds = new(StringComparer.Ordinal);
     private string _lastDriveHealthAsOf = string.Empty;
     private long? _lastPersisted;
     private long? _lastUpsPersisted;
     private long? _lastInventory;
 
-    public VigilRuntime(VigilOptions options, IRuntimeStore store, NtfyClient? ntfy, ILogger<VigilRuntime> logger, TimeProvider time)
+    /// <param name="notifiers">Every way of reaching a person that is configured; empty is fine.</param>
+    public VigilRuntime(VigilOptions options, IRuntimeStore store, IReadOnlyList<INotifier> notifiers, ILogger<VigilRuntime> logger, TimeProvider time)
     {
         _store = store;
-        _ntfy = ntfy;
+        _router = new AlertRouter(notifiers);
+        _snapshotDebouncer = new ConditionDebouncer(SnapshotThreshold, time);
+        _pools = new PoolWatch(options, time);
         _logger = logger;
         _time = time;
         _database = new DatabaseGate(logger, time);
         _persistInterval = TimeSpan.FromSeconds(options.PersistIntervalSeconds);
         _daemonLostAfter = TimeSpan.FromSeconds(options.DaemonLostAfterSeconds);
-        _ups = new UpsState
-        {
-            Enabled = options.NutHost is { Length: > 0 },
-            Name = options.NutUps,
-            Reading = null,
-            Error = null,
-            Limits = new UpsLimits
-            {
-                HostShutdownSeconds = options.HostShutdownSeconds,
-                BatteryTemperatureWarn = options.UpsBatteryTemperatureWarn,
-            },
-        };
+        _ups = new UpsTracking(options, logger, time);
         _daemonLostSince = (time.GetTimestamp(), "not connected yet");
-        _upsUnreadableSince = time.GetTimestamp();
     }
 
     /// <summary>Runs until cancelled or until the input channel is completed.</summary>
@@ -148,6 +134,8 @@ public sealed class VigilRuntime
                 _live.Subscribe(subscribe.Subscriber, CurrentState());
                 break;
         }
+
+        BroadcastVerdictIfChanged();
     }
 
     internal async Task TickAsync(CancellationToken cancellationToken)
@@ -156,6 +144,7 @@ public sealed class VigilRuntime
         if (_daemonLostSince is var (since, reason) && !_daemonLostRaised && _time.GetElapsedTime(since) >= _daemonLostAfter)
         {
             _daemonLostRaised = true;
+            _daemonLostAt = Rfc3339.From(_time.GetUtcNow());
             await RaiseAsync(
                 new NewEvent(
                     Severity.Critical,
@@ -165,26 +154,32 @@ public sealed class VigilRuntime
         }
 
         // The unreadable and unguarded conditions depend on time, not only on the next poll.
-        if (_ups.Enabled && (_upsUnreadableSince is not null || _upsUnguardedSince is not null))
+        if (_ups.IsWaiting)
         {
-            await EvaluateUpsAsync(cancellationToken).ConfigureAwait(false);
+            await RaiseAllAsync(_ups.Evaluate(), cancellationToken).ConfigureAwait(false);
         }
+
+        // The pool conditions include two about time passing: a stale poll and an overdue scrub.
+        await RaiseAllAsync(_pools.Evaluate(), cancellationToken).ConfigureAwait(false);
 
         // Last, because it may wait out a connect timeout; RunAsync handles what queued meanwhile first.
         if (_database.IsDue)
         {
-            var drives = await _database.TryOpenAsync("preparing the database", () => _store.PrepareAsync(cancellationToken))
+            var prepared = await _database.TryOpenAsync("preparing the database", () => _store.PrepareAsync(cancellationToken))
                 .ConfigureAwait(false);
-            if (drives is not null)
+            if (prepared is not null)
             {
-                foreach (var drive in drives)
+                foreach (var drive in prepared.Drives)
                 {
                     _drives.TryAdd(drive.Wwn, drive);
                 }
 
+                _pools.Remember(prepared.LastScrubs);
                 _live.Broadcast(new DrivesMessage { Drives = DriveList() });
             }
         }
+
+        BroadcastVerdictIfChanged();
     }
 
     private async Task HandleSnapshotAsync(Snapshot snapshot, CancellationToken cancellationToken)
@@ -212,6 +207,14 @@ public sealed class VigilRuntime
             }
         }
 
+        var pools = _pools.Observe(snapshot.Zfs);
+        if (pools is not null)
+        {
+            events.AddRange(pools.Events);
+        }
+
+        events.AddRange(_pools.Evaluate());
+
         var now = _time.GetTimestamp();
         var persist = IsDue(_lastPersisted, _persistInterval);
         var inventory = IsDue(_lastInventory, InventoryEvery);
@@ -237,6 +240,11 @@ public sealed class VigilRuntime
             {
                 await _store.TouchInventoryAsync(snapshot, cancellationToken).ConfigureAwait(false);
             }
+
+            if (pools is not null && snapshot.Zfs is { } zfs)
+            {
+                await _store.SavePoolsAsync(zfs.AsOf, pools, cancellationToken).ConfigureAwait(false);
+            }
         }).ConfigureAwait(false);
 
         _live.Broadcast(new SnapshotMessage { Snapshot = snapshot });
@@ -246,10 +254,7 @@ public sealed class VigilRuntime
             _live.Broadcast(new DrivesMessage { Drives = DriveList() });
         }
 
-        foreach (var newEvent in events)
-        {
-            await RaiseAsync(newEvent, cancellationToken).ConfigureAwait(false);
-        }
+        await RaiseAllAsync(events, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandleDaemonConnectionAsync(bool connected, string? reason, CancellationToken cancellationToken)
@@ -273,6 +278,7 @@ public sealed class VigilRuntime
 
         _logger.LogInformation("connected to vigild");
         _daemonLostSince = null;
+        _daemonLostAt = null;
         if (_daemonLostRaised)
         {
             _daemonLostRaised = false;
@@ -282,56 +288,20 @@ public sealed class VigilRuntime
 
     private async Task HandleUpsAsync(UpsPoll poll, CancellationToken cancellationToken)
     {
-        switch (poll)
+        if (_ups.Observe(poll) is { } reading && _database.IsReady && IsDue(_lastUpsPersisted, _persistInterval))
         {
-            case UpsPoll.Read { Reading: var reading }:
-                if (_ups.Reading is null && _logger.IsEnabled(LogLevel.Information))
-                {
-                    _logger.LogInformation("reading the UPS: {Status}", string.Join(' ', reading.Status));
-                }
-
-                // A reading that names no power source is kept for the dashboard, but for alerting
-                // it is no reading at all, and the time without one keeps counting.
-                _upsUnreadableSince = UpsConditions.NamesPowerSource(reading) ? null : _upsUnreadableSince ?? _time.GetTimestamp();
-                _upsUnguardedSince = reading.Monitors == 0 ? _upsUnguardedSince ?? _time.GetTimestamp() : null;
-                _ups = _ups with { Reading = reading, Error = null };
-
-                if (_database.IsReady && IsDue(_lastUpsPersisted, _persistInterval))
-                {
-                    _lastUpsPersisted = _time.GetTimestamp();
-                    await _database.TryAsync("writing UPS history", () => _store.InsertUpsSampleAsync(reading, cancellationToken))
-                        .ConfigureAwait(false);
-                }
-
-                break;
-
-            case UpsPoll.Failed { Reason: var error }:
-                if (_ups.Error != error)
-                {
-                    _logger.LogWarning("cannot read the UPS: {Error}", error);
-                }
-
-                _upsUnreadableSince ??= _time.GetTimestamp();
-
-                _ups = _ups with { Reading = null, Error = error };
-                break;
+            _lastUpsPersisted = _time.GetTimestamp();
+            await _database.TryAsync("writing UPS history", () => _store.InsertUpsSampleAsync(reading, cancellationToken))
+                .ConfigureAwait(false);
         }
 
-        _live.Broadcast(new UpsMessage { Ups = _ups });
-        await EvaluateUpsAsync(cancellationToken).ConfigureAwait(false);
+        _live.Broadcast(new UpsMessage { Ups = _ups.State });
+        await RaiseAllAsync(_ups.Evaluate(), cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task EvaluateUpsAsync(CancellationToken cancellationToken)
+    private async Task RaiseAllAsync(IEnumerable<NewEvent> events, CancellationToken cancellationToken)
     {
-        var watch = new UpsWatch(
-            UnreadableFor: Elapsed(_upsUnreadableSince),
-            UnguardedFor: Elapsed(_upsUnguardedSince),
-            BatteryHotRaised: _upsDebouncer.IsRaised(UpsConditions.BatteryHot));
-
-        // Unreadable, the UPS's power state is unknown, not back to normal: the conditions raised
-        // before stay raised until a reading says otherwise.
-        var conditions = UpsConditions.Of(_ups, watch);
-        foreach (var newEvent in _upsDebouncer.Update(conditions, isComplete: _upsUnreadableSince is null))
+        foreach (var newEvent in events)
         {
             await RaiseAsync(newEvent, cancellationToken).ConfigureAwait(false);
         }
@@ -358,16 +328,49 @@ public sealed class VigilRuntime
             };
 
         _live.Broadcast(new EventMessage { Event = record });
-        if (newEvent.Severity != Severity.Info)
+        _router.Route(newEvent);
+    }
+
+    /// <summary>
+    /// Every raised condition, worst first then oldest first: the page's verdict (ADR-019).
+    /// vigild being unreachable is not a debounced condition, so it is added here.
+    /// </summary>
+    private List<Alert> Verdict()
+    {
+        IEnumerable<Alert> alerts = [.. _snapshotDebouncer.Raised, .. _ups.Raised, .. _pools.Raised];
+        if (_daemonLostRaised && _daemonLostAt is { } since)
         {
-            _ntfy?.Send(newEvent);
+            alerts = alerts.Append(new Alert
+            {
+                Kind = "daemon-lost",
+                Severity = Severity.Critical,
+                Message = "vigild is unreachable. If it is not running, the fans are on BIOS control.",
+                Since = since,
+            });
+        }
+
+        return [.. alerts.OrderByDescending(alert => alert.Severity).ThenBy(alert => alert.Since, StringComparer.Ordinal)];
+    }
+
+    /// <summary>Sends the verdict and the pools' history to the page, when either has changed.</summary>
+    private void BroadcastVerdictIfChanged()
+    {
+        var alerts = Verdict();
+        if (!alerts.SequenceEqual(_alerts))
+        {
+            _alerts = alerts;
+            _live.Broadcast(new AlertsMessage { Alerts = alerts });
+        }
+
+        var history = _pools.History;
+        if (!history.SequenceEqual(_poolHistory))
+        {
+            _poolHistory = history;
+            _live.Broadcast(new PoolsMessage { Pools = history });
         }
     }
 
     private bool IsDue(long? last, TimeSpan interval) => last is not { } at || _time.GetElapsedTime(at) >= interval;
-
-    /// <summary>How long ago <paramref name="since"/> was; zero when it is not set.</summary>
-    private TimeSpan Elapsed(long? since) => since is { } at ? _time.GetElapsedTime(at) : TimeSpan.Zero;
 
     private List<DriveState> DriveList() => [.. _drives.Values];
 
@@ -380,6 +383,8 @@ public sealed class VigilRuntime
         }
 
         yield return new DrivesMessage { Drives = DriveList() };
-        yield return new UpsMessage { Ups = _ups };
+        yield return new UpsMessage { Ups = _ups.State };
+        yield return new AlertsMessage { Alerts = _alerts };
+        yield return new PoolsMessage { Pools = _poolHistory };
     }
 }

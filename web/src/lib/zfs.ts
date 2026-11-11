@@ -62,6 +62,27 @@ export function scanProgress(scan: PoolScan | null): number | null {
 	return Math.min(1, (scan.issuedBytes ?? 0) / scan.toExamineBytes);
 }
 
+/**
+ * When a running scan should finish, in epoch milliseconds, from its rate so far: what it has
+ * issued since it started, against what is left. Null when it is not running, has not issued
+ * anything yet, or will not say.
+ */
+export function scanEta(scan: PoolScan | null, now: number): number | null {
+	if (!scan || scan.state !== 'SCANNING' || !scan.toExamineBytes || !scan.issuedBytes || !scan.startTime) return null;
+	const elapsed = now - Date.parse(scan.startTime);
+	if (!(elapsed > 0)) return null;
+	const remaining = Math.max(0, scan.toExamineBytes - scan.issuedBytes);
+	return now + (remaining / scan.issuedBytes) * elapsed;
+}
+
+/** "in 3 h 20 min", "in 12 min", "any moment": how long until an epoch-millisecond time. */
+export function formatEta(at: number, now: number): string {
+	const minutes = Math.floor((at - now) / 60_000);
+	if (minutes < 1) return 'any moment';
+	const hours = Math.floor(minutes / 60);
+	return hours > 0 ? `in ${hours} h ${minutes % 60} min` : `in ${minutes} min`;
+}
+
 /** "Resilver finished", "Scrub running", "Scrub canceled". */
 export function describeScan(scan: PoolScan): string {
 	const what = titleCase(scan.function === 'ERRORSCRUB' ? 'error scrub' : scan.function);
