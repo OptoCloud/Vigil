@@ -1,16 +1,15 @@
 {
   "comment": [
-    "Pinned to .NET 10, the current LTS. The machine also has an 11.0 RC SDK installed and",
-    "would otherwise pick it: building a production service with a release-candidate compiler",
-    "is not reproducible, and net10.0 is what the target host will run.",
-    "rollForward latestFeature allows 10.0.x patch and feature updates, nothing above 10.",
+    "Pinned to .NET 11. vigil-core ships self-contained (docs/DECISIONS.md ADR-016), so the",
+    "target host needs no runtime and the SDK alone decides what is built: pinning it keeps",
+    "builds reproducible on a machine with several SDKs installed.",
+    "rollForward latestFeature allows 11.0.x patch and feature updates, nothing above 11.",
     "",
-    "The test runner opt-in is required on the .NET 10 SDK: xunit.v3 runs on",
-    "Microsoft.Testing.Platform, and without this `dotnet test` still routes to the old VSTest",
-    "host and refuses outright."
+    "The test runner opt-in: xunit.v3 runs on Microsoft.Testing.Platform, and without this",
+    "`dotnet test` routes to the old VSTest host and refuses outright."
   ],
   "sdk": {
-    "version": "10.0.400",
+    "version": "11.0.100",
     "rollForward": "latestFeature"
   },
   "test": {

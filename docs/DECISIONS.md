@@ -206,6 +206,10 @@ is not installed where vigil is built, and ASP.NET's reflection paths are not al
 (re)connect, ported from the Rust core; EF Core migrations, which the phase 6 plan named, are
 deferred until something needs a migration history. ADR-003 and ADR-004 bind vigild only.
 NativeAOT is a planned follow-up, not a rejection: docs/CLEANUP.md tracks what it needs.
+*Amended 2026-11-11:* on .NET 11, an STS release supported to 2028-11-14, rather than the
+.NET 10 LTS. Self-contained is what makes that safe: the runtime ships inside the build, so
+the guest never has to have it, and moving to the next release is a rebuild. Its SDK also fixed
+`dotnet test`'s discovery of xunit.v3 tests, which is what the tests run with again.
 
 ### ADR-017: One listener on the LAN; the contract described by each producer
 

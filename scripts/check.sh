@@ -80,11 +80,9 @@ if [ "$want_dotnet" = 1 ]; then
 		# are errors there), this enforces style.
 		run 'dotnet format' dotnet format core --verify-no-changes
 		run 'dotnet build'  dotnet build core --nologo -v q
-		# `dotnet run` rather than `dotnet test`: xunit.v3 runs on Microsoft.Testing.Platform,
-		# which builds the test project as an executable, and on this SDK `dotnet test`'s bridge
-		# to it discovers zero tests while the runner itself finds them all. Running the runner
-		# is both reliable and faster. Also regenerates core/contract.json, failing if it was stale.
-		run 'dotnet test'   dotnet run --project core/Vigil.Core.Tests --no-build -v q
+		# xunit.v3 on Microsoft.Testing.Platform, which global.json opts `dotnet test` into.
+		# Also regenerates core/contract.json, failing if it was stale.
+		run 'dotnet test'   dotnet test --project core/Vigil.Core.Tests --no-build
 	fi
 fi
 

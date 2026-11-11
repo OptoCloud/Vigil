@@ -1,7 +1,7 @@
 # vigil
 
 Looks after the hardware of a Linux (Proxmox) NAS host. `vigild` (Rust, root, `daemon/`) drives
-the fans and reads every sensor; `vigil-core` (C#/.NET 10, `core/`) records history, raises
+the fans and reads every sensor; `vigil-core` (C#/.NET 11, `core/`) records history, raises
 alerts and serves the dashboard, a static SvelteKit build (`web/`). See `README.md` for what it
 does and `docs/ARCHITECTURE.md` for how it fits together.
 
@@ -19,7 +19,7 @@ next one unasked.
 ```bash
 scripts/check.sh                                          # everything CI runs. Before every commit.
 cargo test --workspace                                    # vigild's tests, any OS
-dotnet run --project core/Vigil.Core.Tests                # vigil-core's tests (not `dotnet test`: see check.sh)
+dotnet test --project core/Vigil.Core.Tests               # vigil-core's tests
 cargo build --release --target x86_64-unknown-linux-musl   # static vigild
 core/deploy/package.sh                                    # vigil-core + the dashboard, as vigil-core.tar.gz
 dotnet run --project core/Vigil.Core                      # vigil-core, configured from the environment

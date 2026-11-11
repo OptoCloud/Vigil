@@ -30,7 +30,7 @@ hop and Node from the deployment.
 | Path | What it owns | Language |
 |---|---|---|
 | `daemon/` | `vigild`: sensors, drive health, ZFS pool state, fan curves, fan safety, the socket API | Rust, one crate |
-| `core/` | `vigil-core`: polling, history, alerting, the API, serving the dashboard | C#, .NET 10 |
+| `core/` | `vigil-core`: polling, history, alerting, the API, serving the dashboard | C#, .NET 11 |
 | `web/` | the dashboard: one prerendered SvelteKit page | TypeScript, Svelte 5 |
 
 vigild's HTTP is axum and its logger is `tracing` (ADR-015); vigil-core's are ASP.NET Core and

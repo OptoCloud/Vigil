@@ -302,8 +302,8 @@ reference types as errors in C#; review checklist.
   writes to that channel.
 - Database access is Npgsql with bound parameters, SQL from `core/sql/` via `SqlText`. No ORM
   for queries (DECISIONS.md has why).
-- Tests run as `dotnet run --project core/Vigil.Core.Tests`, not `dotnet test`: on this SDK
-  `dotnet test`'s bridge to xunit.v3 discovers nothing.
+- Tests run as `dotnet test --project core/Vigil.Core.Tests`, on Microsoft.Testing.Platform
+  (global.json opts in). Never add `Microsoft.NET.Test.Sdk`: that is the VSTest bridge.
 - New packages need a line in `docs/DECISIONS.md`, as crates do.
 
 *Enforcer:* `dotnet format --verify-no-changes` and `dotnet build` in `scripts/check.sh`;

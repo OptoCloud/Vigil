@@ -8,7 +8,7 @@ each:
   because BIOS Smart Fan curves have no idea what an LSI HBA, a drive array,
   or a GPU are actually doing. It runs as root on the host and is the only
   part that changes anything.
-- **`vigil-core`** (`core/`, C# on .NET 10), everything else. It reads
+- **`vigil-core`** (`core/`, C# on .NET 11), everything else. It reads
   `vigild` and the UPS, records history in Postgres, raises alerts, and serves
   the dashboard (`web/`, a static SvelteKit build) with its live stream and
   history to the LAN.
@@ -239,21 +239,20 @@ links with Rust's bundled LLD, and .NET publishes for Linux from anywhere.
 
 ```bash
 cargo test --workspace                                         # vigild's tests, any OS
-dotnet run --project core/Vigil.Core.Tests                     # vigil-core's tests
+dotnet test --project core/Vigil.Core.Tests                    # vigil-core's tests
 rustup target add x86_64-unknown-linux-musl                    # once
 cargo build --release --target x86_64-unknown-linux-musl       # static vigild
 core/deploy/package.sh                                         # vigil-core.tar.gz, see below
 ```
 
-`global.json` at the repo root pins the .NET 10 SDK; every command runs from
-the root, which is where `dotnet` looks for it. vigil-core's tests run with
-`dotnet run`, not `dotnet test`: on this SDK
-`dotnet test`'s bridge to xunit.v3 discovers no tests at all. Its database
+`global.json` at the repo root pins the .NET 11 SDK; every command runs from
+the root, which is where `dotnet` looks for it, along with the opt-in that
+runs `dotnet test` on Microsoft.Testing.Platform, as xunit.v3 needs. The database
 tests skip unless `VIGIL_TEST_DATABASE_URL` points at a TimescaleDB, such as
 the one in `dev/docker-compose.yml`:
 
 ```bash
-VIGIL_TEST_DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil dotnet run --project core/Vigil.Core.Tests
+VIGIL_TEST_DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil dotnet test --project core/Vigil.Core.Tests
 ```
 
 `daemon/scripts/integration-test.sh <binary>` runs the real Linux `vigild`
