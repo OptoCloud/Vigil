@@ -325,7 +325,7 @@ sensor_ids = ["port:pci-0000:03:00.0-sas-*"]
 # The 4-bay stack: scratch, and the two hot spares.
 [[zones]]
 id = "four-bay"
-sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-6", "port:pci-0000:01:00.1-ata-5"]
+sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-4", "port:pci-0000:01:00.1-ata-6"]
 
 # The hottest HDD in either stack sets the drive-cage fans.
 [[curves]]
