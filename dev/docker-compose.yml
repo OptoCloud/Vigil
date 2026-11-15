@@ -4,7 +4,7 @@
 services:
   postgres:
     # The same Postgres and TimescaleDB versions as the database guest; the image creates the extension itself.
-    image: timescale/timescaledb:2.30.2-pg18
+    image: timescale/timescaledb:2.32.0-pg18
     environment:
       POSTGRES_USER: vigil
       POSTGRES_PASSWORD: vigil
