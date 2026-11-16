@@ -357,8 +357,9 @@ Three things make a public page acceptable, and each is a gate:
    mutating route, or a GET that acts, needs authentication first. Stop and raise it.
 2. **Everything it serves is published.** There is no viewer to trust, so a value is either fit
    for anyone or it is not served. Credentials were already masked; drive serials are now cut
-   to their last four characters and a UPS's serial, MAC, contact, location and device address
-   are masked, all where they enter the process (`SerialNumbers`, `NutProtocol`). A new field
+   to their last four characters, in the SMART field and in the by-id name of a vdev alike, and
+   a UPS's serial, MAC, contact, location and device address are masked, all where they enter
+   the process (`SerialNumbers`, `NutProtocol`). What is withheld reads `[REDACTED]`. A new field
    gets the question "would I post this?" before it gets a wire name.
 3. **No one client can use up what everyone shares.** A request has no identity but its
    address, so that is what is limited: requests per client, live streams per client, on top

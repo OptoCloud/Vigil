@@ -1,4 +1,5 @@
 using Vigil.Core.Clients;
+using Vigil.Core.Protocol;
 using Xunit;
 
 namespace Vigil.Core.Tests;
@@ -207,7 +208,7 @@ public sealed class NutProtocolTests
 
         foreach (var name in new[] { "ups.serial", "device.serial", "battery.serial", "ups.macaddr", "device.contact", "device.location", "driver.parameter.port" })
         {
-            Assert.Equal(NutProtocol.Masked, variables[name]);
+            Assert.Equal(Redaction.Marker, variables[name]);
         }
 
         Assert.Equal("2", variables["driver.parameter.pollinterval"]);
@@ -227,10 +228,10 @@ public sealed class NutProtocolTests
             ("input.bypass.voltage", "231.0"),
             ("ups.status", "OL"));
 
-        Assert.Equal(NutProtocol.Masked, variables["driver.parameter.community"]);
-        Assert.Equal(NutProtocol.Masked, variables["driver.parameter.authPassword"]);
-        Assert.Equal(NutProtocol.Masked, variables["driver.parameter.privPassword"]);
-        Assert.Equal(NutProtocol.Masked, variables["driver.parameter.apikey"]);
+        Assert.Equal(Redaction.Marker, variables["driver.parameter.community"]);
+        Assert.Equal(Redaction.Marker, variables["driver.parameter.authPassword"]);
+        Assert.Equal(Redaction.Marker, variables["driver.parameter.privPassword"]);
+        Assert.Equal(Redaction.Marker, variables["driver.parameter.apikey"]);
         Assert.Equal("vigil", variables["driver.parameter.secName"]);
         Assert.Equal("231.0", variables["input.bypass.voltage"]);
     }

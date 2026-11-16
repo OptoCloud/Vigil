@@ -298,8 +298,12 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
   (ADR-023). A drive's serial is cut to its last four characters where it arrives from vigild
   and where it is read from the database (`SerialNumbers`), so the live stream, the event log
   and a notification cannot carry a whole one: a full serial with a model is what a warranty
-  claim is filed with. A UPS's serial, MAC address, contact, location and its driver's device
-  address are masked with the credentials. `SerialNumbersTests` and `NutProtocolTests` pin both.
+  claim is filed with. The same serial is inside the name and path of every vdev on an
+  `ata-MODEL_SERIAL` by-id link, and is cut there too. A UPS's serial, MAC address, contact,
+  location and its driver's device address are redacted whole, with the credentials.
+  `SerialNumbersTests` and `NutProtocolTests` pin both.
+- Whatever is withheld reads `[REDACTED]` (`Redaction.Marker`), in place of the value or in
+  front of the part that is shown, so it cannot be mistaken for a value the device reported.
 - Secrets reach a process only through its systemd `EnvironmentFile`, `/etc/vigil-core.env`,
   which is `0640 root:vigil` and lives outside the repo.
 - `.env.example` files hold placeholders and nothing real. `.env` is gitignored in `core/`.
