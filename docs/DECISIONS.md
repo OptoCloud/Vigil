@@ -322,7 +322,8 @@ a phone number, gateway URL or token is never logged and never put in an error o
 *Decided 2026-11-11.* Releases were built by hand on orion's build guest (CT 700) and
 installed by a runbook, so a fix reached the NAS whenever someone found an evening for it.
 
-Now pushing a tag `vYYYY.MM.DD` (or `.N` for a second that day) on a commit master contains runs
+Now pushing a tag `vMAJOR.MINOR.PATCH` (semver, since 2026-11-16; dated `vYYYY.MM.DD` tags before
+that) on a commit master contains runs
 `.github/workflows/release.yml`: every check in `check.yml`, then vigild and `vigil-core.tar.gz`
 built from the tagged tree, attested with GitHub's build provenance and published as the
 release. It dispatches `vigil-release` to the hosts repo, which owns what orion runs: its
