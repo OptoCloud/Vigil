@@ -61,21 +61,24 @@ impl FanSafetyGuard {
             wake: Condvar::new(),
         });
 
-        for channel in &shared.channels {
-            if let Err(error) = shared.controller.take_manual_control(channel) {
-                // No guard will exist for the caller to drop, so any channel already taken
-                // has to be handed back right here or it never will be.
-                shared.release_all();
-                return Err(io::Error::new(error.kind(), format!("taking manual control of fan channel '{}': {error}", channel.id)));
-            }
-        }
-
+        // Started before any channel is taken, not after: a thread that cannot be spawned is
+        // then an error with nothing on manual yet. The other way round it returned with every
+        // channel taken and no guard to release them.
         let deadman = std::thread::Builder::new().name("deadman".to_owned()).spawn({
             let shared = Arc::clone(&shared);
             move || shared.run_deadman()
         })?;
 
-        Ok(Self { shared, deadman: Some(deadman) })
+        // The guard exists before the first write, so every way out of the loop below goes
+        // through its Drop, which hands back whatever was taken.
+        let guard = Self { shared, deadman: Some(deadman) };
+        for channel in &guard.shared.channels {
+            if let Err(error) = guard.shared.controller.take_manual_control(channel) {
+                return Err(io::Error::new(error.kind(), format!("taking manual control of fan channel '{}': {error}", channel.id)));
+            }
+        }
+
+        Ok(guard)
     }
 
     /// Call once per completed control-loop iteration to prove the loop is still alive.
