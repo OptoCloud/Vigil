@@ -9,8 +9,8 @@ namespace Vigil.Core.Api;
 public static class Dashboard
 {
     /// <summary>
-    /// The headers that are not script policy. No Strict-Transport-Security: this deployment
-    /// serves plain HTTP on the LAN by decision (ADR-008), where HSTS does nothing.
+    /// The headers that are not script policy. Strict-Transport-Security is not in this list
+    /// because it is conditional: see <see cref="UseSecurityHeaders"/>.
     /// </summary>
     private static readonly (string Name, string Value)[] SecurityHeaders =
     [
@@ -23,6 +23,9 @@ public static class Dashboard
         // Belt and braces with frame-ancestors, for anything that predates CSP.
         ("X-Frame-Options", "DENY"),
         ("Cross-Origin-Opener-Policy", "same-origin"),
+
+        // Nothing here is meant to be loaded by another site's page, as a script or an image.
+        ("Cross-Origin-Resource-Policy", "same-origin"),
 
         // A read-only dashboard needs none of these, and a browser told so cannot be talked into them.
         ("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"),
@@ -37,12 +40,35 @@ public static class Dashboard
     /// <summary>SvelteKit content-hashes everything under here, so it never changes at a given URL.</summary>
     private const string ImmutablePrefix = "/_app/immutable/";
 
+    /// <summary>
+    /// A year, the usual floor for HSTS to mean anything. This host only: whether the rest of
+    /// the domain is HTTPS is not vigil's to promise.
+    /// </summary>
+    private const string StrictTransportSecurity = "max-age=31536000";
+
+    /// <summary>
+    /// The headers on every response. Strict-Transport-Security only on a request that arrived
+    /// over HTTPS, which vigil-core learns from a trusted proxy (<see cref="Admission"/>): it
+    /// serves plain HTTP itself, where a browser ignores the header anyway. An API answer is
+    /// one moment's state, so nothing between here and the browser should keep it; the live
+    /// stream and the static files set their own caching after this.
+    /// </summary>
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
             foreach (var (name, value) in SecurityHeaders)
             {
                 context.Response.Headers[name] = value;
+            }
+
+            if (context.Request.IsHttps)
+            {
+                context.Response.Headers.StrictTransportSecurity = StrictTransportSecurity;
+            }
+
+            if (context.Request.Path.StartsWithSegments("/api", StringComparison.Ordinal))
+            {
+                context.Response.Headers.CacheControl = "no-store";
             }
 
             await next(context).ConfigureAwait(false);

@@ -35,6 +35,11 @@ public static class VigilJson
     JsonSerializerDefaults.Web,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+
+    // `required` only says a property is present: without this, "sensors": null deserializes
+    // into a property declared non-null, and the first thing to enumerate it throws on the
+    // runtime's loop. With it the snapshot fails to parse, which the client already survives.
+    RespectNullableAnnotations = true,
     WriteIndented = false)]
 [JsonSerializable(typeof(Snapshot))]
 [JsonSerializable(typeof(LiveMessage))]

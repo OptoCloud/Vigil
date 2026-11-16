@@ -39,7 +39,8 @@ public sealed class DriveStore(VigilDataSources databases)
                 // Epoch milliseconds, formatted here, so no date handling crosses the boundary
                 // as text in either direction.
                 AsOf = Rfc3339.From(DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(7))),
-                SerialNumber = reader.IsDBNull(8) ? null : reader.GetString(8),
+                // Rows written before serials were masked hold whole ones (ADR-023).
+                SerialNumber = reader.IsDBNull(8) ? null : SerialNumbers.Mask(reader.GetString(8)),
                 ReportedUncorrect = Count(reader, 9),
                 CommandTimeout = Count(reader, 10),
                 UdmaCrcErrorCount = Count(reader, 11),

@@ -131,6 +131,7 @@ public sealed class VigilRuntime
                 await HandleUpsAsync(ups.Poll, cancellationToken).ConfigureAwait(false);
                 break;
             case RuntimeInput.Subscribe subscribe:
+                subscribe.Dequeued?.Invoke();
                 _live.Subscribe(subscribe.Subscriber, CurrentState());
                 break;
         }

@@ -11,7 +11,7 @@ namespace Vigil.Core.Clients;
 public static partial class NutProtocol
 {
     /// <summary>
-    /// What a credential's value reads as. Masked rather than dropped: that a driver carries one
+    /// What a credential's value, or an identifying one, reads as. Masked rather than dropped: that a driver carries one
     /// at all is worth seeing, and a missing variable would read as a driver that has none.
     /// </summary>
     public const string Masked = "(masked)";
@@ -25,6 +25,15 @@ public static partial class NutProtocol
     /// </summary>
     [GeneratedRegex("(?<!by)pass|secret|token|community|authkey|privkey|apikey", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CredentialName();
+
+    /// <summary>
+    /// Variable names that identify the hardware, its owner or its network rather than report
+    /// its state: serial numbers (a warranty claim wants one), MAC addresses, the contact and
+    /// location an SNMP card is configured with, and a network driver's <c>port</c>, which is
+    /// the address of the device it talks to. Every variable is on a public page (ADR-023).
+    /// </summary>
+    [GeneratedRegex(@"serial|macaddr|contact|location|^driver\.parameter\.port$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex IdentifyingName();
 
     /// <summary>
     /// The variables in a <c>LIST VAR</c> answer: lines of <c>VAR &lt;ups&gt; &lt;name&gt;
@@ -61,7 +70,7 @@ public static partial class NutProtocol
             }
 
             // Masked here, where the value enters the process, so nothing downstream can serve it.
-            variables[parts[1]] = CredentialName().IsMatch(parts[1]) ? Masked : Unescape(quoted[1..^1]);
+            variables[parts[1]] = CredentialName().IsMatch(parts[1]) || IdentifyingName().IsMatch(parts[1]) ? Masked : Unescape(quoted[1..^1]);
         }
 
         return variables;
@@ -104,7 +113,10 @@ public static partial class NutProtocol
         {
             // AwayFromZero, not .NET's default banker's rounding, so this matches Rust's
             // f64::round: 166.5 is 167 here, and would be 166 under the default.
-            realPower = Math.Round(load.Value / 100 * nominal, MidpointRounding.AwayFromZero);
+            // Two finite numbers can still multiply past what a double holds, and an infinity
+            // cannot be written as JSON: it would fail every message the reading is sent in.
+            var derived = Math.Round(load.Value / 100 * nominal, MidpointRounding.AwayFromZero);
+            realPower = double.IsFinite(derived) ? derived : null;
         }
 
         return new UpsReading

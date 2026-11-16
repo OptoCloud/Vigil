@@ -97,23 +97,19 @@ public sealed class PostgresUriTests
     }
 
     [Theory]
-    [InlineData("postgres://vigil:secret@10.0.0.130:5432/vigil", "postgres://vigil:***@10.0.0.130:5432/vigil")]
-    [InlineData("postgres://vigil@localhost/vigil", "postgres://vigil@localhost/vigil")]
-    [InlineData("postgres://vigil:p%40ss@db/vigil", "postgres://vigil:***@db/vigil")]
-    [InlineData("Host=db;Password=secret", "Host=db;Password=secret")]
-    public void RedactsThePasswordForAnErrorMessage(string url, string expected)
+    [InlineData("mysql://vigil:verysecret@h/db")]
+    // An unencoded "/" ends the authority early, so the password is not where a redactor looks.
+    [InlineData("postgres://vigil:very/secret@h/db")]
+    [InlineData("postgres://vigil:very secret@h:notaport/db")]
+    // A password may also sit in the query, as an Npgsql keyword.
+    [InlineData("mysql://h/db?password=verysecret")]
+    [InlineData("postgres://h:notaport/db?Password=verysecret")]
+    public void AMalformedUrlsErrorDoesNotLeakThePassword(string url)
     {
         // docs/SECURITY.md §7: a credential never reaches a log line or an exception. The
-        // keyword form is left alone because it is never echoed - only URLs are.
-        Assert.Equal(expected, PostgresUri.Redact(url));
-    }
+        // error names the variable and never repeats its value.
+        var error = Assert.ThrowsAny<ArgumentException>(() => PostgresUri.ToConnectionString(url, "vigil-test"));
 
-    [Fact]
-    public void AMalformedUrlsErrorDoesNotLeakThePassword()
-    {
-        var error = Assert.Throws<ArgumentException>(
-            () => PostgresUri.ToConnectionString("mysql://vigil:verysecret@h/db", "vigil-test"));
-
-        Assert.DoesNotContain("verysecret", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", error.ToString(), StringComparison.Ordinal);
     }
 }

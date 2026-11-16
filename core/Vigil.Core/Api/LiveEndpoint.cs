@@ -25,7 +25,7 @@ public static class LiveEndpoint
 
     public static IResult Handle(LiveHub hub, HttpContext context)
     {
-        if (hub.TrySubscribe() is not { } subscription)
+        if (hub.TrySubscribe(Admission.ClientKey(context)) is not { } subscription)
         {
             return TypedResults.Text("Too many live streams are open. Close a tab and reload.\n", statusCode: StatusCodes.Status503ServiceUnavailable);
         }

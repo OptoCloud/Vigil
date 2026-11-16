@@ -90,6 +90,60 @@ public sealed class VigildClientTests
     }
 
     [Fact]
+    public async Task AnEventLongerThanTheCapEndsTheConnectionInsteadOfBeingBuffered()
+    {
+        // No blank line ever comes, so the parser would keep the whole of it; and the peer
+        // keeps sending, so the silence timeout never fires.
+        var body = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n"
+            + "event: status\ndata: " + new string('x', (int)Limits.MaxDaemonEventBytes * 2);
+
+        var events = await Collect(FakeVigild(body), 2);
+
+        Assert.Equal("connected", events[0]);
+        Assert.Equal($"disconnected: the answer is longer than the {Limits.MaxDaemonEventBytes} bytes allowed for it", events[1]);
+    }
+
+    [Theory]
+    // `required` is satisfied by a property that is present and null.
+    [InlineData("""{"timestampUtc":"t","sensors":null,"fans":[],"driveHealth":[],"controlLoopHealthy":true}""")]
+    [InlineData("""{"timestampUtc":null,"sensors":[],"fans":[],"driveHealth":[],"controlLoopHealthy":true}""")]
+    [InlineData("""{"timestampUtc":"t","sensors":[],"fans":[],"driveHealth":[],"bays":null,"controlLoopHealthy":true}""")]
+    [InlineData("""{"timestampUtc":"t","sensors":[null],"fans":[],"driveHealth":[],"controlLoopHealthy":true}""")]
+    [InlineData("""{"timestampUtc":"t","sensors":[],"fans":[],"driveHealth":[null],"controlLoopHealthy":true}""")]
+    [InlineData("""{"timestampUtc":"t","sensors":[],"fans":[],"driveHealth":[],"zfs":{"isAvailable":true,"asOf":"t","pools":[null]},"controlLoopHealthy":true}""")]
+    // Too large for a double: the reader makes it an infinity, which cannot be sent on.
+    [InlineData("""{"timestampUtc":"t","sensors":[{"id":"cpu","category":"cpu","label":"CPU","celsiusOrNull":1e999,"sourcePath":"p","isAvailable":true}],"fans":[],"driveHealth":[],"controlLoopHealthy":true}""")]
+    public async Task ASnapshotTheRuntimeWouldChokeOnIsDiscardedAndTheStreamCarriesOn(string unusable)
+    {
+        var body = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n"
+            + $"event: status\ndata: {unusable}\n\n"
+            + $"event: status\ndata: {SnapshotJson}\n\n";
+
+        var events = await Collect(FakeVigild(body), 3);
+
+        Assert.Equal(["connected", "snapshot True", "disconnected: vigild closed the stream"], events);
+    }
+
+    [Fact]
+    public async Task ADrivesSerialIsMaskedBeforeAnythingElseSeesIt()
+    {
+        const string WithSerial = """{"timestampUtc":"t","sensors":[],"fans":[],"driveHealth":[{"deviceName":"naa.5000c500a0000000","passed":true,"reallocatedSectorCount":0,"pendingSectorCount":0,"powerOnHours":1,"serialNumber":"ZL2ABCDE","sourcePath":"/dev/sda","isAvailable":true,"asOf":"t"}],"controlLoopHealthy":true}""";
+        var port = FakeVigild("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n" + $"event: status\ndata: {WithSerial}\n\n");
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        await foreach (var item in ClientFor(port).StreamAsync(cancellation.Token))
+        {
+            if (item is DaemonEvent.Received received)
+            {
+                Assert.Equal("…BCDE", Assert.Single(received.Snapshot.DriveHealth).SerialNumber);
+                return;
+            }
+        }
+
+        Assert.Fail("no snapshot arrived");
+    }
+
+    [Fact]
     public async Task ARefusalIsADisconnectWithTheStatus()
     {
         // 503 is what vigild answers once api.max_clients is reached.

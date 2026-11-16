@@ -14,5 +14,10 @@ public abstract record RuntimeInput
     /// A new live subscriber: gets the current state at once, then every change as one JSON
     /// message each. The runtime completes the writer when it drops the subscriber.
     /// </summary>
-    public sealed record Subscribe(ChannelWriter<string> Subscriber) : RuntimeInput;
+    /// <param name="Subscriber">Where the runtime writes this stream's messages.</param>
+    /// <param name="Dequeued">
+    /// Called by the runtime when it takes this off its queue, which is what lets
+    /// <see cref="LiveHub"/> bound how many of these are waiting there.
+    /// </param>
+    public sealed record Subscribe(ChannelWriter<string> Subscriber, Action? Dequeued = null) : RuntimeInput;
 }

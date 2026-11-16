@@ -42,7 +42,14 @@ public static class PostgresUri
         if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
             || (parsed.Scheme != "postgres" && parsed.Scheme != "postgresql"))
         {
-            throw new ArgumentException($"DATABASE_URL must be a postgres:// URL or an Npgsql connection string, got '{Redact(url)}'", nameof(url));
+            // The value is not repeated, redacted or otherwise (docs/SECURITY.md §7). A URL
+            // that will not parse is exactly the one whose password cannot be found to mask:
+            // an unencoded "/" or "@" in it moves where the authority appears to end, and a
+            // password can also sit in the query.
+            throw new ArgumentException(
+                "DATABASE_URL must be a postgres:// URL or an Npgsql connection string. Its value is not shown, as it holds a password; "
+                + "a password containing '@', ':', '/' or '?' has to be percent-encoded.",
+                nameof(url));
         }
 
         var builder = new NpgsqlConnectionStringBuilder
@@ -97,39 +104,5 @@ public static class PostgresUri
         // by default), logs a load failure on every connection.
         builder.GssEncryptionMode = GssEncryptionMode.Disable;
         return builder.ConnectionString;
-    }
-
-    /// <summary>
-    /// A URL with its password replaced, for an error message. docs/SECURITY.md §7: a
-    /// credential never reaches a log line or an exception.
-    /// </summary>
-    public static string Redact(string url)
-    {
-        ArgumentNullException.ThrowIfNull(url);
-
-        var schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
-        if (schemeEnd < 0)
-        {
-            return url;
-        }
-
-        var authorityStart = schemeEnd + 3;
-        var authorityEnd = url.IndexOf('/', authorityStart);
-        var authority = authorityEnd < 0 ? url[authorityStart..] : url[authorityStart..authorityEnd];
-
-        var at = authority.LastIndexOf('@');
-        if (at < 0)
-        {
-            return url;
-        }
-
-        var userInfo = authority[..at];
-        var separator = userInfo.IndexOf(':', StringComparison.Ordinal);
-        if (separator < 0)
-        {
-            return url;
-        }
-
-        return string.Concat(url.AsSpan(0, authorityStart), userInfo.AsSpan(0, separator + 1), "***", url.AsSpan(authorityStart + at));
     }
 }

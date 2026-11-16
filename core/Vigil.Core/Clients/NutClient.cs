@@ -81,6 +81,13 @@ public sealed class NutClient(IOptions<VigilOptions> options)
                         stopped = true;
                         break;
                     }
+                    catch (OperationCanceledException)
+                    {
+                        // Not the caller's, which the clause above took: the connect's own
+                        // time limit. Uncaught it ended this loop, and the host with it.
+                        failure = $"no answer from upsd: could not connect within {RequestTimeout.TotalSeconds:0}s";
+                        break;
+                    }
                     catch (TimeoutException timeout)
                     {
                         failure = $"no answer from upsd: {timeout.Message}";

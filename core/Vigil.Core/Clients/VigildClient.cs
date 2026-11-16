@@ -70,6 +70,13 @@ public sealed class VigildClient(IOptions<VigilOptions> options, ILogger<VigildC
                     {
                         yield break;
                     }
+                    catch (OperationCanceledException)
+                    {
+                        // Not the caller's, which the clause above took: the connect's or the
+                        // response's own time limit. Uncaught it ended this loop, and the host.
+                        reason = "vigild did not answer in time";
+                        break;
+                    }
                     catch (TimeoutException timeout)
                     {
                         reason = $"no data from vigild: {timeout.Message}";
@@ -113,10 +120,18 @@ public sealed class VigildClient(IOptions<VigilOptions> options, ILogger<VigildC
     {
         using var client = CreateClient();
 
+        // The client's own timeout is off (see CreateClient), so the wait for headers is timed
+        // here: a peer that accepts the connection and never answers would hold this forever.
+        using var answer = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        answer.CancelAfter(Limits.DaemonResponseTimeout);
+
         // ResponseHeadersRead: the body is an endless stream, so it must not be buffered.
         using var response = await client
-            .GetAsync(new Uri("http://vigild/events"), HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .GetAsync(new Uri("http://vigild/events"), HttpCompletionOption.ResponseHeadersRead, answer.Token)
             .ConfigureAwait(false);
+
+        // From here silence is IdleTimeoutStream's to judge; the stream itself has no deadline.
+        answer.CancelAfter(Timeout.InfiniteTimeSpan);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -129,8 +144,16 @@ public sealed class VigildClient(IOptions<VigilOptions> options, ILogger<VigildC
         var body = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var guarded = new IdleTimeoutStream(body, Limits.StreamSilenceTimeout);
 
-        await foreach (var item in SseParser.Create(guarded).EnumerateAsync(cancellationToken).ConfigureAwait(false))
+        // The parser buffers an event until its blank line arrives, and a peer that keeps
+        // sending is never silent, so the size needs its own bound. Renewed per event; the
+        // keepalive comments between events count against it, at a dozen bytes each.
+        await using var bounded = new ReadBudgetStream(guarded);
+        bounded.Allow(Limits.MaxDaemonEventBytes);
+
+        await foreach (var item in SseParser.Create(bounded).EnumerateAsync(cancellationToken).ConfigureAwait(false))
         {
+            bounded.Allow(Limits.MaxDaemonEventBytes);
+
             // vigild names every event "status"; anything else is from a version that has
             // something new to say, and ignoring it is how this stays forward-compatible.
             if (item.EventType != "status")
@@ -149,9 +172,15 @@ public sealed class VigildClient(IOptions<VigilOptions> options, ILogger<VigildC
                 logger.LogWarning("discarding a snapshot that could not be parsed: {Reason}", error.Message);
             }
 
+            if (snapshot is not null && SnapshotShape.Problem(snapshot) is { } problem)
+            {
+                logger.LogWarning("discarding a snapshot that is not usable: {Reason}", problem);
+                snapshot = null;
+            }
+
             if (snapshot is not null)
             {
-                yield return new DaemonEvent.Received(snapshot);
+                yield return new DaemonEvent.Received(SerialNumbers.Mask(snapshot));
             }
         }
     }

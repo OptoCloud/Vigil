@@ -16,6 +16,17 @@ public sealed class NutProtocolTests
     }
 
     [Fact]
+    public void WattsThatOverflowWhenDerivedAreLeftOutRatherThanInfinite()
+    {
+        // Each value is finite and so passes on its own; their product is not, and an infinity
+        // cannot be serialized, which would fail every live message carrying the reading.
+        var reading = NutProtocol.ToReading("apc", Variables(("ups.load", "1e300"), ("ups.realpower.nominal", "1e300")), "t");
+
+        Assert.Null(reading.RealPower);
+        Assert.Equal(1e300, reading.Load);
+    }
+
+    [Fact]
     public void ReadsVarLinesAndSkipsTheFraming()
     {
         var variables = NutProtocol.ParseVariables(
@@ -176,6 +187,31 @@ public sealed class NutProtocolTests
         Assert.Null(reading.Model);
         Assert.Empty(reading.Status);
         Assert.Empty(reading.Variables);
+    }
+
+    [Fact]
+    public void MasksWhatIdentifiesTheHardwareItsOwnerOrItsNetwork()
+    {
+        // Every variable is on a public page (ADR-023).
+        var variables = Variables(
+            ("ups.serial", "AS1234567890"),
+            ("device.serial", "AS1234567890"),
+            ("battery.serial", "B1"),
+            ("ups.macaddr", "00:c0:b7:aa:bb:cc"),
+            ("device.contact", "someone@example.com"),
+            ("device.location", "the cupboard under the stairs"),
+            ("driver.parameter.port", "10.0.0.50"),
+            ("driver.parameter.pollinterval", "2"),
+            ("ups.model", "Smart-UPS 1000"),
+            ("ups.status", "OL"));
+
+        foreach (var name in new[] { "ups.serial", "device.serial", "battery.serial", "ups.macaddr", "device.contact", "device.location", "driver.parameter.port" })
+        {
+            Assert.Equal(NutProtocol.Masked, variables[name]);
+        }
+
+        Assert.Equal("2", variables["driver.parameter.pollinterval"]);
+        Assert.Equal("Smart-UPS 1000", variables["ups.model"]);
     }
 
     [Fact]

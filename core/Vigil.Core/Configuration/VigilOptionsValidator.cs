@@ -80,6 +80,11 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
             problems.Add("NTFY_URL must be an absolute http(s) URL.");
         }
 
+        if (!Api.TrustedProxies.TryParse(options.TrustedProxies, Clients.CloudflareRanges.BuiltIn, out _, out var proxyProblem))
+        {
+            problems.Add($"TRUSTED_PROXIES {proxyProblem}");
+        }
+
         if (ListenAddress(options) is null)
         {
             problems.Add(
@@ -94,7 +99,7 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
     /// The URL Kestrel binds, or null if <see cref="VigilOptions.CoreHost"/> is not an address.
     /// </summary>
     /// <remarks>
-    /// One listener, on the LAN (ADR-008). Validated before it reaches the bind because Kestrel
+    /// One listener (ADR-017). Validated before it reaches the bind because Kestrel
     /// treats any name but "localhost" as "every interface", so a typo would not fail, it would
     /// just listen somewhere other than intended.
     /// </remarks>

@@ -69,12 +69,31 @@ public sealed class VigilOptions
     public string? NtfyUrl { get; set; }
 
     /// <summary>
-    /// The one address vigil-core listens on, which serves the dashboard to the LAN: every
-    /// interface by default. There is deliberately no second, private listener (ADR-008).
+    /// The one address vigil-core listens on, which serves the dashboard: every interface by
+    /// default, and the address the TLS proxy reaches in production (ADR-023). There is
+    /// deliberately no second, private listener (ADR-017).
     /// </summary>
     public string CoreHost { get; set; } = "0.0.0.0";
 
     public int CorePort { get; set; } = Limits.CoreDefaultPort;
+
+    /// <summary>
+    /// The reverse proxies in front of vigil-core, separated by commas: IP addresses, networks
+    /// (<c>10.0.0.0/24</c>), or <c>cloudflare</c> for the ranges Cloudflare publishes, which are
+    /// then kept current. Only a connection from one of these has its <c>X-Forwarded-For</c> and <c>X-Forwarded-Proto</c>
+    /// believed, which is what tells one visitor from another for the per-client limits. Unset,
+    /// a client is whoever opened the connection: right when nothing sits in front, and wrong
+    /// behind a proxy, where every visitor would then share one client's allowance.
+    /// Parsed by <see cref="Api.TrustedProxies"/>.
+    /// </summary>
+    public string? TrustedProxies { get; set; }
+
+    /// <summary>
+    /// The host names the dashboard answers to, separated by semicolons; a request for any
+    /// other <c>Host</c> gets a 400. Unset answers to every name. This is ASP.NET's own
+    /// <c>AllowedHosts</c> setting, which its host filtering reads under this same key.
+    /// </summary>
+    public string? AllowedHosts { get; set; }
 
     /// <summary>
     /// The dashboard's static build (SvelteKit's output directory). Unset serves the API only,

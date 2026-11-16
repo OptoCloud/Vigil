@@ -62,10 +62,13 @@ Breaking one of these is a design change, not a refactor. Full list in `docs/ARC
 
 ## The short version of the security guide
 
-- vigild listens on a unix socket only. vigil-core has one listener, on the LAN.
-- **The dashboard is deliberately LAN-open with no auth (ADR-008, ADR-017).** It stays that way
-  *only* while every route is a GET that changes nothing; `ApiTests.EveryRouteIsAGet` enforces
-  the first half. Adding a mutating route voids the decision: stop and raise it.
+- vigild listens on a unix socket only. vigil-core has one listener, behind a TLS proxy.
+- **The dashboard is deliberately public with no auth (ADR-023).** It stays that way *only*
+  while every route is a GET that changes nothing; `ApiTests.EveryRouteIsAGet` enforces the
+  first half. Adding a mutating route voids the decision: stop and raise it.
+- **Everything served is published.** A new wire field is fit for a stranger or it is masked
+  where it enters the process, as drive serials and UPS identifiers are.
+- Limits are per client (an address) as well as global: `Admission`, `LiveHub`.
 - Every read is bounded; every concurrent resource is capped.
 - Subprocesses: argv not shell, hard timeout, null stdin, paths from config.
 - `DATABASE_URL` holds a password. Never log it, never put it in an error or a response.
