@@ -135,7 +135,7 @@ public sealed class VigildClientTests
         {
             if (item is DaemonEvent.Received received)
             {
-                Assert.Equal("…BCDE", Assert.Single(received.Snapshot.DriveHealth).SerialNumber);
+                Assert.Equal("[REDACTED]BCDE", Assert.Single(received.Snapshot.DriveHealth).SerialNumber);
                 return;
             }
         }

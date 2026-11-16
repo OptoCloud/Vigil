@@ -11,12 +11,6 @@ namespace Vigil.Core.Clients;
 public static partial class NutProtocol
 {
     /// <summary>
-    /// What a credential's value, or an identifying one, reads as. Masked rather than dropped: that a driver carries one
-    /// at all is worth seeing, and a missing variable would read as a driver that has none.
-    /// </summary>
-    public const string Masked = "(masked)";
-
-    /// <summary>
     /// Variable names that hold a credential. upsd publishes each driver's configuration as
     /// <c>driver.parameter.&lt;name&gt;</c>, which for snmp-ups is its community or SNMPv3
     /// passwords and for the network drivers a login password, and the whole map is served to
@@ -69,8 +63,10 @@ public static partial class NutProtocol
                 continue;
             }
 
-            // Masked here, where the value enters the process, so nothing downstream can serve it.
-            variables[parts[1]] = CredentialName().IsMatch(parts[1]) || IdentifyingName().IsMatch(parts[1]) ? Masked : Unescape(quoted[1..^1]);
+            // Redacted here, where the value enters the process, so nothing downstream can serve
+            // it. Redacted rather than dropped: that a driver carries one at all is worth seeing,
+            // and a missing variable would read as a driver that has none.
+            variables[parts[1]] = CredentialName().IsMatch(parts[1]) || IdentifyingName().IsMatch(parts[1]) ? Redaction.Marker : Unescape(quoted[1..^1]);
         }
 
         return variables;
