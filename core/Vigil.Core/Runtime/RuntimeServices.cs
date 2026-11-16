@@ -30,7 +30,10 @@ public sealed class DaemonFeed(VigildClient client, Channel<RuntimeInput> inputs
     {
         await foreach (var daemonEvent in client.StreamAsync(stoppingToken).ConfigureAwait(false))
         {
-            inputs.Writer.TryWrite(new RuntimeInput.Daemon(daemonEvent));
+            if (!await Feed.ForwardAsync(inputs.Writer, new RuntimeInput.Daemon(daemonEvent), stoppingToken).ConfigureAwait(false))
+            {
+                return;
+            }
         }
     }
 }
@@ -42,7 +45,33 @@ public sealed class UpsFeed(NutClient client, Channel<RuntimeInput> inputs) : Ba
     {
         await foreach (var poll in client.PollAsync(stoppingToken).ConfigureAwait(false))
         {
-            inputs.Writer.TryWrite(new RuntimeInput.Ups(poll));
+            if (!await Feed.ForwardAsync(inputs.Writer, new RuntimeInput.Ups(poll), stoppingToken).ConfigureAwait(false))
+            {
+                return;
+            }
+        }
+    }
+}
+
+/// <summary>How a poller hands the runtime what it read.</summary>
+internal static class Feed
+{
+    /// <summary>
+    /// Queues <paramref name="input"/>, waiting while the runtime's queue is full: a connection
+    /// event must not be dropped, and a poller that waits stops reading its socket, which is
+    /// the backpressure a bounded queue is for. False once the runtime has stopped or the host
+    /// is stopping, which ends the poller without failing it.
+    /// </summary>
+    public static async ValueTask<bool> ForwardAsync(ChannelWriter<RuntimeInput> inputs, RuntimeInput input, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await inputs.WriteAsync(input, stoppingToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception error) when (error is ChannelClosedException or OperationCanceledException)
+        {
+            return false;
         }
     }
 }

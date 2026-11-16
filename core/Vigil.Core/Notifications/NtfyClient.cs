@@ -17,6 +17,9 @@ public sealed class NtfyClient(HttpClient http, Uri url, ILogger<NtfyClient> log
     /// <summary>The same bound curl's --max-time 10 gave: a notification later than this is noise.</summary>
     public static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>ntfy answers with a dozen short headers; SocketsHttpHandler's unit is KiB.</summary>
+    public const int MaximumHeaderKilobytes = 16;
+
     public string Name => "ntfy";
 
     /// <summary>Warnings and worse: ntfy is a phone notification, cheap to send and to dismiss.</summary>
@@ -45,7 +48,10 @@ public sealed class NtfyClient(HttpClient http, Uri url, ILogger<NtfyClient> log
             request.Headers.Add("Tags", tags);
 
             using var timeout = new CancellationTokenSource(SendTimeout);
-            using var response = await http.SendAsync(request, timeout.Token).ConfigureAwait(false);
+
+            // ResponseHeadersRead: only the status is used, so the body is never read. The
+            // default buffers all of it first, up to 2 GiB of whatever the server sends.
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("could not send a notification: ntfy answered HTTP {Status}", (int)response.StatusCode);

@@ -16,7 +16,7 @@ boundary first and a code boundary second: see `docs/SECURITY.md` §1.
      (NUT, TCP)         │    C#, core/      │        (owns the schema)
                         │  one state loop   │──────> ntfy (optional)
                         └─────────┬─────────┘
-                              LAN │ one listener, no auth (ADR-008)
+                           public │ one listener, no auth (ADR-023)
                                   │ the dashboard (web/build) + GET /api/*
                                browser
 ```
@@ -137,8 +137,9 @@ Breaking any of these is a design change, not a refactor.
 4. **vigild keeps no history.** Trends, memory of a sleeping drive's last good result, and
    alerting all need history, and history is vigil-core's job.
 5. **One owner per piece of state.** vigil-core's runtime loop.
-6. **vigil-core serves the LAN on one listener, and nothing it serves can change anything.**
-   Every route is a GET; that is the whole basis of running without authentication (ADR-008).
+6. **vigil-core serves the public on one listener, and nothing it serves can change anything.**
+   Every route is a GET; that is the whole basis of running without authentication (ADR-023).
+   What it serves is published, so identifiers are masked where they enter the process.
    It writes history, but no request can cause a write.
 7. **Sensors are resolved by name, never by a remembered `hwmonN` path**, and a drive carries two
    keys: its WWN (the disk) and its by-path port (the bay).

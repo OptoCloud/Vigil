@@ -9,7 +9,7 @@ namespace Vigil.Core.Api;
 
 /// <summary>
 /// vigil-core's HTTP API. Every route is a GET: vigil has no mutating route, which is what
-/// ADR-008's unauthenticated LAN dashboard depends on. Adding one voids that decision.
+/// the public, unauthenticated dashboard depends on (ADR-023). Adding one voids that decision.
 /// </summary>
 public static class VigilApi
 {
@@ -41,9 +41,9 @@ public static class VigilApi
         app.MapGet("/health", () => TypedResults.Text("ok\n"));
 
         app.MapGet("/api/live", LiveEndpoint.Handle);
-        app.MapGet("/api/history", HistoryAsync);
-        app.MapGet("/api/events", EventsAsync);
-        app.MapGet("/api/drives/{wwn}/history", DriveHistoryAsync);
+        app.MapGet("/api/history", HistoryAsync).RequireRateLimiting(Admission.DatabasePolicy);
+        app.MapGet("/api/events", EventsAsync).RequireRateLimiting(Admission.DatabasePolicy);
+        app.MapGet("/api/drives/{wwn}/history", DriveHistoryAsync).RequireRateLimiting(Admission.DatabasePolicy);
 
         // An unknown API path is a 404 with a hint, not the dashboard's index page.
         app.MapGet("/api/{**rest}", () => TypedResults.Text("try /api/live, /api/history?range=24h, /api/events or /api/drives/<wwn>/history\n", statusCode: 404));

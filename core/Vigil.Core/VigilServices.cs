@@ -33,15 +33,22 @@ public static class VigilServices
             // ntfy host is picked up; the alternative, IHttpClientFactory, is the same thing with
             // more parts for a client that sends a handful of requests a month.
             services.AddSingleton(provider => new NtfyClient(
-                new HttpClient(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(15) }),
+                new HttpClient(new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+                    ConnectTimeout = NtfyClient.SendTimeout,
+                    MaxResponseHeadersLength = NtfyClient.MaximumHeaderKilobytes,
+                }),
                 new Uri(ntfy),
                 provider.GetRequiredService<ILogger<NtfyClient>>()));
             services.AddSingleton<INotifier>(provider => provider.GetRequiredService<NtfyClient>());
         }
 
-        // The runtime's one input. Unbounded, as the Rust core's channel was: the producers are two
-        // pollers at fixed rates and the page's subscriptions, which LiveHub caps.
-        services.AddSingleton(_ => Channel.CreateUnbounded<RuntimeInput>(new UnboundedChannelOptions { SingleReader = true }));
+        // The runtime's one input. Bounded: the loop stops reading while the database stalls it
+        // (the schema's first fill takes minutes), and everything queued meanwhile is memory.
+        // A full queue makes a poller wait and refuses a new live stream.
+        services.AddSingleton(_ => Channel.CreateBounded<RuntimeInput>(
+            new BoundedChannelOptions(Limits.RuntimeBacklog) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait }));
         services.AddSingleton(provider => new LiveHub(provider.GetRequiredService<Channel<RuntimeInput>>().Writer));
         services.AddSingleton(provider => new VigilRuntime(
             provider.GetRequiredService<IOptions<VigilOptions>>().Value,

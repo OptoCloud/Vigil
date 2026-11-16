@@ -11,13 +11,13 @@ each:
 - **`vigil-core`** (`core/`, C# on .NET 11), everything else. It reads
   `vigild` and the UPS, records history in Postgres, raises alerts, and serves
   the dashboard (`web/`, a static SvelteKit build) with its live stream and
-  history to the LAN.
+  history, publicly and read-only.
 
 ```
 vigild (host, root) ──unix socket──┐
                                    ├──> vigil-core ──> Postgres + TimescaleDB
 upsd (NUT, host) ──────TCP─────────┘        │
-                                            └── LAN: dashboard + GET /api/* ──> browser
+                                            └── public: dashboard + GET /api/* ──> browser
 ```
 
 Most of this README is `vigild`; [vigil-core](#vigil-core) and
@@ -143,8 +143,8 @@ curl -N --unix-socket /run/vigil/vigild.sock http://localhost/events
 
 SSE rather than WebSocket because data only flows one way: it is plain HTTP
 and clients reconnect on their own. vigil-core reads it with .NET's
-`HttpClient` over the socket. Simultaneous connections are
-capped by `api.max_clients`; past that, new ones get `503`.
+`HttpClient` over the socket. Open event streams are capped by
+`api.max_clients`; past that, a new one gets `503`.
 
 ```jsonc
 {
@@ -430,11 +430,37 @@ listening. It takes the systemd hardening baseline except
 `MemoryDenyWriteExecute`, which .NET's JIT cannot run under; the unit says so.
 
 The dashboard answers on `CORE_PORT` (3000 in the template, where it has
-always been) on every interface. **It has no authentication, deliberately:
-the LAN is treated as trusted, and every route is a GET that changes
-nothing** ([ADR-008](docs/DECISIONS.md)). Anything on the network can read
-the host's state and the event log. A test fails the build if a route with
-any other method is ever added; adding one means authentication comes first.
+always been). **It is public and has no authentication, deliberately: every
+route is a GET that changes nothing, and everything it serves is treated as
+published** ([ADR-023](docs/DECISIONS.md)). Anyone can read the host's state
+and the event log; drive serials are shown as their last four characters. A
+test fails the build if a route with any other method is ever added; adding
+one means authentication comes first.
+
+vigil-core speaks plain HTTP, so it goes behind something that terminates
+TLS (a reverse proxy or a tunnel), never straight onto a forwarded port. Tell
+it about that proxy, or every visitor is counted as one client:
+
+```ini
+TRUSTED_PROXIES=cloudflare     # whose X-Forwarded-For is believed
+ALLOWED_HOSTS=vigil.example.com;localhost
+```
+
+`TRUSTED_PROXIES` takes addresses, networks and the word `cloudflare`, in any
+mix. Behind Cloudflare's proxy use `cloudflare`: vigil-core then fetches the
+ranges Cloudflare publishes at start and daily, and keeps the ones it has if
+that fails ([ADR-024](docs/DECISIONS.md)). Behind a Cloudflare Tunnel, or
+nginx or Caddy on the same host, name the daemon's address instead
+(`127.0.0.1`), since that is what connects. Nothing else needs to know which
+proxy it is.
+
+Cloudflare's edge certificate is Cloudflare's side of the connection and needs
+no setting here. What does need doing is making sure only Cloudflare can reach
+the port: a tunnel does that by itself; with a forwarded port, the firewall
+should admit Cloudflare's ranges and nothing else.
+
+Each client (an address) gets 200 requests in a burst, 20 a second after
+that, and eight live streams; `docs/SECURITY.md` §2 and §4.2 have the rest.
 
 #### Secrets and database roles
 
@@ -560,6 +586,8 @@ before it starts, with every problem listed:
 | `NTFY_URL` | | an ntfy topic URL; unset sends no notifications |
 | `CORE_HOST` | `0.0.0.0` | the one address it listens on; an IP address or `localhost` |
 | `CORE_PORT` | `3001` | the production template sets `3000` |
+| `TRUSTED_PROXIES` | | the reverse proxies in front, separated by commas: IP addresses, networks, or `cloudflare` for its published ranges, kept current; only their `X-Forwarded-For` and `X-Forwarded-Proto` are believed |
+| `ALLOWED_HOSTS` | | the host names it answers to, separated by semicolons; unset answers to any |
 | `DAEMON_LOST_AFTER_SECONDS` | `20` | how long `vigild` must be unreachable before that is an event |
 | `WEB_ROOT` | | the dashboard's build; unset serves the API only, as in development |
 | `ZFS_EXPECTED_SPARES` | | hot spares each pool should have `AVAIL`, as `pool:count,…` (the host: `tank:2`); a pool not named is not checked |

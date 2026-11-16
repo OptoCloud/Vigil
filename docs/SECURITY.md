@@ -1,9 +1,11 @@
 # Security guide
 
 vigil runs as root on a host whose fans it controls, and it reads a database that holds every
-temperature, drive and power reading of that host. The threat model is modest (a home network,
-no multi-tenancy, no untrusted users), but the blast radius of the root daemon is not, so the
-rules below are about **containment**, not about defending a hostile internet.
+temperature, drive and power reading of that host. The dashboard is public (ADR-023): anyone on
+the internet can send vigil-core a request, so every request is hostile until shown otherwise
+and everything served is published. Behind it nothing changed: vigild, the database and the UPS
+are reachable only from the host and its LAN, and the rules for them are still about
+**containment**, because the blast radius of the root daemon is not modest.
 
 Every rule names an **Enforcer**.
 
@@ -23,7 +25,8 @@ Every rule names an **Enforcer**.
              │     ├──> Postgres: owner role writes,          │
              │     │    SELECT-only role reads                │
              │     ├──> ntfy (HTTPS, outbound only)           │
-             │     └── :3000 on 0.0.0.0, NO AUTH, GET only ───┼──> LAN
+             │     ├──> Cloudflare's IP lists (HTTPS, out)    │
+             │     └── :3000, plain HTTP, NO AUTH, GET only ──┼──> TLS proxy ──> internet
              └────────────────────────────────────────────────┘
 ```
 
@@ -33,38 +36,59 @@ Every rule names an **Enforcer**.
 | vigild's status socket | any local consumer with group access | unix permissions: mode, uid, gid from `vigild.toml` |
 | upsd | vigil-core | none needed: NUT reads are anonymous |
 | Postgres | vigil-core | two roles, each with a password in the env file (§3.4) |
-| vigil-core HTTP: the dashboard and `/api/*` | **anything on the LAN** | **none: see §2** |
+| vigil-core HTTP: the dashboard and `/api/*` | **anyone** | **none: see §2** |
 
 ### 1.1 Every listener states its bind address and who authenticates it
 
 A new listener is not added without a row in the table above. If the answer to "who
 authenticates this" is "nothing", then nothing it serves may change anything (§2).
 
-vigil-core has exactly one listener (ADR-017). `CORE_HOST` must be an IP address: Kestrel binds
+vigil-core has exactly one listener (ADR-017), now public (ADR-023). `CORE_HOST` must be an IP address: Kestrel binds
 every interface for any other name, so a typo would not fail, it would listen somewhere other
 than intended.
 
 *Enforcer:* review checklist; `VigilOptionsValidator` refuses a `CORE_HOST` that is not an
 address, and `ListenAddressTests` pins it.
 
-## 2. vigil-core is deliberately LAN-open
+## 2. The dashboard is public and unauthenticated
 
-**Decided, not overlooked** (ADR-008, amended by ADR-017). vigil-core serves the dashboard and
-its API on the LAN with no authentication. Anything on the LAN can read the full host state and
-the event log. This is accepted because the network is trusted and nothing vigil-core serves
-can change anything: every route is a `GET`.
+**Decided, not overlooked** (ADR-023, which replaces ADR-008's "the LAN is trusted"). vigil-core
+serves the dashboard and its API to anyone, with no authentication. Three rules make that
+acceptable, and breaking any of them is a hard gate:
 
-Authentication is a **planned future feature**, recorded in `docs/DECISIONS.md` and in the
-README's status section. There is deliberately no second, loopback-only listener to hide actions
-behind: the first action is the point at which authentication arrives.
+1. **Every route is a `GET` that changes nothing.** A route with any other method, or a `GET`
+   that writes, acts or mutates, needs authentication first: stop and raise it.
+2. **Everything served is published.** A value is fit for a stranger to read or it is masked
+   before it is held (§7). Reviewing a new wire field includes asking whether it would be
+   posted in public.
+3. **Limits are per client as well as global** (§4.2), so one machine cannot take what every
+   visitor shares.
 
-Two things void the decision, and each is a hard gate:
+What this does not give: privacy for anything on the page, or protection from a distributed
+flood. Authentication is still the planned answer to the first and to any action.
 
-1. any route that is not a `GET`, or a `GET` that writes, acts or mutates;
-2. the host being reachable from outside the LAN.
+### 2.1 The deployment's half
 
-*Enforcer:* `ApiTests.EveryRouteIsAGet` fails on a route with any other method. A `GET` that
-mutates is the review checklist's job, and a blocking question, not a style note.
+vigil-core cannot enforce these, so they are checked when it is deployed:
+
+- **TLS is terminated in front.** vigil-core speaks plain HTTP on one listener; it is never
+  port-forwarded as it is. A reverse proxy or tunnel carries HTTPS, and `CORE_HOST` binds the
+  address that proxy reaches (loopback if they share a host).
+- **`TRUSTED_PROXIES` names that proxy**, by address, by network, or as `cloudflare` for the
+  ranges Cloudflare publishes, which vigil-core then keeps current (ADR-024). Unset, every
+  visitor arrives from the proxy's address and shares one client's limits; vigil-core warns
+  once when it sees this happening. Only the one hop a named proxy added is believed, so a
+  client cannot choose its own address. A network of `/0` is refused: it believes anyone.
+- **Only the proxy can reach the port.** vigil-core answers whoever connects, so a visitor who
+  finds the host's own address skips the proxy and everything it does. Behind Cloudflare that
+  means a tunnel, or a firewall rule admitting Cloudflare's ranges alone.
+- **`ALLOWED_HOSTS` names the public host name.** Anything else gets a 400, which is what stops
+  a hostile page reaching the dashboard under a name of its own (DNS rebinding) and scanners
+  that arrive by address. A health check has to ask by a name on the list.
+
+*Enforcer:* `ApiTests.EveryRouteIsAGet`; `AdmissionTests`; `VigilOptionsValidator` refuses a
+`TRUSTED_PROXIES` that is not addresses. A `GET` that mutates and a field that should not be
+public are the review checklist's job, and blocking questions, not style notes.
 
 ## 3. Privilege
 
@@ -163,20 +187,44 @@ realistic cases here, not an attacker.
 | HTTP requests to vigild and vigil-core | hyper's and Kestrel's own header and body limits |
 | child process stdout | 1 MiB, then the child is killed (`daemon/src/process.rs`) |
 | vigild's response headers, in vigil-core | 16 KiB (`VigildClient`) |
-| vigild's stream, in vigil-core | 50s of silence ends it (`IdleTimeoutStream`); **no maximum line length yet** |
+| vigild's response, in vigil-core | 10s for the headers (`Limits.DaemonResponseTimeout`) |
+| vigild's stream, in vigil-core | 50s of silence ends it (`IdleTimeoutStream`); 1 MiB per event (`ReadBudgetStream`, `Limits.MaxDaemonEventBytes`) |
+| ntfy's reply | headers only, 16 KiB; the body is never read (`NtfyClient`) |
+| Cloudflare's IP lists | 10s and 16 KiB each, at most 256 networks, none wider than a /8 or an IPv6 /16; refused whole otherwise (`CloudflareRanges`) |
 | upsd `LIST VAR` response | 10s of silence; 64 KiB per answer (`ReadBudgetStream`), which must begin `BEGIN LIST VAR` |
 
 A read with no bound is a memory-exhaustion path. Add the cap when you add the read, not after.
+Silence and size are two bounds, not one: a peer that keeps sending is never silent.
 
-*Enforcer:* review checklist: "what bounds this read?"
+*Enforcer:* review checklist: "what bounds this read?"; `VigildClientTests`, `NtfyClientTests`
+and `CloudflareRangesTests` pin the four above.
 
 ### 4.2 Every concurrent resource is capped
 
-vigild caps consumers with `api.max_clients` (16). vigil-core caps browser streams at
-`LiveHub.MaxSubscribers` (64), and drops a stream that falls 256 messages behind rather than
-buffering for it. Past a cap, reject with `503` rather than queueing.
+vigild caps consumers with `api.max_clients` (16), counted per open event stream: a limit on
+requests does not do it, because a streaming request is over once its headers are sent.
+vigil-core caps browser streams at `LiveHub.MaxSubscribers` (256), eight of them per client,
+and drops a stream that falls 256 messages behind rather than buffering for it. Past a cap,
+reject with `503` rather than queueing.
 
-*Enforcer:* `LiveHubTests` and `ApiTests.LiveRefusesPastTheCap`.
+A client is an address (an IPv6 /64), taken from `X-Forwarded-For` only on a connection from
+`TRUSTED_PROXIES` (`Admission`). Each may make 200 requests in a burst, refilled at 20 a second,
+files included; past that it gets `429` with `Retry-After`.
+
+A queue is a concurrent resource too. The runtime's input queue holds `Limits.RuntimeBacklog`
+(1024) and makes a poller wait when full; `LiveHub` lets at most `MaxSubscribers` subscriptions
+sit in it, so opening and closing streams cannot fill it. The routes that query the database
+run `Limits.DatabaseQueryConcurrency` (4) at once with `DatabaseQueryQueue` (16) waiting, and
+Kestrel holds `Limits.MaxConnections` (1024) connections, reads no request body, and gives a
+connection 10s to send its headers.
+
+These bound what one process can be made to hold and what one address can take. They are not a
+defence against a flood from many addresses, which is the front proxy's job (§2).
+
+*Enforcer:* `LiveHubTests`, `ApiTests.LiveRefusesPastTheCap`, `ApiTests.LiveRefusesOneClientPastItsShare`,
+`ApiTests.AClientInALoopIsToldToSlowDownAndStillGetsTheSecurityHeaders`,
+`ApiTests.EveryRouteThatQueriesTheDatabaseIsUnderTheAdmissionLimit`, and vigild's
+`events_refuses_past_max_clients_and_frees_the_slot_when_a_stream_ends`.
 
 ### 4.3 Parsing never trusts shape
 
@@ -184,6 +232,14 @@ buffering for it. Past a cap, reject with `503` rather than queueing.
 availability is decided by whether the JSON actually contains `smart_status`, and an
 out-of-range number leaves one field empty rather than failing the poll. A malformed input
 degrades one value; it never takes down a loop or panics.
+
+In vigil-core the loop to protect is the runtime's. A snapshot is checked where it arrives
+(`RespectNullableAnnotations`, then `SnapshotShape` for what that cannot see: a null list entry,
+a number that became an infinity), because a value that only fails when it is serialized again
+fails on that loop. A derived number is checked after the arithmetic, not only before it.
+
+*Enforcer:* `VigildClientTests.ASnapshotTheRuntimeWouldChokeOnIsDiscardedAndTheStreamCarriesOn`,
+`NutProtocolTests`.
 
 ### 4.4 Config is validated before it is acted on
 
@@ -228,8 +284,9 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
 ## 7. Secrets
 
 - `DATABASE_URL` and `DATABASE_URL_READONLY` carry passwords. They are never logged, never in
-  an error message, never in an HTTP response, and never committed. `PostgresUri` redacts them
-  from its own errors.
+  an error message, never in an HTTP response, and never committed. `PostgresUri`'s own errors
+  never repeat the value at all: a URL that will not parse is the one whose password cannot be
+  found to mask.
 - A private ntfy topic's name is its only secret, so `NTFY_URL` is treated the same way.
 - So is every other notification channel's address (ADR-021): a phone number, an SMS
   gateway's URL or token. A channel logs that a send failed and why, never where it was sent.
@@ -237,6 +294,12 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
   (snmp-ups's community and SNMPv3 passwords, the network drivers' logins), and the dashboard
   shows every variable. `NutProtocol` masks them as they are parsed, so nothing downstream can
   serve one; `NutProtocolTests` pins which names count.
+- What identifies the hardware or its owner is not a secret, but it is not published either
+  (ADR-023). A drive's serial is cut to its last four characters where it arrives from vigild
+  and where it is read from the database (`SerialNumbers`), so the live stream, the event log
+  and a notification cannot carry a whole one: a full serial with a model is what a warranty
+  claim is filed with. A UPS's serial, MAC address, contact, location and its driver's device
+  address are masked with the credentials. `SerialNumbersTests` and `NutProtocolTests` pin both.
 - Secrets reach a process only through its systemd `EnvironmentFile`, `/etc/vigil-core.env`,
   which is `0640 root:vigil` and lives outside the repo.
 - `.env.example` files hold placeholders and nothing real. `.env` is gitignored in `core/`.
@@ -248,8 +311,12 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
 ## 8. The browser
 
 - vigil-core sends `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
-  `Cross-Origin-Opener-Policy`, `Permissions-Policy`, and the CSP directives a `<meta>` tag
-  cannot carry (`frame-ancestors`, `object-src`, `base-uri`, `form-action`), on every response.
+  `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`, `Permissions-Policy`, and the
+  CSP directives a `<meta>` tag cannot carry (`frame-ancestors`, `object-src`, `base-uri`,
+  `form-action`), on every response, a refusal included.
+- `Strict-Transport-Security` goes on a response to a request that arrived over HTTPS, which
+  vigil-core knows from a trusted proxy's `X-Forwarded-Proto`. API answers are `no-store`.
+- No CORS headers are sent, so another site's page cannot read the API from a visitor's browser.
 - The script and style policy is the static build's own `<meta>` CSP, which SvelteKit writes in
   hash mode with the hash of each inline script it emits. A header `script-src` would be
   enforced alongside it and block those scripts, which is why the header does not carry one.
@@ -280,6 +347,7 @@ Blocking questions. Any "I don't know" stops the merge.
 
 - [ ] Does this add a listener? What address does it bind, and who authenticates it?
 - [ ] Does this add a route that is not a `GET`, or a `GET` that changes anything? (If yes, §2's decision is void: stop.)
+- [ ] Does this add a field to anything served? Is it fit to publish to a stranger? (ADR-023)
 - [ ] Does this add a read? What bounds it?
 - [ ] Does this add a concurrent resource? What caps it?
 - [ ] Does this build SQL? Are all values bound? Where did any identifier come from?

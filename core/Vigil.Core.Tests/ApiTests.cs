@@ -50,9 +50,11 @@ public sealed class ApiTests : IAsyncLifetime
         builder.Services.AddSingleton<EventStore>();
         builder.Services.AddSingleton<DriveStore>();
         builder.Services.AddSingleton(new LiveHub(_inputs.Writer));
+        builder.Services.AddAdmission(new VigilOptions());
 
         _app = builder.Build();
         _app.UseSecurityHeaders();
+        _app.UseRateLimiter();
         _app.UseDashboard(_webRoot);
         _app.MapVigilApi();
         _app.MapDashboardPages(_webRoot);
@@ -73,7 +75,7 @@ public sealed class ApiTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// ADR-008's whole condition: vigil-core answers the LAN with no authentication, which is
+    /// ADR-023's first condition: vigil-core answers anyone with no authentication, which is
     /// acceptable only while nothing it serves can change anything. A route with any other
     /// method fails here, and that is the point to stop and add authentication first.
     /// </summary>
@@ -85,6 +87,24 @@ public sealed class ApiTests : IAsyncLifetime
         Assert.NotEmpty(endpoints);
         Assert.All(endpoints, endpoint =>
             Assert.Equal(["GET"], endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? ["(any method)"]));
+    }
+
+    /// <summary>
+    /// docs/SECURITY.md §4.2: nothing here is authenticated, so every route that reaches the
+    /// database has to be under the admission limit. A route is one that does if its handler
+    /// is handed something from the data layer, so a new one cannot be added without it.
+    /// </summary>
+    [Fact]
+    public void EveryRouteThatQueriesTheDatabaseIsUnderTheAdmissionLimit()
+    {
+        var querying = _app!.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Where(endpoint => endpoint.Metadata.GetMetadata<System.Reflection.MethodInfo>() is { } handler
+                && handler.GetParameters().Any(parameter => parameter.ParameterType.Namespace == typeof(VigilDataSources).Namespace))
+            .ToList();
+
+        Assert.Equal(3, querying.Count);
+        Assert.All(querying, endpoint =>
+            Assert.Equal(Admission.DatabasePolicy, endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute>()?.PolicyName));
     }
 
     [Fact]
@@ -153,12 +173,68 @@ public sealed class ApiTests : IAsyncLifetime
     [Fact]
     public async Task LiveRefusesPastTheCap()
     {
-        var held = Enumerable.Range(0, LiveHub.MaxSubscribers).Select(_ => Hub.TrySubscribe()).ToList();
+        var held = Enumerable.Range(0, LiveHub.MaxSubscribers).Select(index => Hub.TrySubscribe($"client-{index}")).ToList();
 
         using var response = await Http.GetAsync(new Uri("/api/live", UriKind.Relative), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         held.ForEach(subscription => subscription?.Dispose());
+    }
+
+    [Fact]
+    public async Task LiveRefusesOneClientPastItsShare()
+    {
+        // The test's own address, as LiveEndpoint will name it.
+        var held = Enumerable.Range(0, LiveHub.MaxSubscribersPerClient).Select(_ => Hub.TrySubscribe("127.0.0.1")).ToList();
+        Assert.All(held, Assert.NotNull);
+
+        using var response = await Http.GetAsync(new Uri("/api/live", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        held.ForEach(subscription => subscription?.Dispose());
+    }
+
+    [Fact]
+    public async Task AClientInALoopIsToldToSlowDownAndStillGetsTheSecurityHeaders()
+    {
+        var token = TestContext.Current.CancellationToken;
+        var statuses = new List<HttpStatusCode>();
+        HttpResponseMessage? refused = null;
+
+        // Sequential, far faster than the allowance refills: the burst is spent, then refused.
+        for (var request = 0; request < Limits.ClientRequestBurst + 50 && refused is null; request++)
+        {
+            var response = await Http.GetAsync(new Uri("/health", UriKind.Relative), token);
+            statuses.Add(response.StatusCode);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                refused = response;
+            }
+            else
+            {
+                response.Dispose();
+            }
+        }
+
+        using (refused)
+        {
+            Assert.NotNull(refused);
+            Assert.True(statuses.Count > Limits.ClientRequestBurst / 2, "a page load's worth must pass before anything is refused");
+            Assert.NotNull(refused.Headers.RetryAfter);
+            Assert.Equal("nosniff", refused.Headers.GetValues("X-Content-Type-Options").Single());
+        }
+    }
+
+    [Fact]
+    public async Task AnApiAnswerIsNeverStoredAndIsNotForAnotherSitesPages()
+    {
+        using var response = await Http.GetAsync(new Uri("/api/events", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.Equal("same-origin", response.Headers.GetValues("Cross-Origin-Resource-Policy").Single());
+
+        // Plain HTTP, as this test is: a browser ignores HSTS here, so it is not sent.
+        Assert.False(response.Headers.Contains("Strict-Transport-Security"));
     }
 
     [Fact]

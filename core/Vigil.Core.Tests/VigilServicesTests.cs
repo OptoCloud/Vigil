@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Vigil.Core.Api;
+using Vigil.Core.Clients;
 using Vigil.Core.Configuration;
 using Vigil.Core.Data;
 using Vigil.Core.Notifications;
@@ -25,6 +27,7 @@ public sealed class VigilServicesTests
         services.AddSingleton(Options.Create(options));
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddVigilCore(options);
+        services.AddAdmission(options);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
@@ -57,5 +60,17 @@ public sealed class VigilServicesTests
 
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is UpsFeed);
         Assert.NotNull(provider.GetService<NtfyClient>());
+    }
+
+    [Fact]
+    public async Task RefreshesCloudflaresRangesOnlyWhenTrustedProxiesNamesCloudflare()
+    {
+        await using var named = Compose(new VigilOptions { VigildUrl = "http://127.0.0.1:1", TrustedProxies = "127.0.0.1" });
+        await using var following = Compose(new VigilOptions { VigildUrl = "http://127.0.0.1:1", TrustedProxies = "cloudflare" });
+
+        // Naming a proxy by address reaches out to nobody.
+        Assert.DoesNotContain(named.GetServices<IHostedService>(), service => service is CloudflareRangesRefresh);
+        Assert.Contains(following.GetServices<IHostedService>(), service => service is CloudflareRangesRefresh);
+        Assert.True(following.GetRequiredService<TrustedProxies>().FollowsCloudflare);
     }
 }

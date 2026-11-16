@@ -32,6 +32,8 @@ public static class VigilEnvironment
         ("NTFY_URL", nameof(VigilOptions.NtfyUrl)),
         ("CORE_HOST", nameof(VigilOptions.CoreHost)),
         ("CORE_PORT", nameof(VigilOptions.CorePort)),
+        ("TRUSTED_PROXIES", nameof(VigilOptions.TrustedProxies)),
+        ("ALLOWED_HOSTS", nameof(VigilOptions.AllowedHosts)),
         ("DAEMON_LOST_AFTER_SECONDS", nameof(VigilOptions.DaemonLostAfterSeconds)),
         ("WEB_ROOT", nameof(VigilOptions.WebRoot)),
         ("ZFS_SCRUB_MAX_AGE_DAYS", nameof(VigilOptions.ZfsScrubMaxAgeDays)),

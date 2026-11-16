@@ -68,6 +68,10 @@ checks and retries. A refresh over a window whose source rows retention has alre
 
 ### ADR-008 — vigil-web is LAN-open; authentication is a future feature
 
+**Superseded in part on 2026-11-16 (ADR-023).** The dashboard is now public, so "the network is
+trusted" no longer holds and reachability from outside the LAN no longer voids anything. The
+other condition stands unchanged: every route is a GET, and the first that is not stops work.
+
 **Amended on 2026-10-01 (ADR-017).** vigil-web's server merged into vigil-core, so the
 LAN-open process is now vigil-core, on one listener with no loopback-only second one. The
 condition that makes it acceptable is unchanged and now has an enforcer: every route is a GET
@@ -339,3 +343,66 @@ The chain's trust is arranged so no single secret is worth much:
 source, but the host runs built artifacts, and the deployment's pin already records exactly which. A
 second record of "the version" could only disagree with the first. *Rejected:* CI with root
 SSH to the host, simpler but a root shell on the NAS in GitHub's secret store.
+
+### ADR-023: The dashboard is public, read-only, and treated as published
+
+*Decided 2026-11-16.* The owner wants the dashboard reachable from the internet with no login.
+ADR-008 accepted no authentication because the LAN was trusted; that reason is gone, so what
+replaces it is stated here rather than left implied.
+
+Three things make a public page acceptable, and each is a gate:
+
+1. **Nothing it serves changes anything.** Unchanged from ADR-008, and now the only thing
+   between a stranger and the host: every route is a GET (`ApiTests.EveryRouteIsAGet`). A
+   mutating route, or a GET that acts, needs authentication first. Stop and raise it.
+2. **Everything it serves is published.** There is no viewer to trust, so a value is either fit
+   for anyone or it is not served. Credentials were already masked; drive serials are now cut
+   to their last four characters and a UPS's serial, MAC, contact, location and device address
+   are masked, all where they enter the process (`SerialNumbers`, `NutProtocol`). A new field
+   gets the question "would I post this?" before it gets a wire name.
+3. **No one client can use up what everyone shares.** A request has no identity but its
+   address, so that is what is limited: requests per client, live streams per client, on top
+   of the global caps (`Admission`, `LiveHub`).
+
+vigil-core still serves plain HTTP and still has one listener. TLS belongs to whatever is in
+front of it, and vigil-core has to be told what that is (`TRUSTED_PROXIES`) before it believes
+a forwarded address; `ALLOWED_HOSTS` names the host it answers to.
+
+*Consequence:* the host's temperatures, drive health, pool state, UPS state and event log are
+public, by decision. That includes whether the house has mains power. A flood from many
+addresses is not vigil-core's to stop: the per-client limits make one machine harmless, and
+anything larger is the front proxy's or the CDN's job. Authentication remains the planned
+answer to anything that needs to be private or to act.
+*Rejected:* a login. It would protect the data, but the owner wants the page public, and a
+login nobody uses protects nothing. *Rejected:* TLS in Kestrel. Certificates need renewing,
+and the proxy or tunnel that makes the host reachable already terminates TLS.
+*Rejected:* a setting to publish full serials. The tail identifies a disk on its label, which
+is the serial's whole job on the page; the full one is a `smartctl` away for whoever owns the host.
+
+### ADR-024: `TRUSTED_PROXIES=cloudflare` follows Cloudflare's published ranges
+
+*Decided 2026-11-16.* The dashboard sits behind Cloudflare. Its edge connects from about twenty
+networks that Cloudflare changes without telling its customers' env files, and those networks
+are whose `X-Forwarded-For` vigil-core has to believe to tell one visitor from another
+(ADR-023). Typed into `TRUSTED_PROXIES` by hand, the list would be right until the day it was
+not, and the symptom, every visitor behind a new range sharing one client's limits, would not
+point at its cause.
+
+So `TRUSTED_PROXIES` takes addresses, networks, or the word `cloudflare`, in any mix. The word
+stands for Cloudflare's two published lists, which vigil-core fetches at start and daily. A
+list that cannot be fetched, or is not plausibly Cloudflare's (not networks, too many, too
+wide), changes nothing; until the first fetch the ranges compiled in are used, so starting
+never waits on a third party. Nothing else is Cloudflare-specific: it appends the visitor to
+`X-Forwarded-For` as any proxy does and sets `X-Forwarded-Proto`, so the same code serves nginx,
+Caddy or a tunnel named by address.
+
+*Consequence:* vigil-core makes one more outbound HTTPS request, to `www.cloudflare.com`, and
+only when the word is used. What it fetches decides whose header is believed: someone who could
+forge that list (which needs Cloudflare's certificate) could lie about a visitor's address and
+so slip the per-client limits, and nothing more. The global caps do not depend on it.
+*Not done:* Cloudflare's edge certificate needs nothing here. It is the certificate Cloudflare
+shows visitors; vigil-core never sees it, and only needs to know a request arrived over HTTPS,
+which `X-Forwarded-Proto` says. Encrypting the hop from Cloudflare to this host is a separate
+choice (a tunnel, or an origin certificate and TLS in Kestrel, which ADR-023 leaves out).
+*Rejected:* reading `CF-Connecting-IP`. It carries the same address as the last
+`X-Forwarded-For` hop, and using it would be a second code path that only one vendor exercises.

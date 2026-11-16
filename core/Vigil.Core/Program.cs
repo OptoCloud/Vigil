@@ -33,18 +33,36 @@ if (listen is not null)
     builder.WebHost.UseUrls(listen);
 }
 
-// Nothing gains from knowing which server this is.
-builder.WebHost.ConfigureKestrel(kestrel => kestrel.AddServerHeader = false);
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    // Nothing gains from knowing which server this is.
+    kestrel.AddServerHeader = false;
+
+    // Kestrel's default is no limit at all (docs/SECURITY.md §4.2).
+    kestrel.Limits.MaxConcurrentConnections = Limits.MaxConnections;
+
+    // Every route is a GET, so nothing reads a request body. At zero Kestrel does not drain
+    // one either: a request that brings a body is answered and its connection closed.
+    kestrel.Limits.MaxRequestBodySize = 0;
+
+    kestrel.Limits.RequestHeadersTimeout = Limits.RequestHeadersTimeout;
+    kestrel.Limits.KeepAliveTimeout = Limits.KeepAliveTimeout;
+});
 
 // vigil-core logs state changes, not requests, as the Rust core did: a page polling history and
 // holding a live stream would otherwise bury the one line that says a fan stalled.
 builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 
 builder.Services.AddVigilCore(startup);
+builder.Services.AddAdmission(startup);
 
 var app = builder.Build();
 
+// In this order: whose request it is, the headers every answer carries (a refusal included),
+// then the limits, so that a file costs a client's allowance as an API call does.
+app.UseForwardedClient(app.Services.GetRequiredService<TrustedProxies>());
 app.UseSecurityHeaders();
+app.UseRateLimiter();
 if (startup.WebRoot is { Length: > 0 } webRoot)
 {
     app.UseDashboard(webRoot);
