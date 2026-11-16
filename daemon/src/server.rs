@@ -23,6 +23,7 @@ use axum::routing::get;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tokio::sync::broadcast::error::RecvError;
 use tokio_stream::Stream;
 
@@ -40,14 +41,18 @@ struct Api {
     hub: Arc<StatusHub>,
     /// A snapshot older than this means the control loop has hung.
     stale_after: Duration,
+    /// One permit per open event stream: `api.max_clients` of them.
+    streams: Arc<Semaphore>,
 }
 
-pub fn router(hub: Arc<StatusHub>, stale_after: Duration) -> Router {
+const TOO_MANY_CLIENTS: &str = "too many clients\n";
+
+pub fn router(hub: Arc<StatusHub>, stale_after: Duration, max_clients: usize) -> Router {
     Router::new()
         .route("/status", get(status))
         .route("/events", get(events))
         .fallback(|| async { (StatusCode::NOT_FOUND, "try /status or /events\n") })
-        .with_state(Api { hub, stale_after })
+        .with_state(Api { hub, stale_after, streams: Arc::new(Semaphore::new(max_clients)) })
 }
 
 async fn status(State(api): State<Api>) -> Response {
@@ -58,8 +63,21 @@ async fn status(State(api): State<Api>) -> Response {
     }
 }
 
-async fn events(State(api): State<Api>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let stream = async_stream::stream! {
+async fn events(State(api): State<Api>) -> Response {
+    // Counted here, not by a limit on requests: a request is over once its response head is
+    // returned, while the stream lives on in the body for as long as the consumer stays. The
+    // permit moves into the stream, so it is given back when the body is dropped.
+    let Ok(permit) = Arc::clone(&api.streams).try_acquire_owned() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CLIENTS).into_response();
+    };
+
+    Sse::new(snapshots(api, permit)).keep_alive(KeepAlive::new().interval(KEEPALIVE_INTERVAL).text("keepalive")).into_response()
+}
+
+fn snapshots(api: Api, permit: tokio::sync::OwnedSemaphorePermit) -> impl Stream<Item = Result<Event, Infallible>> {
+    async_stream::stream! {
+        let _permit = permit;
+
         // Subscribed before the current snapshot is read, so nothing published in between is
         // missed: a repeat is harmless here, a gap is not.
         let mut updates = api.hub.subscribe();
@@ -79,9 +97,7 @@ async fn events(State(api): State<Api>) -> Sse<impl Stream<Item = Result<Event, 
                 Err(RecvError::Closed) => break,
             }
         }
-    };
-
-    Sse::new(stream).keep_alive(KeepAlive::new().interval(KEEPALIVE_INTERVAL).text("keepalive"))
+    }
 }
 
 #[cfg(unix)]
@@ -137,15 +153,14 @@ mod listener {
 
         info!("Status API listening on unix socket {} (mode {}).", config.socket_path, config.socket_mode);
 
-        // Past max_clients a new consumer is shed with 503 rather than queued behind the
-        // others, which is what the hand-rolled accept loop did with its own atomic counter.
-        // An SSE stream holds its request open for as long as it lasts, so a concurrency
-        // limit on requests is a limit on simultaneous consumers.
-        let app = router(hub, stale_after).layer(
+        // Past max_clients a request is shed with 503 rather than queued behind the others.
+        // This layer counts requests still being answered, which an event stream stops being
+        // the moment its headers go out; open streams are counted by the router itself.
+        let app = router(hub, stale_after, config.max_clients).layer(
             ServiceBuilder::new()
                 .layer(HandleErrorLayer::new(|error: BoxError| async move {
                     if error.is::<Overloaded>() {
-                        (StatusCode::SERVICE_UNAVAILABLE, "too many clients\n")
+                        (StatusCode::SERVICE_UNAVAILABLE, super::TOO_MANY_CLIENTS)
                     } else {
                         (StatusCode::INTERNAL_SERVER_ERROR, "the status API failed\n")
                     }
@@ -216,7 +231,8 @@ mod tests {
 
     /// One request against the real router, as hyper would deliver it.
     async fn request(method: &str, path: &str, hub: Arc<StatusHub>) -> (StatusCode, String, Option<String>) {
-        let response = router(hub, FRESH).oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap()).await.unwrap();
+        let response =
+            router(hub, FRESH, 16).oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap()).await.unwrap();
 
         let status = response.status();
         let content_type = response.headers().get(header::CONTENT_TYPE).map(|value| value.to_str().unwrap().to_owned());
@@ -261,7 +277,7 @@ mod tests {
     async fn events_sends_the_current_snapshot_immediately_then_every_new_one() {
         let hub = hub_with_snapshot();
         let response =
-            router(Arc::clone(&hub), FRESH).oneshot(Request::builder().uri("/events").body(Body::empty()).unwrap()).await.unwrap();
+            router(Arc::clone(&hub), FRESH, 16).oneshot(Request::builder().uri("/events").body(Body::empty()).unwrap()).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers().get(header::CONTENT_TYPE).unwrap(), "text/event-stream");
@@ -275,5 +291,26 @@ mod tests {
         hub.publish(snapshot("t2"));
         let second = String::from_utf8(body.next().await.unwrap().unwrap().to_vec()).unwrap();
         assert!(second.contains(r#""timestampUtc":"t2""#), "{second}");
+    }
+
+    #[tokio::test]
+    async fn events_refuses_past_max_clients_and_frees_the_slot_when_a_stream_ends() {
+        let app = router(hub_with_snapshot(), FRESH, 1);
+        let open = || app.clone().oneshot(Request::builder().uri("/events").body(Body::empty()).unwrap());
+
+        // The response head has been returned, which is all a limit on requests would count.
+        let first = open().await.unwrap();
+        assert_eq!(first.status(), StatusCode::OK);
+
+        let refused = open().await.unwrap();
+        assert_eq!(refused.status(), StatusCode::SERVICE_UNAVAILABLE);
+        // A snapshot is not a stream, and is still answered.
+        assert_eq!(
+            app.clone().oneshot(Request::builder().uri("/status").body(Body::empty()).unwrap()).await.unwrap().status(),
+            StatusCode::OK
+        );
+
+        drop(first);
+        assert_eq!(open().await.unwrap().status(), StatusCode::OK);
     }
 }
