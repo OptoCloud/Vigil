@@ -44,6 +44,34 @@ public sealed class VigilOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData("http://192.0.2.2/private-path", null)]
+    [InlineData(null, "s3cret-token")]
+    public void HalfAnSmsChannelIsRefusedWithoutRepeatingEitherHalf(string? url, string? token)
+    {
+        var problem = Assert.Single(Problems(new VigilOptions { SmsUrl = url, SmsToken = token }));
+
+        Assert.Contains("SMS_URL and SMS_TOKEN", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-path", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("s3cret", problem, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("192.0.2.2/private-path")]
+    [InlineData("ftp://192.0.2.2/private-path")]
+    public void AnSmsUrlThatIsNotHttpIsRefusedWithoutRepeatingIt(string url)
+    {
+        var problem = Assert.Single(Problems(new VigilOptions { SmsUrl = url, SmsToken = "s3cret-token" }));
+
+        Assert.Contains("SMS_URL", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-path", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("s3cret", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AWholeSmsChannelPasses() =>
+        Assert.Empty(Problems(new VigilOptions { SmsUrl = "https://sms.lan/send", SmsToken = "s3cret-token" }));
+
+    [Theory]
     [InlineData(0)]
     [InlineData(-84)]
     [InlineData(double.NaN)]

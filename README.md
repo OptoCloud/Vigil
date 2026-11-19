@@ -577,7 +577,8 @@ they happened.
   for three polls before it is raised and be gone for three before it clears;
   UPS power events count on the first. While the UPS is unreadable its raised
   conditions are held, not cleared: not knowing is not "back to normal".
-  Events go to Postgres and, optionally, ntfy over HTTPS.
+  Events go to Postgres and, optionally, ntfy over HTTPS and texts through
+  the SMS gateway on the host (below).
 - Without a database the live view still works, and it retries the database
   every 15 seconds.
 
@@ -612,6 +613,8 @@ before it starts, with every problem listed:
 | `HOST_SHUTDOWN_SECONDS` | | how long the host takes to shut down, guests included; unset shows no shutdown margin |
 | `UPS_BATTERY_TEMPERATURE_WARN` | `40` | °C at which the UPS battery is too hot |
 | `NTFY_URL` | | an ntfy topic URL; unset sends no notifications |
+| `SMS_URL` | | the SMS gateway's endpoint; set with `SMS_TOKEN`, or neither. Never logged |
+| `SMS_TOKEN` | | the gateway's bearer token, a secret like `DATABASE_URL` |
 | `CORE_HOST` | `0.0.0.0` | the one address it listens on; an IP address or `localhost` |
 | `CORE_PORT` | `3001` | the production template sets `3000` |
 | `TRUSTED_PROXIES` | | the reverse proxies in front, separated by commas: IP addresses, networks, or `cloudflare` for its published ranges, kept current; only their `X-Forwarded-For` and `X-Forwarded-Proto` are believed |
@@ -621,6 +624,26 @@ before it starts, with every problem listed:
 | `ZFS_EXPECTED_SPARES` | | hot spares each pool should have `AVAIL`, as `pool:count,…` (the host: `tank:2`); a pool not named is not checked |
 | `ZFS_SCRUB_MAX_AGE_DAYS` | `35` | how old a pool's last completed scrub may get before that is a warning |
 | `SMART_SELF_TEST_MAX_AGE_DAYS` | | how old a drive's last completed self-test may get; unset leaves it unjudged, as it should be until smartd schedules tests |
+
+### The SMS gateway's contract
+
+vigil defines it and the gateway on the host implements it ([ADR-027](docs/DECISIONS.md)). The
+gateway holds the phone numbers; vigil-core knows only the URL and the token. Warnings and
+worse are sent, each with its all-clear.
+
+```
+POST <SMS_URL>
+Authorization: Bearer <SMS_TOKEN>
+Content-Type: application/json
+
+{ "message": "vigil CRITICAL: Pool tank is DEGRADED." }
+
+→ 2xx means accepted (202 expected); anything else is logged as a failed send
+```
+
+The message starts `vigil CRITICAL:`, `vigil warning:` or `vigil resolved:`. vigil-core gives
+up on a send after 10 s and never reads the reply's body. `dev/mock-sms.mjs` speaks the same
+contract and prints what it is sent.
 
 ## The dashboard
 
@@ -635,7 +658,8 @@ script SvelteKit emits; vigil-core adds the policies only a header can carry.
 
 Without the hardware, `dev/mock-vigild.mjs` and `dev/mock-upsd.mjs` stand in
 for `vigild` and upsd (type a letter and Enter to inject a fault; `b` reboots
-the mock host, so every counter starts again), and
+the mock host, so every counter starts again), `dev/mock-sms.mjs` for the SMS
+gateway, and
 `dev/docker-compose.yml` runs Postgres with TimescaleDB, the same versions as
 production. `core/.env.example` points vigil-core at all three:
 

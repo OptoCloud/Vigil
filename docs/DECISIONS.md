@@ -465,3 +465,21 @@ It turns an edit into data loss on the next start, which is what this rule exist
 *Rejected:* adding columns to `ups_samples` and a second pair of aggregates over it. `Series`
 names its aggregates after its raw table, and a table of their own costs nothing.
 
+### ADR-027: Texts go through a gateway on the host that vigil defines the contract for
+
+*Decided with the owner on 2026-11-11; built on 2026-11-19.* The cellular modem is on the host and
+vigil-core runs in a LAN guest, so the two talk over HTTP, and vigil-core never drives the modem
+(invariant 1). vigil writes the contract and the gateway implements it: `POST <SMS_URL>` with
+`Authorization: Bearer <SMS_TOKEN>` and `{ "message": "…" }`, answered 2xx for accepted. It is in
+the README beside the API, for whoever writes the gateway.
+
+The gateway holds the phone numbers, so none is in vigil's config or its log. Texts carry
+warnings and worse, with the all-clear for each, as ntfy does. The token is a secret like
+`DATABASE_URL`, and the URL is treated as one (SECURITY.md §7).
+
+*Consequence:* the channel can be built, tested and watched (`dev/mock-sms.mjs`) before the
+gateway exists, and is simply not configured until it does.
+*Rejected:* vigil-core sending through the modem with `mmcli`. It would put hardware control
+in vigil-core and the modem in its guest. *Rejected:* phone numbers in vigil's config. One
+list, in the gateway, is one place to change and one place they can leak from.
+

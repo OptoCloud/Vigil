@@ -4,7 +4,7 @@ using Vigil.Core.Protocol;
 namespace Vigil.Core.Notifications;
 
 /// <summary>
-/// One way of reaching a person: ntfy today, the self-hosted SMS gateway next. Each channel
+/// One way of reaching a person: ntfy, or a text through the self-hosted SMS gateway. Each channel
 /// says how bad something must be to use it, so a costly or intrusive one (a text at 3 am) can
 /// carry only what is critical while ntfy carries warnings too.
 /// </summary>

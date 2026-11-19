@@ -30,6 +30,8 @@ public static class VigilEnvironment
         ("HOST_SHUTDOWN_SECONDS", nameof(VigilOptions.HostShutdownSeconds)),
         ("UPS_BATTERY_TEMPERATURE_WARN", nameof(VigilOptions.UpsBatteryTemperatureWarn)),
         ("NTFY_URL", nameof(VigilOptions.NtfyUrl)),
+        ("SMS_URL", nameof(VigilOptions.SmsUrl)),
+        ("SMS_TOKEN", nameof(VigilOptions.SmsToken)),
         ("CORE_HOST", nameof(VigilOptions.CoreHost)),
         ("CORE_PORT", nameof(VigilOptions.CorePort)),
         ("TRUSTED_PROXIES", nameof(VigilOptions.TrustedProxies)),

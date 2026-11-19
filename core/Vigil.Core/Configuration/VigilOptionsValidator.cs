@@ -80,6 +80,19 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
             problems.Add("NTFY_URL must be an absolute http(s) URL.");
         }
 
+        // Neither value is repeated in a problem: the token is a secret, and the URL is the
+        // gateway's address. Both or neither, so a half-configured channel cannot pass for one.
+        var (hasSmsUrl, hasSmsToken) = (options.SmsUrl is { Length: > 0 }, options.SmsToken is { Length: > 0 });
+        if (hasSmsUrl != hasSmsToken)
+        {
+            problems.Add("SMS_URL and SMS_TOKEN go together: set both to send texts, or neither.");
+        }
+
+        if (hasSmsUrl && (!Uri.TryCreate(options.SmsUrl, UriKind.Absolute, out var smsUri) || smsUri.Scheme is not ("https" or "http")))
+        {
+            problems.Add("SMS_URL must be an absolute http(s) URL.");
+        }
+
         if (!Api.TrustedProxies.TryParse(options.TrustedProxies, Clients.CloudflareRanges.BuiltIn, out _, out var proxyProblem))
         {
             problems.Add($"TRUSTED_PROXIES {proxyProblem}");

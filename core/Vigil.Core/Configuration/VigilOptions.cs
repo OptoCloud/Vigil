@@ -68,6 +68,12 @@ public sealed class VigilOptions
     /// <summary>Optional. HTTPS is free in .NET, so this no longer goes through curl.</summary>
     public string? NtfyUrl { get; set; }
 
+    /// <summary>Optional, with <see cref="SmsToken"/>: the SMS gateway's endpoint (ADR-027). Never logged.</summary>
+    public string? SmsUrl { get; set; }
+
+    /// <summary>The gateway's bearer token. A secret like DATABASE_URL: never logged, never in an error.</summary>
+    public string? SmsToken { get; set; }
+
     /// <summary>
     /// The one address vigil-core listens on, which serves the dashboard: every interface by
     /// default, and the address the TLS proxy reaches in production (ADR-023). There is

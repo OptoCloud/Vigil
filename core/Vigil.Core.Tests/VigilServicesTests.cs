@@ -41,11 +41,12 @@ public sealed class VigilServicesTests
         Assert.NotNull(provider.GetRequiredService<HistoryQueries>());
         Assert.NotNull(provider.GetRequiredService<EventStore>());
 
-        // The runtime and vigild's feed always; UPS and ntfy only when configured.
+        // The runtime and vigild's feed always; UPS, ntfy and SMS only when configured.
         Assert.Equal(
             [nameof(RuntimeService), nameof(DaemonFeed)],
             provider.GetServices<IHostedService>().Select(service => service.GetType().Name));
         Assert.Null(provider.GetService<NtfyClient>());
+        Assert.Null(provider.GetService<SmsClient>());
     }
 
     [Fact]
@@ -56,10 +57,14 @@ public sealed class VigilServicesTests
             VigildUrl = "http://127.0.0.1:1",
             NutHost = "192.0.2.4",
             NtfyUrl = "https://ntfy.example/topic",
+            SmsUrl = "http://192.0.2.2:8080/send",
+            SmsToken = "token",
         });
 
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is UpsFeed);
         Assert.NotNull(provider.GetService<NtfyClient>());
+        Assert.NotNull(provider.GetService<SmsClient>());
+        Assert.Equal(["ntfy", "sms"], provider.GetServices<INotifier>().Select(channel => channel.Name));
     }
 
     [Fact]

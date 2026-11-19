@@ -45,6 +45,22 @@ public static class VigilServices
             services.AddSingleton<INotifier>(provider => provider.GetRequiredService<NtfyClient>());
         }
 
+        if (startup.SmsUrl is { Length: > 0 } sms && startup.SmsToken is { Length: > 0 } smsToken)
+        {
+            // Built as ntfy's is, and for the same reasons.
+            services.AddSingleton(provider => new SmsClient(
+                new HttpClient(new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+                    ConnectTimeout = SmsClient.SendTimeout,
+                    MaxResponseHeadersLength = SmsClient.MaximumHeaderKilobytes,
+                }),
+                new Uri(sms),
+                smsToken,
+                provider.GetRequiredService<ILogger<SmsClient>>()));
+            services.AddSingleton<INotifier>(provider => provider.GetRequiredService<SmsClient>());
+        }
+
         // The runtime's one input. Bounded: the loop stops reading while the database stalls it
         // (the schema's first fill takes minutes), and everything queued meanwhile is memory.
         // A full queue makes a poller wait and refuses a new live stream.

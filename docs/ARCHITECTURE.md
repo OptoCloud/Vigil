@@ -97,7 +97,7 @@ messages on one channel, so there are no locks and events are ordered as they ha
 | `Clients` | `VigildClient` (vigild's socket, SSE via the framework's parser) and `NutClient` (upsd) | Protocol, Configuration |
 | `Alerting` | **pure** condition logic: snapshot, UPS, pool and drive conditions, the debouncer, the drive and pool diffs, bay names for messages. No I/O | Protocol |
 | `Data` | Npgsql: two data sources, `SchemaSetup` (tables, hypertables, aggregates, policies, applied on every connect), the writers and the history and event queries. SQL from `core/sql/` | Protocol, Configuration |
-| `Notifications` | `AlertRouter` and the `INotifier` channels behind it, each with a minimum severity (ADR-021); `NtfyClient`, over HTTPS, is the one so far | Alerting, Protocol |
+| `Notifications` | `AlertRouter` and the `INotifier` channels behind it, each with a minimum severity (ADR-021); `NtfyClient` over HTTPS and `SmsClient` to the gateway on the host (ADR-027) | Alerting, Protocol |
 | `Runtime` | `VigilRuntime`, the one owner of state, with `PoolWatch`, `DriveTracking`, `UpsTracking` and `HostTracking` (vigild's counters into rates) holding each source's state for it; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
 | `Api` | the routes (`/api/live`, `/api/history`, `/api/events`, `/api/drives/{name}/history`, `/health`), the static dashboard's pages and its security headers | Runtime, Data, Protocol |
 
