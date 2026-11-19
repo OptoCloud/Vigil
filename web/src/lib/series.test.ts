@@ -25,7 +25,21 @@ function snapshot(at: number, sensors: SensorReading[] = [], fanCount = 0): Snap
 }
 
 function history(temperatures: HistoryResponse['temperatures'] = {}): HistoryResponse {
-	return { range: '1h', from: NOW - 3_600_000, to: NOW - 30_000, bucketSeconds: 10, temperatures, duties: {}, rpms: {}, ups: {} };
+	return {
+		range: '1h',
+		from: NOW - 3_600_000,
+		to: NOW - 30_000,
+		bucketSeconds: 10,
+		temperatures,
+		duties: {},
+		rpms: {},
+		ups: {},
+		host: {},
+		trafficIn: {},
+		trafficOut: {},
+		busy: {},
+		poolFill: {}
+	};
 }
 
 describe('withLivePoint', () => {

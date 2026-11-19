@@ -49,4 +49,26 @@ public sealed record HistoryResponse
     /// "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V). Empty without NUT.
     /// </summary>
     public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Ups { get; init; }
+
+    /// <summary>
+    /// The host's load (ADR-025): "memoryUsed", "memoryCached", "arc" and "swapUsed" in bytes;
+    /// "cpuBusy", "cpuIowait", "pressureCpu", "pressureMemory" and "pressureIo" in percent;
+    /// "load1", "load5" and "load15". A series is absent until it has a value.
+    /// </summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Host { get; init; }
+
+    /// <summary>
+    /// Bytes per second into the host, keyed "disk:&lt;name&gt;" (read), "pool:&lt;name&gt;" (the
+    /// pool's disks, read) or "net:&lt;interface&gt;" (received).
+    /// </summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> TrafficIn { get; init; }
+
+    /// <summary>Bytes per second out, under the same keys: written, or transmitted.</summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> TrafficOut { get; init; }
+
+    /// <summary>Percent of the time each "disk:&lt;name&gt;" had I/O in flight.</summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Busy { get; init; }
+
+    /// <summary>Percent of each pool's raw size allocated, keyed by pool name.</summary>
+    public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> PoolFill { get; init; }
 }

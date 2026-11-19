@@ -31,6 +31,12 @@ public interface IRuntimeStore
 
     public Task InsertUpsSampleAsync(UpsReading reading, CancellationToken cancellationToken);
 
+    /// <summary>One row of the host's load, averaged since the last (ADR-025).</summary>
+    public Task InsertHostSampleAsync(HostLoad sample, CancellationToken cancellationToken);
+
+    /// <summary>Each pool's size and allocation, once per ZFS poll.</summary>
+    public Task InsertPoolSamplesAsync(ZfsStatus zfs, CancellationToken cancellationToken);
+
     public Task<EventRecord> InsertEventAsync(NewEvent newEvent, CancellationToken cancellationToken);
 }
 
@@ -43,6 +49,7 @@ public sealed record PreparedState(IReadOnlyList<DriveState> Drives, IReadOnlyDi
 public sealed class DatabaseRuntimeStore(
     SchemaSetup schema,
     SampleWriter samples,
+    LoadWriter loads,
     DriveStore drives,
     ZfsStore zfs,
     EventStore events,
@@ -70,6 +77,12 @@ public sealed class DatabaseRuntimeStore(
 
     public Task InsertUpsSampleAsync(UpsReading reading, CancellationToken cancellationToken) =>
         samples.InsertUpsSampleAsync(reading, cancellationToken);
+
+    public Task InsertHostSampleAsync(HostLoad sample, CancellationToken cancellationToken) =>
+        loads.InsertHostSampleAsync(sample, cancellationToken);
+
+    public Task InsertPoolSamplesAsync(ZfsStatus zfs, CancellationToken cancellationToken) =>
+        loads.InsertPoolSamplesAsync(zfs, cancellationToken);
 
     public Task<EventRecord> InsertEventAsync(NewEvent newEvent, CancellationToken cancellationToken) =>
         events.InsertAsync(newEvent.Severity, newEvent.Kind, newEvent.Message, cancellationToken);

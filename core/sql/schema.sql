@@ -143,3 +143,48 @@ create table if not exists zfs_vdev_errors (
     slow bigint
 );
 create index if not exists zfs_vdev_errors_guid_ts on zfs_vdev_errors (pool, guid, ts desc);
+
+-- The host's load (ADR-025). vigild sends counters; vigil-core turns them into a rate averaged
+-- over everything since the row before, so a burst between two rows still counts. Wide, like
+-- ups_samples: these always arrive together, and there is one host. A value unknown for that
+-- interval (the first after a start or a host reboot, a kernel without PSI) is null.
+create table if not exists host_samples (
+    ts timestamptz not null primary key,
+    memory_used bigint,
+    memory_cached bigint,
+    arc bigint,
+    swap_used bigint,
+    cpu_busy real,
+    cpu_iowait real,
+    load1 real,
+    load5 real,
+    load15 real,
+    pressure_cpu real,
+    pressure_memory real,
+    pressure_io real
+);
+
+-- Bytes per second in and out, narrow like sensor_samples so a disk or interface appearing
+-- needs no schema change. The id says what it is: "disk:<name>" (in is read, out is written),
+-- "pool:<name>" (the sum of the pool's disks) or "net:<interface>" (in is received, out is
+-- transmitted). busy_percent is how much of the time a disk had I/O in flight; null otherwise.
+create table if not exists traffic_samples (
+    ts timestamptz not null,
+    id text not null,
+    in_bps real not null,
+    out_bps real not null,
+    busy_percent real,
+    primary key (id, ts)
+);
+create index if not exists traffic_samples_ts on traffic_samples (ts);
+
+-- Each pool's raw size and allocation, parity included, as zpool list counts them: once per
+-- ZFS poll. What a pool's fill is charted from.
+create table if not exists pool_samples (
+    ts timestamptz not null,
+    pool text not null,
+    size_bytes bigint not null,
+    allocated_bytes bigint not null,
+    primary key (pool, ts)
+);
+create index if not exists pool_samples_ts on pool_samples (ts);

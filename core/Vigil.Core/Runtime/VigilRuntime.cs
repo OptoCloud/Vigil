@@ -45,6 +45,7 @@ public sealed class VigilRuntime
     private bool _daemonLostRaised;
     private readonly DriveTracking _drives;
     private readonly UpsTracking _ups;
+    private readonly HostTracking _host;
 
     private readonly ConditionDebouncer _snapshotDebouncer;
     private readonly PoolWatch _pools;
@@ -70,6 +71,7 @@ public sealed class VigilRuntime
         _persistInterval = TimeSpan.FromSeconds(options.PersistIntervalSeconds);
         _daemonLostAfter = TimeSpan.FromSeconds(options.DaemonLostAfterSeconds);
         _ups = new UpsTracking(options, logger, time);
+        _host = new HostTracking(_persistInterval);
         _daemonLostSince = (time.GetTimestamp(), "not connected yet");
     }
 
@@ -200,6 +202,9 @@ public sealed class VigilRuntime
 
         events.AddRange(_pools.Evaluate());
 
+        // Before history is written, so a row written now includes this reading.
+        var host = _host.Observe(snapshot.Host, snapshot.Zfs);
+
         var now = _time.GetTimestamp();
         var persist = IsDue(_lastPersisted, _persistInterval);
         var inventory = IsDue(_lastInventory, InventoryEvery);
@@ -219,6 +224,10 @@ public sealed class VigilRuntime
             if (persist)
             {
                 await _store.InsertSamplesAsync(snapshot, cancellationToken).ConfigureAwait(false);
+                if (_host.TakeSample(snapshot.Zfs) is { } load)
+                {
+                    await _store.InsertHostSampleAsync(load, cancellationToken).ConfigureAwait(false);
+                }
             }
 
             if (inventory)
@@ -229,11 +238,16 @@ public sealed class VigilRuntime
             if (pools is not null && snapshot.Zfs is { } zfs)
             {
                 await _store.SavePoolsAsync(zfs.AsOf, pools, cancellationToken).ConfigureAwait(false);
+                await _store.InsertPoolSamplesAsync(zfs, cancellationToken).ConfigureAwait(false);
             }
         }).ConfigureAwait(false);
 
         _live.Broadcast(new SnapshotMessage { Snapshot = snapshot });
         _latest = snapshot;
+        if (host is not null)
+        {
+            _live.Broadcast(new HostMessage { Host = host });
+        }
         if (drives is { ToSave.Count: > 0 })
         {
             _live.Broadcast(new DrivesMessage { Drives = _drives.List });
@@ -369,5 +383,6 @@ public sealed class VigilRuntime
         yield return new UpsMessage { Ups = _ups.State };
         yield return new AlertsMessage { Alerts = _alerts };
         yield return new PoolsMessage { Pools = _poolHistory };
+        yield return new HostMessage { Host = _host.Latest };
     }
 }

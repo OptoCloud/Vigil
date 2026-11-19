@@ -39,8 +39,9 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
     private const string CompressAfter = "7 days";
 
     /// <summary>One raw table and everything built over it. The SQL is in core/sql/aggregates/.</summary>
-    /// <param name="Legacy">The pre-TimescaleDB minute table, copied into raw once if it exists.</param>
-    internal sealed record Series(string Raw, string Key, string Legacy)
+    /// <param name="Key">What a row is of, which compression segments by; null for a table of one thing.</param>
+    /// <param name="Legacy">The pre-TimescaleDB minute table, copied into raw once if it exists; null for a series born after it.</param>
+    internal sealed record Series(string Raw, string? Key, string? Legacy)
     {
         public string Prefix => Raw[..^"_samples".Length];
 
@@ -55,6 +56,9 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
         new("sensor_samples", "sensor_id", "sensor_minutes"),
         new("fan_samples", "fan_id", "fan_minutes"),
         new("ups_samples", "ups", "ups_minutes"),
+        new("host_samples", null, null),
+        new("traffic_samples", "id", null),
+        new("pool_samples", "pool", null),
     ];
 
     /// <exception cref="DatabaseSetupException">The database is reachable but cannot hold vigil's schema.</exception>
@@ -119,7 +123,8 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
         }
 
         // Once: the old minute table becomes raw history, then is renamed out of the way (kept, not dropped).
-        if (await database.ExistsAsync("select 1 where to_regclass($1) is not null", series.Legacy).ConfigureAwait(false))
+        if (series.Legacy is not null
+            && await database.ExistsAsync("select 1 where to_regclass($1) is not null", series.Legacy).ConfigureAwait(false))
         {
             var copied = await database.ExecuteAsync(series.Query("backfill")).ConfigureAwait(false);
 
@@ -203,10 +208,11 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
             series.Raw).ConfigureAwait(false);
         if (!compressed)
         {
-            // sql-literal-ok: series.Raw and series.Key come from AllSeries.
+            // sql-literal-ok: series.Raw and series.Key come from AllSeries. A table of one thing
+            // has nothing to segment by.
+            var segmentBy = series.Key is null ? string.Empty : $"timescaledb.compress_segmentby = '{series.Key}', ";
             await database.ExecuteAsync(
-                $"alter table {series.Raw} set (timescaledb.compress, timescaledb.compress_segmentby = '{series.Key}', "
-                + "timescaledb.compress_orderby = 'ts')").ConfigureAwait(false);
+                $"alter table {series.Raw} set (timescaledb.compress, {segmentBy}timescaledb.compress_orderby = 'ts')").ConfigureAwait(false);
         }
 
         // sql-literal-ok: series.Raw comes from AllSeries and CompressAfter is a const.

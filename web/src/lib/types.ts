@@ -340,6 +340,68 @@ export interface PoolHistory {
 	lastScrub: string | null;
 }
 
+// ---- The host's load as vigil-core works it out: rates, null where there is nothing to take one against ----
+
+export interface HostLoad {
+	asOf: string;
+	/** The seconds the rates span; null when there are none (the first reading, a reboot). */
+	intervalSeconds: number | null;
+	uptimeSeconds: number | null;
+	memory: MemoryLoad | null;
+	cpu: CpuLoad | null;
+	load: LoadAverage | null;
+	pressure: PressureLoad | null;
+	disks: DiskLoad[];
+	/** Each pool's traffic: the sum of the disks its vdevs are on. */
+	pools: PoolLoad[];
+	interfaces: InterfaceLoad[];
+}
+
+export interface MemoryLoad {
+	totalBytes: number;
+	/** Total minus MemAvailable, as `free` counts "used". */
+	usedBytes: number;
+	cachedBytes: number;
+	arcBytes: number | null;
+	arcMaxBytes: number | null;
+	swapTotalBytes: number;
+	swapUsedBytes: number;
+}
+
+export interface CpuLoad {
+	busyPercent: number;
+	iowaitPercent: number;
+	logicalCpus: number;
+}
+
+/** PSI's "some": percent of the time at least one task was waiting. */
+export interface PressureLoad {
+	cpuPercent: number | null;
+	memoryPercent: number | null;
+	ioPercent: number | null;
+}
+
+export interface DiskLoad {
+	deviceName: string;
+	port: string | null;
+	readBytesPerSecond: number;
+	writtenBytesPerSecond: number;
+	/** Percent of the time with I/O in flight, iostat's %util. */
+	busyPercent: number;
+}
+
+export interface PoolLoad {
+	name: string;
+	readBytesPerSecond: number;
+	writtenBytesPerSecond: number;
+}
+
+export interface InterfaceLoad {
+	name: string;
+	receivedBytesPerSecond: number;
+	transmittedBytesPerSecond: number;
+}
+
 /** The live stream: what vigil-core sends on /api/live, the current state first, then every change. */
 export type LiveMessage =
 	| { type: 'snapshot'; snapshot: Snapshot }
@@ -349,7 +411,9 @@ export type LiveMessage =
 	| { type: 'ups'; ups: UpsState }
 	/** Every raised condition, worst first. Empty is what green means. */
 	| { type: 'alerts'; alerts: Alert[] }
-	| { type: 'pools'; pools: PoolHistory[] };
+	| { type: 'pools'; pools: PoolHistory[] }
+	/** The host's load, on connect and with each new reading. Null before the first. */
+	| { type: 'host'; host: HostLoad | null };
 
 export type RangeKey = '1h' | '6h' | '24h' | '7d' | '30d' | '1y';
 
@@ -380,6 +444,30 @@ export interface HistoryResponse {
 	rpms: Record<string, SeriesPoints>;
 	/** The UPS: "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V). Empty without NUT. */
 	ups: Partial<Record<UpsMetric, SeriesPoints>>;
+	/** The host's load (ADR-025): bytes for memory, percent for CPU and pressure. A series is absent until it has a value. */
+	host: Partial<Record<HostMetric, SeriesPoints>>;
+	/** Bytes per second in, keyed "disk:<name>" (read), "pool:<name>" (read) or "net:<interface>" (received). */
+	trafficIn: Record<string, SeriesPoints>;
+	/** Bytes per second out under the same keys: written, or transmitted. */
+	trafficOut: Record<string, SeriesPoints>;
+	/** Percent of the time each "disk:<name>" had I/O in flight. */
+	busy: Record<string, SeriesPoints>;
+	/** Percent of each pool's raw size allocated, keyed by pool name. */
+	poolFill: Record<string, SeriesPoints>;
 }
+
+export type HostMetric =
+	| 'memoryUsed'
+	| 'memoryCached'
+	| 'arc'
+	| 'swapUsed'
+	| 'cpuBusy'
+	| 'cpuIowait'
+	| 'load1'
+	| 'load5'
+	| 'load15'
+	| 'pressureCpu'
+	| 'pressureMemory'
+	| 'pressureIo';
 
 export type UpsMetric = 'charge' | 'load' | 'runtime' | 'inputVoltage';

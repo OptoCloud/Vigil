@@ -116,6 +116,94 @@
     "PoolHistory": {
       "name": "tank",
       "lastScrub": "2026-10-12T03:10:54.000Z"
+    },
+    "HostLoad": {
+      "asOf": "2026-09-21T23:01:33.902Z",
+      "intervalSeconds": 2.004,
+      "uptimeSeconds": 487.25,
+      "memory": {
+        "totalBytes": 67355660288,
+        "usedBytes": 46384140288,
+        "cachedBytes": 11010048000,
+        "arcBytes": 34359738368,
+        "arcMaxBytes": 33678233600,
+        "swapTotalBytes": 8589930496,
+        "swapUsedBytes": 618496
+      },
+      "cpu": {
+        "busyPercent": 18.5,
+        "iowaitPercent": 1.5,
+        "logicalCpus": 16
+      },
+      "load": {
+        "one": 0.46,
+        "five": 0.66,
+        "fifteen": 0.36
+      },
+      "pressure": {
+        "cpuPercent": 0.5,
+        "memoryPercent": 0.25,
+        "ioPercent": 2.5
+      },
+      "disks": [
+        {
+          "deviceName": "naa.5000c500a1b2c3d4",
+          "port": "pci-0000:01:00.1-ata-3",
+          "readBytesPerSecond": 14200000.5,
+          "writtenBytesPerSecond": 3100000.5,
+          "busyPercent": 12.5
+        }
+      ],
+      "pools": [
+        {
+          "name": "tank",
+          "readBytesPerSecond": 113600000.5,
+          "writtenBytesPerSecond": 24800000.5
+        }
+      ],
+      "interfaces": [
+        {
+          "name": "vmbr0",
+          "receivedBytesPerSecond": 2500000.5,
+          "transmittedBytesPerSecond": 600000.5
+        }
+      ]
+    },
+    "MemoryLoad": {
+      "totalBytes": 67355660288,
+      "usedBytes": 46384140288,
+      "cachedBytes": 11010048000,
+      "arcBytes": 34359738368,
+      "arcMaxBytes": 33678233600,
+      "swapTotalBytes": 8589930496,
+      "swapUsedBytes": 618496
+    },
+    "CpuLoad": {
+      "busyPercent": 18.5,
+      "iowaitPercent": 1.5,
+      "logicalCpus": 16
+    },
+    "PressureLoad": {
+      "cpuPercent": 0.5,
+      "memoryPercent": 0.25,
+      "ioPercent": 2.5
+    },
+    "DiskLoad": {
+      "deviceName": "naa.5000c500a1b2c3d4",
+      "port": "pci-0000:01:00.1-ata-3",
+      "readBytesPerSecond": 14200000.5,
+      "writtenBytesPerSecond": 3100000.5,
+      "busyPercent": 12.5
+    },
+    "PoolLoad": {
+      "name": "tank",
+      "readBytesPerSecond": 113600000.5,
+      "writtenBytesPerSecond": 24800000.5
+    },
+    "InterfaceLoad": {
+      "name": "vmbr0",
+      "receivedBytesPerSecond": 2500000.5,
+      "transmittedBytesPerSecond": 600000.5
     }
   },
   "liveMessages": {
@@ -365,6 +453,61 @@
           "hostShutdownSeconds": 84.5,
           "batteryTemperatureWarn": 40.5
         }
+      }
+    },
+    "host": {
+      "type": "host",
+      "host": {
+        "asOf": "2026-09-21T23:01:33.902Z",
+        "intervalSeconds": 2.004,
+        "uptimeSeconds": 487.25,
+        "memory": {
+          "totalBytes": 67355660288,
+          "usedBytes": 46384140288,
+          "cachedBytes": 11010048000,
+          "arcBytes": 34359738368,
+          "arcMaxBytes": 33678233600,
+          "swapTotalBytes": 8589930496,
+          "swapUsedBytes": 618496
+        },
+        "cpu": {
+          "busyPercent": 18.5,
+          "iowaitPercent": 1.5,
+          "logicalCpus": 16
+        },
+        "load": {
+          "one": 0.46,
+          "five": 0.66,
+          "fifteen": 0.36
+        },
+        "pressure": {
+          "cpuPercent": 0.5,
+          "memoryPercent": 0.25,
+          "ioPercent": 2.5
+        },
+        "disks": [
+          {
+            "deviceName": "naa.5000c500a1b2c3d4",
+            "port": "pci-0000:01:00.1-ata-3",
+            "readBytesPerSecond": 14200000.5,
+            "writtenBytesPerSecond": 3100000.5,
+            "busyPercent": 12.5
+          }
+        ],
+        "pools": [
+          {
+            "name": "tank",
+            "readBytesPerSecond": 113600000.5,
+            "writtenBytesPerSecond": 24800000.5
+          }
+        ],
+        "interfaces": [
+          {
+            "name": "vmbr0",
+            "receivedBytesPerSecond": 2500000.5,
+            "transmittedBytesPerSecond": 600000.5
+          }
+        ]
       }
     }
   }

@@ -1,0 +1,15 @@
+select time_bucket('1 hour', bucket) as bucket,
+    sum(avg_memory_used * samples) / sum(samples) as avg_memory_used, max(max_memory_used) as max_memory_used,
+    sum(avg_memory_cached * samples) / sum(samples) as avg_memory_cached,
+    sum(avg_arc * samples) / sum(samples) as avg_arc,
+    sum(avg_swap_used * samples) / sum(samples) as avg_swap_used, max(max_swap_used) as max_swap_used,
+    sum(avg_cpu_busy * samples) / sum(samples) as avg_cpu_busy, max(max_cpu_busy) as max_cpu_busy,
+    sum(avg_cpu_iowait * samples) / sum(samples) as avg_cpu_iowait,
+    sum(avg_load1 * samples) / sum(samples) as avg_load1, max(max_load1) as max_load1,
+    sum(avg_load5 * samples) / sum(samples) as avg_load5,
+    sum(avg_load15 * samples) / sum(samples) as avg_load15,
+    sum(avg_pressure_cpu * samples) / sum(samples) as avg_pressure_cpu,
+    sum(avg_pressure_memory * samples) / sum(samples) as avg_pressure_memory,
+    sum(avg_pressure_io * samples) / sum(samples) as avg_pressure_io, max(max_pressure_io) as max_pressure_io,
+    sum(samples) as samples
+from host_1m group by 1

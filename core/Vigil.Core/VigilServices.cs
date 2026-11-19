@@ -18,6 +18,7 @@ public static class VigilServices
         services.AddSingleton<VigilDataSources>();
         services.AddSingleton<SchemaSetup>();
         services.AddSingleton<SampleWriter>();
+        services.AddSingleton<LoadWriter>();
         services.AddSingleton<DriveStore>();
         services.AddSingleton<ZfsStore>();
         services.AddSingleton<EventStore>();

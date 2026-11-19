@@ -1,0 +1,19 @@
+-- The host's load from the raw samples.
+--   $1 bucket width (an interval)   $2 oldest timestamp to include
+select date_bin($1::interval, ts, 'epoch'::timestamptz) as bucket,
+       avg(memory_used)::float8 as memory_used,
+       avg(memory_cached)::float8 as memory_cached,
+       avg(arc)::float8 as arc,
+       avg(swap_used)::float8 as swap_used,
+       avg(cpu_busy)::float8 as cpu_busy,
+       avg(cpu_iowait)::float8 as cpu_iowait,
+       avg(load1)::float8 as load1,
+       avg(load5)::float8 as load5,
+       avg(load15)::float8 as load15,
+       avg(pressure_cpu)::float8 as pressure_cpu,
+       avg(pressure_memory)::float8 as pressure_memory,
+       avg(pressure_io)::float8 as pressure_io
+from host_samples
+where ts >= $2
+group by 1
+order by 1

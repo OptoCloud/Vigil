@@ -20,15 +20,22 @@ import type {
 	DriveHealthRecord,
 	DriveState,
 	EventRecord,
+	CpuLoad,
 	CpuTicks,
 	DiskCounters,
+	DiskLoad,
 	FanStatus,
+	HostLoad,
 	HostStatus,
 	InterfaceCounters,
+	InterfaceLoad,
 	LiveMessage,
 	LoadAverage,
+	MemoryLoad,
 	MemoryStatus,
+	PoolLoad,
 	Pressure,
+	PressureLoad,
 	PressureStall,
 	PoolHistory,
 	PoolScan,
@@ -142,6 +149,38 @@ const TYPE_KEYS = {
 	PressureStall: { someMicros: 1, fullMicros: 1 } satisfies Record<keyof PressureStall, 1>,
 	DiskCounters: { deviceName: 1, port: 1, readBytes: 1, writtenBytes: 1, busyMillis: 1 } satisfies Record<keyof DiskCounters, 1>,
 	InterfaceCounters: { name: 1, receivedBytes: 1, transmittedBytes: 1 } satisfies Record<keyof InterfaceCounters, 1>,
+	HostLoad: {
+		asOf: 1,
+		intervalSeconds: 1,
+		uptimeSeconds: 1,
+		memory: 1,
+		cpu: 1,
+		load: 1,
+		pressure: 1,
+		disks: 1,
+		pools: 1,
+		interfaces: 1
+	} satisfies Record<keyof HostLoad, 1>,
+	MemoryLoad: {
+		totalBytes: 1,
+		usedBytes: 1,
+		cachedBytes: 1,
+		arcBytes: 1,
+		arcMaxBytes: 1,
+		swapTotalBytes: 1,
+		swapUsedBytes: 1
+	} satisfies Record<keyof MemoryLoad, 1>,
+	CpuLoad: { busyPercent: 1, iowaitPercent: 1, logicalCpus: 1 } satisfies Record<keyof CpuLoad, 1>,
+	PressureLoad: { cpuPercent: 1, memoryPercent: 1, ioPercent: 1 } satisfies Record<keyof PressureLoad, 1>,
+	DiskLoad: {
+		deviceName: 1,
+		port: 1,
+		readBytesPerSecond: 1,
+		writtenBytesPerSecond: 1,
+		busyPercent: 1
+	} satisfies Record<keyof DiskLoad, 1>,
+	PoolLoad: { name: 1, readBytesPerSecond: 1, writtenBytesPerSecond: 1 } satisfies Record<keyof PoolLoad, 1>,
+	InterfaceLoad: { name: 1, receivedBytesPerSecond: 1, transmittedBytesPerSecond: 1 } satisfies Record<keyof InterfaceLoad, 1>,
 	Bay: { port: 1, cage: 1, slot: 1 } satisfies Record<keyof Bay, 1>,
 	ZfsStatus: { isAvailable: 1, asOf: 1, pools: 1 } satisfies Record<keyof ZfsStatus, 1>,
 	PoolStatus: {
@@ -256,7 +295,8 @@ const LIVE_MESSAGE_KEYS = {
 	drives: { type: 1, drives: 1 },
 	ups: { type: 1, ups: 1 },
 	alerts: { type: 1, alerts: 1 },
-	pools: { type: 1, pools: 1 }
+	pools: { type: 1, pools: 1 },
+	host: { type: 1, host: 1 }
 } satisfies Record<LiveMessage['type'], Record<string, 1>>;
 
 describe('the generated wire contract', () => {

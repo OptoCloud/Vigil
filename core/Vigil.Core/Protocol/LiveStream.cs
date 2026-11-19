@@ -227,6 +227,7 @@ public sealed record PoolHistory
 [JsonDerivedType(typeof(UpsMessage), "ups")]
 [JsonDerivedType(typeof(AlertsMessage), "alerts")]
 [JsonDerivedType(typeof(PoolsMessage), "pools")]
+[JsonDerivedType(typeof(HostMessage), "host")]
 public abstract record LiveMessage;
 
 public sealed record SnapshotMessage : LiveMessage
@@ -268,4 +269,13 @@ public sealed record AlertsMessage : LiveMessage
 public sealed record PoolsMessage : LiveMessage
 {
     public required IReadOnlyList<PoolHistory> Pools { get; init; }
+}
+
+/// <summary>
+/// The host's load, worked out from vigild's counters (ADR-025): sent on connect and with each
+/// new reading. Null before the first, and while vigild's <c>[host]</c> is off.
+/// </summary>
+public sealed record HostMessage : LiveMessage
+{
+    public required HostLoad? Host { get; init; }
 }

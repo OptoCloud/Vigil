@@ -29,12 +29,17 @@ public sealed class HistoryQueriesTests
             Duties = empty,
             Rpms = empty,
             Ups = empty,
+            Host = empty,
+            TrafficIn = empty,
+            TrafficOut = empty,
+            Busy = empty,
+            PoolFill = empty,
         };
 
         var json = JsonNode.Parse(JsonSerializer.Serialize(response, VigilJson.Options))!.AsObject();
 
         Assert.Equal(
-            ["bucketSeconds", "duties", "from", "range", "rpms", "temperatures", "to", "ups"],
+            ["bucketSeconds", "busy", "duties", "from", "host", "poolFill", "range", "rpms", "temperatures", "to", "trafficIn", "trafficOut", "ups"],
             json.Select(property => property.Key).OrderBy(key => key, StringComparer.Ordinal));
         // The range is the string the dashboard's buttons use, not an ordinal.
         Assert.Equal("24h", json["range"]!.GetValue<string>());

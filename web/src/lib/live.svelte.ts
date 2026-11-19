@@ -10,6 +10,7 @@ import type {
 	DriveState,
 	EventRecord,
 	HistoryResponse,
+	HostLoad,
 	LiveMessage,
 	PoolHistory,
 	RangeKey,
@@ -42,6 +43,8 @@ export class Live {
 	alerts = $state<Alert[]>([]);
 	/** What vigil-core remembers about each pool, such as its last scrub. */
 	pools = $state<PoolHistory[]>([]);
+	/** The host's load as vigil-core worked it out from vigild's counters; null before the first reading. */
+	host = $state<HostLoad | null>(null);
 	// Disabled, so hidden until vigil-core sends the real one: none of these values is ever shown.
 	ups = $state<UpsState>({
 		enabled: false,
@@ -92,6 +95,7 @@ export class Live {
 		else if (live.type === 'ups') this.ups = live.ups;
 		else if (live.type === 'alerts') this.alerts = live.alerts;
 		else if (live.type === 'pools') this.pools = live.pools;
+		else if (live.type === 'host') this.host = live.host;
 	}
 
 	selectRange(range: RangeKey) {

@@ -28,6 +28,9 @@ public sealed class SchemaSetupTests
         Assert.Equal("sensor_1m", SchemaSetup.AllSeries[0].NameOf("1m"));
         Assert.Equal("fan_1h", SchemaSetup.AllSeries[1].NameOf("1h"));
         Assert.Equal("ups_1m", SchemaSetup.AllSeries[2].NameOf("1m"));
+        Assert.Equal(
+            ["host_1m", "traffic_1m", "pool_1m"],
+            SchemaSetup.AllSeries.Skip(3).Select(series => series.NameOf("1m")));
     }
 
     [Fact]
@@ -37,7 +40,10 @@ public sealed class SchemaSetupTests
         {
             Assert.Contains($"from {series.NameOf("1m")}", series.Query("1h"), StringComparison.Ordinal);
             Assert.Contains($"from {series.Raw}", series.Query("1m"), StringComparison.Ordinal);
-            Assert.Contains($"from {series.Legacy}", series.Query("backfill"), StringComparison.Ordinal);
+            if (series.Legacy is not null)
+            {
+                Assert.Contains($"from {series.Legacy}", series.Query("backfill"), StringComparison.Ordinal);
+            }
         }
     }
 }

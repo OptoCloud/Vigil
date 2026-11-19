@@ -50,6 +50,16 @@ internal sealed class FakeRuntimeStore : IRuntimeStore
 
     public Task InsertUpsSampleAsync(UpsReading reading, CancellationToken cancellationToken) => Record("insert-ups", 0);
 
+    public List<HostLoad> HostSamples { get; } = [];
+
+    public Task InsertHostSampleAsync(HostLoad sample, CancellationToken cancellationToken)
+    {
+        HostSamples.Add(sample);
+        return Record("insert-host", 0);
+    }
+
+    public Task InsertPoolSamplesAsync(ZfsStatus zfs, CancellationToken cancellationToken) => Record("insert-pool-samples", 0);
+
     public Task<EventRecord> InsertEventAsync(NewEvent newEvent, CancellationToken cancellationToken) =>
         Record("insert-event", new EventRecord
         {

@@ -114,6 +114,8 @@ public sealed class HistoryQueries(VigilDataSources databases)
                 cancellationToken);
         }
 
+        var load = await QueryLoadAsync(spec.Source, bucket, from, cancellationToken).ConfigureAwait(false);
+
         // Thirteen drives and two DIMMs would blow through what colour can distinguish, so each
         // group is charted as one line: its hottest member in each bucket.
         temperatures["drives:max"] = HottestOf(temperatures, "drive:");
@@ -129,8 +131,57 @@ public sealed class HistoryQueries(VigilDataSources databases)
             Duties = duties,
             Rpms = rpms,
             Ups = ups,
+            Host = load.Host,
+            TrafficIn = load.TrafficIn,
+            TrafficOut = load.TrafficOut,
+            Busy = load.Busy,
+            PoolFill = load.PoolFill,
         };
     }
+
+    private sealed record LoadHistory(
+        Dictionary<string, IReadOnlyList<double[]>> Host,
+        Dictionary<string, IReadOnlyList<double[]>> TrafficIn,
+        Dictionary<string, IReadOnlyList<double[]>> TrafficOut,
+        Dictionary<string, IReadOnlyList<double[]>> Busy,
+        Dictionary<string, IReadOnlyList<double[]>> PoolFill);
+
+    /// <summary>The host's columns, in the order the host queries select them after the bucket.</summary>
+    private static readonly (string Key, int Digits)[] HostColumns =
+    [
+        ("memoryUsed", 0), ("memoryCached", 0), ("arc", 0), ("swapUsed", 0), ("cpuBusy", 1), ("cpuIowait", 1),
+        ("load1", 2), ("load5", 2), ("load15", 2), ("pressureCpu", 1), ("pressureMemory", 1), ("pressureIo", 1),
+    ];
+
+    /// <summary>The host's load, its traffic and its pools' fill (ADR-025).</summary>
+    private async Task<LoadHistory> QueryLoadAsync(Source source, string bucket, DateTimeOffset from, CancellationToken cancellationToken)
+    {
+        var history = new LoadHistory(Series(), Series(), Series(), Series(), Series());
+
+        await ReadAsync(QueryFor("history_host", source, "host"), bucket, from, null, reader =>
+        {
+            var at = Millis(reader, 0);
+            for (var column = 0; column < HostColumns.Length; column++)
+            {
+                AppendIfPresent(history.Host, HostColumns[column].Key, reader, column + 1, at, HostColumns[column].Digits);
+            }
+        }, cancellationToken).ConfigureAwait(false);
+
+        await ReadAsync(QueryFor("history_traffic", source, "traffic"), bucket, from, null, reader =>
+        {
+            var (id, at) = (reader.GetString(0), Millis(reader, 1));
+            AppendIfPresent(history.TrafficIn, id, reader, 2, at, 0);
+            AppendIfPresent(history.TrafficOut, id, reader, 3, at, 0);
+            AppendIfPresent(history.Busy, id, reader, 4, at, 1);
+        }, cancellationToken).ConfigureAwait(false);
+
+        await ReadAsync(QueryFor("history_pools", source, "pool"), bucket, from, null, reader =>
+            AppendIfPresent(history.PoolFill, reader.GetString(0), reader, 2, Millis(reader, 1), 2), cancellationToken).ConfigureAwait(false);
+
+        return history;
+    }
+
+    private static Dictionary<string, IReadOnlyList<double[]>> Series() => new(StringComparer.Ordinal);
 
     /// <summary>
     /// The query for a series at a level, with the rollup's table name substituted in.

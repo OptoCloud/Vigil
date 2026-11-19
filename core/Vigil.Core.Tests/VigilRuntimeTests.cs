@@ -68,8 +68,8 @@ public sealed partial class VigilRuntimeTests
 
         var subscriber = await Subscribe(runtime);
         var first = Drain(subscriber);
-        // daemon, snapshot, drives, ups, alerts, pools.
-        Assert.Equal(6, first.Count);
+        // daemon, snapshot, drives, ups, alerts, pools, host.
+        Assert.Equal(7, first.Count);
         Assert.Contains("""
             "type":"daemon","connected":true
             """, first[0], StringComparison.Ordinal);
@@ -103,8 +103,8 @@ public sealed partial class VigilRuntimeTests
     public async Task ASubscriberThatCannotKeepUpIsDroppedAndItsStreamEnded()
     {
         var runtime = Runtime();
-        // Room for the state on connect (daemon, drives, ups, alerts, pools: no snapshot yet), and nothing more.
-        var subscriber = await Subscribe(runtime, capacity: 5);
+        // Room for the state on connect (daemon, drives, ups, alerts, pools, host: no snapshot yet), and nothing more.
+        var subscriber = await Subscribe(runtime, capacity: 6);
         Assert.Equal(1, runtime.SubscriberCount);
 
         await runtime.HandleAsync(Received(Snapshot(false)), CancellationToken.None);

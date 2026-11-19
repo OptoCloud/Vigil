@@ -117,6 +117,48 @@ public sealed class CoreContractTests
 
     private static readonly PoolHistory Pool = new() { Name = "tank", LastScrub = "2026-10-12T03:10:54.000Z" };
 
+    private static readonly MemoryLoad Memory = new()
+    {
+        TotalBytes = 67_355_660_288,
+        UsedBytes = 46_384_140_288,
+        CachedBytes = 11_010_048_000,
+        ArcBytes = 34_359_738_368,
+        ArcMaxBytes = 33_678_233_600,
+        SwapTotalBytes = 8_589_930_496,
+        SwapUsedBytes = 618_496,
+    };
+
+    private static readonly CpuLoad Cpu = new() { BusyPercent = 18.5, IowaitPercent = 1.5, LogicalCpus = 16 };
+
+    private static readonly PressureLoad Pressure = new() { CpuPercent = 0.5, MemoryPercent = 0.25, IoPercent = 2.5 };
+
+    private static readonly DiskLoad Disk = new()
+    {
+        DeviceName = "naa.5000c500a1b2c3d4",
+        Port = "pci-0000:01:00.1-ata-3",
+        ReadBytesPerSecond = 14_200_000.5,
+        WrittenBytesPerSecond = 3_100_000.5,
+        BusyPercent = 12.5,
+    };
+
+    private static readonly PoolLoad PoolTraffic = new() { Name = "tank", ReadBytesPerSecond = 113_600_000.5, WrittenBytesPerSecond = 24_800_000.5 };
+
+    private static readonly InterfaceLoad Interface = new() { Name = "vmbr0", ReceivedBytesPerSecond = 2_500_000.5, TransmittedBytesPerSecond = 600_000.5 };
+
+    private static readonly HostLoad Host = new()
+    {
+        AsOf = "2026-09-21T23:01:33.902Z",
+        IntervalSeconds = 2.004,
+        UptimeSeconds = 487.25,
+        Memory = Memory,
+        Cpu = Cpu,
+        Load = new LoadAverage { One = 0.46, Five = 0.66, Fifteen = 0.36 },
+        Pressure = Pressure,
+        Disks = [Disk],
+        Pools = [PoolTraffic],
+        Interfaces = [Interface],
+    };
+
     private static readonly Dictionary<string, LiveMessage> LiveMessages = new(StringComparer.Ordinal)
     {
         ["alerts"] = new AlertsMessage { Alerts = [Alert] },
@@ -126,6 +168,7 @@ public sealed class CoreContractTests
         ["event"] = new EventMessage { Event = Event },
         ["drives"] = new DrivesMessage { Drives = [Drive] },
         ["ups"] = new UpsMessage { Ups = Ups },
+        ["host"] = new HostMessage { Host = Host },
     };
 
     /// <summary>vigild's own sample, so the snapshot inside the stream is the one Rust generated.</summary>
@@ -152,6 +195,13 @@ public sealed class CoreContractTests
             [nameof(EventRecord)] = Node(Event),
             [nameof(Alert)] = Node(Alert),
             [nameof(PoolHistory)] = Node(Pool),
+            [nameof(HostLoad)] = Node(Host),
+            [nameof(MemoryLoad)] = Node(Memory),
+            [nameof(CpuLoad)] = Node(Cpu),
+            [nameof(PressureLoad)] = Node(Pressure),
+            [nameof(DiskLoad)] = Node(Disk),
+            [nameof(PoolLoad)] = Node(PoolTraffic),
+            [nameof(InterfaceLoad)] = Node(Interface),
         },
         ["liveMessages"] = new JsonObject(LiveMessages.Select(entry => KeyValuePair.Create(entry.Key, (JsonNode?)Node(entry.Value)))),
     };

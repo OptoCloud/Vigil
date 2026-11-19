@@ -59,7 +59,7 @@ public static class DatabaseFixture
     public static async Task TruncateAsync(NpgsqlDataSource writer, CancellationToken cancellationToken)
     {
         await using var command = writer.CreateCommand(
-            "truncate sensor_samples, fan_samples, ups_samples, sensors, fans, bay_occupants, drives, drive_health_history, events, zfs_scans, zfs_vdev_errors");
+            "truncate sensor_samples, fan_samples, ups_samples, host_samples, traffic_samples, pool_samples, sensors, fans, bay_occupants, drives, drive_health_history, events, zfs_scans, zfs_vdev_errors");
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }
