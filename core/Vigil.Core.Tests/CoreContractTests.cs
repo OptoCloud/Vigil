@@ -181,6 +181,11 @@ public sealed class CoreContractTests
     private static JsonObject Generate() => new()
     {
         ["$comment"] = Comment,
+        // Values the page matches on rather than types it mirrors: web/src/lib/redaction.ts.
+        ["constants"] = new JsonObject
+        {
+            ["redactionMarker"] = Redaction.Marker,
+        },
         ["enums"] = new JsonObject
         {
             [nameof(Severity)] = new JsonArray([.. Enum.GetValues<Severity>().Select(severity => Node(severity))]),

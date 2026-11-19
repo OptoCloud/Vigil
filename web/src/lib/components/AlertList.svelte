@@ -4,6 +4,7 @@
 	import { relativeTime } from '#lib/chart/scale.ts';
 	import type { Alert } from '#lib/types.ts';
 	import StatusBadge from './StatusBadge.svelte';
+	import Withheld from './Withheld.svelte';
 
 	interface Props {
 		alerts: Alert[];
@@ -20,7 +21,7 @@
 		{#each alerts as alert (alert.kind)}
 			<li class="grid grid-cols-[84px_1fr_auto] items-start gap-3 border-b border-grid py-1.5 last:border-b-0">
 				<span class="pt-px text-xs"><StatusBadge level={alert.severity} label={label[alert.severity]} /></span>
-				<span>{alert.message}</span>
+				<span><Withheld text={alert.message} /></span>
 				<time
 					class="text-xs whitespace-nowrap text-faint tabular-nums"
 					datetime={alert.since}

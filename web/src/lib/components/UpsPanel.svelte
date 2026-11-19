@@ -13,6 +13,7 @@
 	import * as Card from '#lib/components/ui/card/index.ts';
 	import Meter from './Meter.svelte';
 	import StatusBadge from './StatusBadge.svelte';
+	import Withheld from './Withheld.svelte';
 
 	interface Props {
 		ups: UpsState;
@@ -174,7 +175,7 @@
 				>
 					<tbody>
 						{#each variables as [name, value] (name)}
-							<tr><th scope="row">{name}</th><td>{value}</td></tr>
+							<tr><th scope="row">{name}</th><td><Withheld text={value} /></td></tr>
 						{/each}
 					</tbody>
 				</table>

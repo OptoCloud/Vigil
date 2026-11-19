@@ -20,6 +20,7 @@
 	import type { Bay, DriveState, HistoryResponse, SensorReading, ZfsStatus } from '#lib/types.ts';
 	import Sparkline from './Sparkline.svelte';
 	import StatusBadge from './StatusBadge.svelte';
+	import Withheld from './Withheld.svelte';
 
 	interface Props {
 		/** Live temperatures, from the daemon's snapshot. */
@@ -139,7 +140,7 @@
 					<Table.Cell title={bay.wwn ?? ''}>
 						{#if bay.wwn}
 							<a class="font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: bay.wwn })}
-								>{bay.health?.serialNumber ?? shortWwn(bay.wwn)}</a
+								>{#if bay.health?.serialNumber}<Withheld text={bay.health.serialNumber} />{:else}{shortWwn(bay.wwn)}{/if}</a
 							>
 							{#if bay.health?.serialNumber}<span class="block text-xs text-faint tabular-nums">{shortWwn(bay.wwn)}</span>{/if}
 						{:else}

@@ -195,7 +195,8 @@ public sealed class DataLayerTests
 
         await store.SaveAsync(drive, changed: true, token);
 
-        Assert.Equal(drive, Assert.Single(await store.LoadAsync(token)) with { AsOf = drive.AsOf });
+        // The serial comes back as its tail: masked where it enters the process, the database included.
+        Assert.Equal(drive with { SerialNumber = "[REDACTED]XK2P" }, Assert.Single(await store.LoadAsync(token)) with { AsOf = drive.AsOf });
         var row = Assert.Single(await store.HistoryAsync(drive.Wwn, 10, token));
         Assert.Equal((3ul, 4295032833ul, (ulong?)null, (bool?)false), (row.ReportedUncorrect!.Value, row.CommandTimeout!.Value, row.UdmaCrcErrorCount, row.LastSelfTestPassed));
     }

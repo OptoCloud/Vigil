@@ -15,6 +15,7 @@
 	import { diskBusySeries, diskTrafficSeries } from '#lib/host.ts';
 	import type { DriveHealthRecord } from '#lib/types.ts';
 	import { vdevVerdict } from '#lib/zfs.ts';
+	import Withheld from '#lib/components/Withheld.svelte';
 
 	const live = getLive();
 
@@ -78,7 +79,9 @@
 			<dt>Temperature</dt>
 			<dd>{sensor?.celsiusOrNull == null ? 'asleep or unreadable' : `${sensor.celsiusOrNull.toFixed(0)}°C`}</dd>
 			<dt>Serial</dt>
-			<dd>{health?.serialNumber ?? 'n/a'}</dd>
+			<dd>
+				{#if health?.serialNumber}<Withheld text={health.serialNumber} />{:else}n/a{/if}
+			</dd>
 			<dt>Reallocated sectors</dt>
 			<dd>{formatCount(health?.reallocatedSectorCount)}</dd>
 			<dt>Pending sectors</dt>
@@ -119,8 +122,9 @@
 							<StatusBadge level={v.level} label={v.label} />
 						</div>
 						<span class="text-xs text-faint tabular-nums">
-							{vdev.name}: {formatCount(vdev.readErrors)} read, {formatCount(vdev.writeErrors)} write, {formatCount(vdev.checksumErrors)} checksum
-							errors
+							<Withheld text={vdev.name} device />: {formatCount(vdev.readErrors)} read, {formatCount(vdev.writeErrors)} write, {formatCount(
+								vdev.checksumErrors
+							)} checksum errors
 						</span>
 					</li>
 				{/each}

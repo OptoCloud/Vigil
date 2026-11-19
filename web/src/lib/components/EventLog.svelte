@@ -2,6 +2,7 @@
 	import { relativeTime } from '#lib/chart/scale.ts';
 	import type { EventRecord, Severity } from '#lib/types.ts';
 	import StatusBadge from './StatusBadge.svelte';
+	import Withheld from './Withheld.svelte';
 
 	interface Props {
 		events: EventRecord[];
@@ -24,7 +25,7 @@
 		<li class="grid grid-cols-[84px_1fr_auto] items-start gap-3 border-b border-grid py-1.75 last:border-b-0">
 			<span class="pt-px text-xs"><StatusBadge level={event.severity} label={label[event.severity]} /></span>
 			<!-- Messages come from the server's own templates, but they embed device names; text interpolation keeps them inert. -->
-			<span>{event.message}</span>
+			<span><Withheld text={event.message} /></span>
 			<time class="text-xs whitespace-nowrap text-faint tabular-nums" datetime={event.ts} title={new Date(event.ts).toLocaleString()}
 				>{relativeTime(event.ts, now)}</time
 			>

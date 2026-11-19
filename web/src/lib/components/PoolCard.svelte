@@ -18,6 +18,7 @@
 	import Meter from './Meter.svelte';
 	import Panel from './Panel.svelte';
 	import StatusBadge from './StatusBadge.svelte';
+	import Withheld from './Withheld.svelte';
 
 	interface Props {
 		pool: PoolStatus;
@@ -102,9 +103,11 @@
 						<Table.Row class="border-grid">
 							<Table.Head scope="row" class="max-w-80 truncate pl-3 font-normal" title={vdev.path ?? vdev.name}>
 								{#if vdev.deviceName}
-									<a class="underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: vdev.deviceName })}>{vdev.name}</a>
+									<a class="underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: vdev.deviceName })}
+										><Withheld text={vdev.name} device /></a
+									>
 								{:else}
-									{vdev.name}
+									<Withheld text={vdev.name} device />
 								{/if}
 							</Table.Head>
 							<Table.Cell class="tabular-nums" title={vdev.port ?? ''}>{shortPort(vdev.port)}</Table.Cell>
