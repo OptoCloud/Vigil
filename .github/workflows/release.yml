@@ -82,13 +82,13 @@ jobs:
         run: gh release create "$TAG" dist/vigild dist/vigil-core.tar.gz dist/SHA256SUMS --verify-tag --generate-notes
 
       # DEPLOY_REPOSITORY (owner/name) receives a `vigil-release` repository_dispatch with the
-      # tag. It is a secret, not a variable, so the public run log masks it. DEPLOY_DISPATCH_TOKEN:
+      # tag. It is a secret, not a variable, so the public run log masks it. HOSTS_DISPATCH_TOKEN:
       # a fine-grained token for that repository only, Contents: read and write, the least
       # repository_dispatch accepts. It can start that repository's workflows and reach nothing
       # else. Neither set: the release is published and nothing is deployed.
       - name: Hand the release to the deployment
         env:
-          GH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.HOSTS_DISPATCH_TOKEN }}
           REPOSITORY: ${{ secrets.DEPLOY_REPOSITORY }}
           TAG: ${{ github.ref_name }}
         run: |

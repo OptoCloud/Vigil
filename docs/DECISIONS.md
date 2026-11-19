@@ -333,7 +333,7 @@ is public.
 
 The chain's trust is arranged so no single secret is worth much:
 
-- `DEPLOY_DISPATCH_TOKEN`, here, can only start the deployment repository's workflows.
+- `HOSTS_DISPATCH_TOKEN`, here, can only start the deployment repository's workflows.
 - The deployment's credentials should reach the host only as a user whose login shell runs one
   command, which installs only what the deployment repository pins at a commit, after
   checking each sha256. A leaked key can then re-deploy a release that was already verified,
