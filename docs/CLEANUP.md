@@ -8,6 +8,36 @@ until the previous one is read.
 Every item names the evidence that produced it, so nothing here is a guess about what needs
 fixing. Tick an item only when its enforcer (test, lint or checklist line) is in place too.
 
+## On the host: what only the host can settle
+
+As of 2026-11-19 every step below is done in code. What is left needs the host's hardware or
+the deployment repo, so it is gathered here, in the order it is cheapest to do. Each line names the
+step it came from, which has the detail.
+
+- [ ] **A tag deploys.** The deployment repo's TODO (secrets, network policy, `the host's apply step`),
+      then a tag. `v1.0.0` exists; nothing here records that it deployed. The first tag through
+      the pipeline deploys the NativeAOT vigil-core (6.x), proves that SSH runs the
+      `deploy` user's login shell, and creates Phase 8's tables on the host's database.
+      *From:* Follow-up: a tag on master deploys.
+- [ ] **Host load (8.7).** Compare a snapshot against `free -b`, `arc_summary`, `iostat -x 2`,
+      `cat /proc/pressure/*` and `ip -s link`; check that a sleeping disk stays asleep across an
+      hour of `diskstats` reads (`hdparm -C`); check whether this OpenZFS counts the ARC inside
+      `MemAvailable`, and make "used" agree with `free`. Confirm `vmbr0` is the LAN bridge and
+      add the physical uplink's name to `[host] interfaces` (8.2).
+- [ ] **ZFS fixtures and sandbox (7.1).** Capture `zpool status -j --json-int` from the host as
+      `healthy.json`, and run `zpool` under the unit's sandbox:
+      `systemd-run --pty -p RestrictAddressFamilies=AF_UNIX -p ProtectSystem=full /usr/sbin/zpool status -j`.
+- [ ] **The scratch-pool drill (7.8)**, never on `tank`; its script is in the step. The other
+      fixtures for 7.1 come from it.
+- [ ] **The 8-bay's slot order (7.7):** confirm phy0-7 against the activity lights.
+- [ ] **SMART self-tests (7.6):** have smartd schedule them, then set
+      `SMART_SELF_TEST_MAX_AGE_DAYS=8`.
+- [ ] **vigild's capabilities (Phase 1):** establish the minimum `CapabilityBoundingSet` and add
+      it to the unit.
+- [ ] **The SMS gateway (ADR-027):** once a test text from `mmcli` arrives (`the modem's notes`,
+      step 4), build it to the README's contract and set `SMS_URL` and `SMS_TOKEN`.
+      `dev/mock-sms.mjs` is the reference for what it must accept.
+
 ---
 
 ## Phase 0 — Guides and enforcement (no behaviour change)
@@ -72,7 +102,7 @@ Out of scope by decision: vigil-web stays LAN-open without auth. See `docs/DECIS
 
 **Follow-up for the host** (needs the real hardware, so it cannot be done here):
 
-- [ ] Narrow `CapabilityBoundingSet` on `vigild`. It runs as root and needs `CAP_CHOWN` for the
+- [x] *(Moved to On the host.)* Narrow `CapabilityBoundingSet` on `vigild`. It runs as root and needs `CAP_CHOWN` for the
       socket's uid/gid; `smartctl` may want `CAP_SYS_RAWIO` for `SG_IO` on some kernels.
       Establish the minimum set on the target host, then add it to the unit.
 
@@ -325,10 +355,10 @@ point at which authentication stops being optional. ADR-008 is rewritten to say 
       **Fixed on the way:** `core-net/` had no `.gitattributes` line, so with `core.autocrlf`
       on Windows every C# file checked out CRLF and `dotnet format --verify-no-changes` failed
       on all of them. It is `eol=lf` now, matching `.editorconfig`.
-      **Open, Windows only:** `NutClientTests.AClosedConnectionIsReportedAndRetried` fails here
-      intermittently (most runs) and passes on Linux. The fake upsd closes before reading, so Windows answers the client's
-      `LIST VAR` with a reset and the reason is the socket's wording, not "upsd closed the
-      connection". Untouched, since it is the client's behaviour (6.3), not alerting's.
+      **Fixed 2026-11-19, the Windows-only flake:** `NutClientTests.AClosedConnectionIsReportedAndRetried`
+      failed on most Windows runs because the fake upsd closed with the request unread, which
+      Windows answers with a reset. The fake reads the request first now; the client already
+      reports a reset and an end of stream alike. Not rerun on Windows from here.
 - [x] **6.6 The API.** `/api/live` over `TypedResults.ServerSentEvents`, `/api/history`,
       `/api/events`, and the SvelteKit build served as static files. 147 tests.
       **Scope corrected while starting:** `/live` streams the runtime's state, and no step had
@@ -443,8 +473,8 @@ point at which authentication stops being optional. ADR-008 is rewritten to say 
         transient unit with `MemoryDenyWriteExecute=yes`. *Enforcer:* the `vigil-core-aot` CI
         job publishes it with warnings as errors and checks that the binary reads its
         environment; `VigilEnvironmentTests` runs the generated binder; the database tests
-        build their connections with the slim builder. **Open, on the host:** install the
-        package in the guest and restart the unit.
+        build their connections with the slim builder. **On the host:** the first release
+        deploys it (On the host).
 
 ## Phase 7: ZFS pool state, and a verdict that covers everything
 
@@ -480,8 +510,8 @@ That proposal was written before checking the code. It changed in these places:
 
 ### Steps, each ending green
 
-- [ ] **7.1 vigild: `zfs.rs` reads pool state.** Done in code on 2026-10-17; open only for the
-      two host items at the end, which nothing here can reach.
+- [x] **7.1 vigild: `zfs.rs` reads pool state.** Done in code on 2026-10-17. The two host items
+      at the end are on the On the host list.
       - `[zfs]` in `vigild.toml`: `enabled` (default false, so a host without ZFS does not log
         a failing `zpool` every minute; `deploy/vigild.toml` sets it to true), `zpool_path`,
         `poll_interval_secs = 60` and `timeout_secs = 15`, checked in `config/validate.rs`,
@@ -517,7 +547,7 @@ That proposal was written before checking the code. It changed in these places:
         round trips and web key lists, and `integration-test.sh` running the real binary
         against a fake `zpool` through the socket. Docs: ARCHITECTURE's module map, SECURITY.md
         §1 and §5, and the README's API sample and host prerequisite.
-      - **Open, on the host:** capture real `zpool status -j --json-int` output for the
+      - **On the host (On the host):** capture real `zpool status -j --json-int` output for the
         fixtures (`healthy.json` from the host, the rest from the 7.8 scratch pool) and keep the
         tests passing against it. And check that `zpool` works under the unit's sandbox, since
         it inherits `RestrictAddressFamilies=AF_UNIX`:
@@ -606,8 +636,8 @@ That proposal was written before checking the code. It changed in these places:
         age is `SMART_SELF_TEST_MAX_AGE_DAYS`, unset until smartd schedules tests, and allows for
         hours logged in 16 bits. Drive state moved into `DriveTracking`. *Enforcer:* `smart.rs`
         tests, `DriveHealthDiffTests`, `DriveConditionsTests`, the verdict test across a
-        restart, `DataLayerTests` and all three contracts. **Open, on the host:** have smartd
-        schedule tests, then set the option.
+        restart, `DataLayerTests` and all three contracts. **On the host (On the host):** have
+        smartd schedule tests, then set the option.
 - [x] **7.7 The bay view. Decide at review.** It needs a mapping from port to (cage, slot), and
       none exists yet. Recommendation: `[[bays]]` in `vigild.toml`, which already names and
       validates ports in its zones, published in the snapshot. Each slot shows the disk's
@@ -616,9 +646,9 @@ That proposal was written before checking the code. It changed in these places:
       - **Done 2026-11-11, as recommended.** `[[bays]]` (port, cage, slot), validated in
         `config/bays.rs` and published as `Snapshot.bays`; the host's twelve are in
         `deploy/vigild.toml`. Pool and drive alerts name the bay. *Enforcer:* `config::bays`
-        tests (the host's mapping is pinned), the contracts, and `bayRows` in vitest. **Open, on
-        the host:** confirm the 8-bay's slot order against phy0-7 by its activity lights.
-- [ ] **7.8 Verify on a scratch pool, never `tank`.**
+        tests (the host's mapping is pinned), the contracts, and `bayRows` in vitest. **On the
+        host (On the host):** confirm the 8-bay's slot order against phy0-7 by its activity lights.
+- [x] *(Moved to On the host; the script stays here.)* **7.8 Verify on a scratch pool, never `tank`.**
       ```sh
       truncate -s 1G /tmp/zt{1..5}
       zpool create ztest raidz2 /tmp/zt1 /tmp/zt2 /tmp/zt3 /tmp/zt4 spare /tmp/zt5
@@ -685,7 +715,7 @@ disk's own lines go on its `/drives/<name>` page.
       same as in `driveHealth`), validation tests, and the contracts.
       - **Done 2026-11-19.** A disk counts when `/sys/block/<dev>/device` exists, which
         is the kernel's own distinction: zvols, dm, md, loop, ram and nbd have none
-        (`DiskResolver::hardware_disk`). the host publishes `vmbr0`. **Open, on the host:** check that
+        (`DiskResolver::hardware_disk`). the host publishes `vmbr0`. **On the host (On the host):** check that
         `vmbr0` is the LAN bridge and add the physical uplink's name.
 - [x] **8.3 vigil-core turns counters into rates.** `Runtime/HostTracking`, holding host state
       the way `UpsTracking` does. It keeps the previous counters and works out CPU busy % and
@@ -747,7 +777,7 @@ disk's own lines go on its `/drives/<name>` page.
       - **Already there, found while building 8.3.** `PoolConditions.Capacity` has raised
         `zfs-capacity:<pool>` at 80 % (warning) and 90 % (critical), with 2 points of hysteresis,
         since Phase 7. Nothing added; the plan was written without checking.
-- [ ] **8.7 Verify on the host.** Compare a snapshot against `free -b`, `arc_summary`,
+- [x] *(Moved to On the host.)* **8.7 Verify on the host.** Compare a snapshot against `free -b`, `arc_summary`,
       `iostat -x 2`, `cat /proc/pressure/*` and `ip -s link`. Confirm that a sleeping disk stays
       asleep across an hour of `diskstats` reads (`hdparm -C`). Check whether this OpenZFS
       counts the ARC inside `MemAvailable`, and make the memory chart's "used" agree with
@@ -759,7 +789,7 @@ the `host.rs` row in ARCHITECTURE.md's module map, `/system` in the web table, a
 
 ## Follow-up: SMS notifications through the self-hosted gateway
 
-Added 2026-11-11. Not started, on purpose: the gateway does not exist yet. The cellular modem on the host
+Added 2026-11-11. The gateway does not exist yet; vigil's side is built (below). The cellular modem on the host
 is waiting for the SIM, and SMS over the current carrier is impossible
 (the deployment's modem notes). The seam is ready: `INotifier` and
 `AlertRouter` (ADR-021). Decided with the user on 2026-11-11:
@@ -782,7 +812,13 @@ is waiting for the SIM, and SMS over the current carrier is impossible
 - **Auth is a bearer token.** `SMS_TOKEN` is a secret like `DATABASE_URL`: it is never logged
   and never put in an error (SECURITY.md §7). The URL is never logged either.
 
-- [ ] **The SMS channel, once the gateway answers.**
+- [x] **The SMS channel.** *Done 2026-11-19, ahead of the gateway, which only needs the
+      variables set once it answers (On the host). ADR-027 records the decisions above; the
+      contract is in the README.* All of the plan below, as written: `SmsClient` with its
+      source-generated body, `SMS_URL`/`SMS_TOKEN` validated together without repeating either,
+      registered only when set, `dev/mock-sms.mjs` (`f` refuses, `a` rotates the token), and
+      the docs. Checked end to end: the scrub-age warning arrived at the mock as a text, and
+      vigil-core's log held neither value.
       - `Notifications/SmsClient.cs`, an `INotifier` named `sms` with a minimum of warning, built
         like `NtfyClient`: fire and forget, a hard send timeout, and failures logged, never
         thrown. The body goes through a source-generated JSON context, as everything does under
@@ -811,6 +847,6 @@ is waiting for the SIM, and SMS over the current carrier is impossible
       *Enforcer:* the tag-on-master and attestation checks in the two workflows; the pinned
       sha256s, which deploy command and guest recipe both check; `cli.rs` and `instance.rs` tests.
       deploy command was run against a sandboxed fake host, through the happy path, both
-      rollbacks and each refusal. **Open, once:** the setup in the deployment repo's TODO (secrets,
+      rollbacks and each refusal. **On the host (On the host), once:** the setup in the deployment repo's TODO (secrets,
       network policy, `the host's apply step`), then the first tag. That first run is also the proof
       that SSH runs the `deploy` user's login shell.
