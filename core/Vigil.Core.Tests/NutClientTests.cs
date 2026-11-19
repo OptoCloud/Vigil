@@ -25,13 +25,17 @@ public sealed class NutClientTests
             using (listener)
             {
                 using var client = await listener.AcceptTcpClientAsync();
-                if (closeImmediately)
-                {
-                    return;
-                }
-
                 await using var stream = client.GetStream();
                 using var reader = new StreamReader(stream, Encoding.UTF8);
+
+                if (closeImmediately)
+                {
+                    // Read the request before hanging up. Closing with it unread makes Windows send
+                    // a reset instead of an end of stream, and whether the client then sees the
+                    // reset or the end depended on timing: the test failed on most Windows runs.
+                    await reader.ReadLineAsync();
+                    return;
+                }
 
                 while (await reader.ReadLineAsync() is { } request)
                 {
