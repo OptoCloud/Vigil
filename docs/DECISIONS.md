@@ -209,7 +209,7 @@ is not installed where vigil is built, and ASP.NET's reflection paths are not al
 `MemoryDenyWriteExecute`, and says so. The schema is re-applied idempotently on every database
 (re)connect, ported from the Rust core; EF Core migrations, which the phase 6 plan named, are
 deferred until something needs a migration history. ADR-003 and ADR-004 bind vigild only.
-NativeAOT is a planned follow-up, not a rejection: docs/CLEANUP.md tracks what it needs.
+NativeAOT is a planned follow-up, not a rejection.
 *Amended 2026-11-11:* on .NET 11, an STS release supported to 2028-11-14, rather than the
 .NET 10 LTS. Self-contained is what makes that safe: the runtime ships inside the build, so
 the guest never has to have it, and moving to the next release is a rebuild. Its SDK also fixed
@@ -241,10 +241,9 @@ owning types it never sends. A new route that is not a GET fails `ApiTests.Every
 
 ### ADR-018: ZFS pool state comes from vigild, and zed keeps its own push
 
-*Decided 2026-10-17*, after an incident report. SMART judges a disk
-by its own self-assessment. ZFS judges it by whether its reads succeed, and it faulted a disk
-whose SMART still said PASSED. vigil read only SMART, so the pool sat DEGRADED for nine days
-while the dashboard said Live.
+*Decided 2026-10-17*, after a pool sat DEGRADED for days while the dashboard said Live. SMART
+judges a disk by its own self-assessment. ZFS judges it by whether its reads succeed, and it
+faulted a disk whose SMART still said PASSED. vigil read only SMART, so it never saw the fault.
 
 vigild reads pool state, because reading the host's hardware is its job and it is the one on
 the host. vigil-core's unprivileged LXC has no `/dev/zfs`. vigild runs `zpool status -j` and
@@ -300,9 +299,9 @@ is the one new route: a GET, bound to 200 rows, the name bound as a parameter. A
 
 ### ADR-021: Notifications go out through channels, each with its own minimum severity
 
-*Decided 2026-11-11,* with CLEANUP 7.3's "decide at review": push the all-clear of anything
-that was pushed. ntfy was the only way vigil reached a person, called straight from the
-runtime. An SMS gateway on the host's LTE modem is to be the second, for when the LAN or the
+*Decided 2026-11-11:* push the all-clear of anything that was pushed. ntfy was the only way
+vigil reached a person, called straight from the runtime. An SMS gateway on a cellular modem
+is to be the second, for when the LAN or the
 internet is the thing that is down, and a text for every warning would be noise.
 
 So delivery is `INotifier` channels behind one `AlertRouter`. Each channel has a minimum
@@ -319,31 +318,33 @@ a phone number, gateway URL or token is never logged and never put in an error o
 
 ### ADR-022: A tag on master is a deploy
 
-*Decided 2026-11-11.* Releases were built by hand on the host's build guest (a build guest) and
-installed by a runbook, so a fix reached the NAS whenever someone found an evening for it.
+*Decided 2026-11-11.* Releases were built by hand on a build guest and installed by a
+runbook, so a fix reached the NAS whenever someone found an evening for it.
 
 Now pushing a tag `vMAJOR.MINOR.PATCH` (semver, since 2026-11-16; dated `vYYYY.MM.DD` tags before
 that) on a commit master contains runs
 `.github/workflows/release.yml`: every check in `check.yml`, then vigild and `vigil-core.tar.gz`
 built from the tagged tree, attested with GitHub's build provenance and published as the
-release. It dispatches `vigil-release` to the deployment repo, which owns what the host runs: its
-`deploy workflow` workflow verifies the attestations, pins the two sha256s in the repo, commits,
-and asks the host to apply that commit.
+release. When the `DEPLOY_REPOSITORY` secret names one, it dispatches `vigil-release` with the
+tag to that repository, which owns what the host runs: its workflow verifies the attestations,
+pins the two sha256s, commits, and asks the host to apply that commit. Without it, a tag only
+publishes. The deployment is not described here: it is the deployment's, and this repository
+is public.
 
 The chain's trust is arranged so no single secret is worth much:
 
-- `HOSTS_DISPATCH_TOKEN`, here, can only start the deployment's workflows.
-- the deployment's credentials reach the host only as a `deploy` user whose login shell runs one command,
-  `deploy command <tag> <commit>`, through one sudo rule. the host installs only what its own
-  clone of the deployment repo pins at that commit, after checking each sha256. A leaked key can
-  re-deploy a release that was already verified, nothing else.
+- `DEPLOY_DISPATCH_TOKEN`, here, can only start the deployment repository's workflows.
+- The deployment's credentials should reach the host only as a user whose login shell runs one
+  command, which installs only what the deployment repository pins at a commit, after
+  checking each sha256. A leaked key can then re-deploy a release that was already verified,
+  nothing else.
 - A new vigild is checked against the live config before it replaces the old one, and both
   components are health-checked after the restart and rolled back if that fails.
 
-*Rejected:* vigil as a submodule of the apps repo, bumped by each release. A submodule records
-source, but the host runs built artifacts, and the deployment's pin already records exactly which. A
-second record of "the version" could only disagree with the first. *Rejected:* CI with root
-SSH to the host, simpler but a root shell on the NAS in GitHub's secret store.
+*Rejected:* vigil as a submodule of the deployment, bumped by each release. A submodule records
+source, but the host runs built artifacts, and the deployment's pin already records exactly
+which. A second record of "the version" could only disagree with the first. *Rejected:* CI with
+root SSH to the host, simpler but a root shell on the NAS in GitHub's secret store.
 
 ### ADR-023: The dashboard is public, read-only, and treated as published
 
@@ -371,7 +372,7 @@ front of it, and vigil-core has to be told what that is (`TRUSTED_PROXIES`) befo
 a forwarded address; `ALLOWED_HOSTS` names the host it answers to.
 
 *Consequence:* the host's temperatures, drive health, pool state, UPS state and event log are
-public, by decision. That includes whether the house has mains power. A flood from many
+public, by decision. That includes whether the host has mains power. A flood from many
 addresses is not vigil-core's to stop: the per-client limits make one machine harmless, and
 anything larger is the front proxy's or the CDN's job. Authentication remains the planned
 answer to anything that needs to be private or to act.
@@ -435,7 +436,7 @@ allow-list because on a Proxmox host the interface names (`tap100i0`, `veth105i0
 the guest IDs. No addresses, hostnames, mount points or per-process figures are published.
 
 *Consequence:* the public page shows when the host is busy and when its network is in use, and
-so roughly when the house is active, as UPS state already shows mains power. The owner accepted
+so roughly when its users are active, as UPS state already shows mains power. The owner accepted
 this on 2026-11-19. Each snapshot grows by a few hundred bytes. vigil-core writes one host row
 and one traffic row per disk, pool and interface every persist interval (10 s), each the average
 since the row before, plus pool capacity once per `[zfs]` poll.
@@ -465,10 +466,10 @@ It turns an edit into data loss on the next start, which is what this rule exist
 *Rejected:* adding columns to `ups_samples` and a second pair of aggregates over it. `Series`
 names its aggregates after its raw table, and a table of their own costs nothing.
 
-### ADR-027: Texts go through a gateway on the host that vigil defines the contract for
+### ADR-027: Texts go through a gateway that vigil defines the contract for
 
-*Decided with the owner on 2026-11-11; built on 2026-11-19.* The cellular modem is on the host and
-vigil-core runs in a LAN guest, so the two talk over HTTP, and vigil-core never drives the modem
+*Decided 2026-11-11; built on 2026-11-19.* A cellular modem sits on the host and vigil-core
+runs in a guest, so the two talk over HTTP, and vigil-core never drives the modem
 (invariant 1). vigil writes the contract and the gateway implements it: `POST <SMS_URL>` with
 `Authorization: Bearer <SMS_TOKEN>` and `{ "message": "…" }`, answered 2xx for accepted. It is in
 the README beside the API, for whoever writes the gateway.

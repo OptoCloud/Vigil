@@ -29,7 +29,7 @@ public sealed class AlertRouterTests
         var router = Router();
 
         router.Route(new NewEvent(Severity.Warning, "zfs-spares:tank", "one spare short"));
-        router.Route(new NewEvent(Severity.Critical, "zfs-pool:tank", "void is DEGRADED"));
+        router.Route(new NewEvent(Severity.Critical, "zfs-pool:tank", "tank is DEGRADED"));
 
         Assert.Equal(["zfs-spares:tank", "zfs-pool:tank"], _ntfy.Sent.Select(sent => sent.Event.Kind));
         Assert.Equal(["zfs-pool:tank"], _sms.Sent.Select(sent => sent.Event.Kind));
@@ -40,10 +40,10 @@ public sealed class AlertRouterTests
     {
         var router = Router();
         router.Route(new NewEvent(Severity.Warning, "zfs-spares:tank", "one spare short"));
-        router.Route(new NewEvent(Severity.Critical, "zfs-pool:tank", "void is DEGRADED"));
+        router.Route(new NewEvent(Severity.Critical, "zfs-pool:tank", "tank is DEGRADED"));
 
         router.Route(new NewEvent(Severity.Info, "zfs-spares:tank", "spares back"));
-        router.Route(new NewEvent(Severity.Info, "zfs-pool:tank", "void is ONLINE"));
+        router.Route(new NewEvent(Severity.Info, "zfs-pool:tank", "tank is ONLINE"));
 
         Assert.Equal([false, false, true, true], _ntfy.Sent.Select(sent => sent.IsAllClear));
         Assert.Equal([false, true], _sms.Sent.Select(sent => sent.IsAllClear));

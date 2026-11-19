@@ -71,7 +71,7 @@ LockPersonality=true
 # CapabilityBoundingSet: NOT set yet. The daemon runs as root and needs CAP_CHOWN
 #   for the socket's uid/gid, and smartctl may need CAP_SYS_RAWIO for SG_IO on
 #   some kernels. Narrowing it blind risks losing fan control or drive health, so
-#   it has to be established on the target host - docs/CLEANUP.md tracks it.
+#   it has to be established on the target host.
 
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 // A stand-in for NUT's upsd, for developing vigil-core without the UPS. Answers
 // LIST VAR and GET NUMLOGINS for one UPS ("apc") with the variables apc_modbus reports for
-// the host's APC Smart-UPS 1000, over the real line protocol.
+// an APC Smart-UPS 1000, over the real line protocol.
 //
 //   node dev/mock-upsd.mjs [port]            then run vigil-core with NUT_HOST=127.0.0.1 NUT_PORT=3493
 //

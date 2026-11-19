@@ -12,9 +12,9 @@ public sealed class PostgresUriTests
     [Fact]
     public void ReadsAFullUrl()
     {
-        var parsed = Parse("postgres://vigil:secret@192.0.2.130:5432/vigil");
+        var parsed = Parse("postgres://vigil:secret@192.0.2.10:5432/vigil");
 
-        Assert.Equal("192.0.2.130", parsed.Host);
+        Assert.Equal("192.0.2.10", parsed.Host);
         Assert.Equal(5432, parsed.Port);
         Assert.Equal("vigil", parsed.Database);
         Assert.Equal("vigil", parsed.Username);

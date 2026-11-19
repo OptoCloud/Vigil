@@ -326,7 +326,7 @@ mod tests {
         assert_eq!(curve.members, vec![Member::Named("cpu".to_owned()), Member::Wildcard { prefix: "drive:".to_owned(), except: vec![] }]);
     }
 
-    /// The acceptance condition for zones: the config the host ran before they existed must
+    /// The acceptance condition for zones: a config written before they existed must
     /// resolve to exactly the raw inputs it always had, so deploying a new build against an
     /// unchanged config changes no fan's behaviour.
     #[test]
@@ -357,37 +357,37 @@ mod tests {
     }
 
     #[test]
-    fn the_orion_config_lets_the_hottest_hdd_in_either_stack_set_the_cage_fan() {
-        let config = Config::parse(include_str!("../../deploy/vigild.toml")).unwrap();
+    fn the_example_config_lets_the_hottest_hdd_in_either_stack_set_the_cage_fan() {
+        let config = Config::parse(include_str!("../../deploy/vigild.example.toml")).unwrap();
         assert_eq!(config.validate(), Vec::<String>::new());
         let curve = |id: &str| FanCurve::from_config(config.curves.iter().find(|c| c.fan_channel_id == id).unwrap(), &config.zones);
         let matched = |curve: &FanCurve, reading: &SensorReading| curve.members.iter().any(|m| m.matches(reading));
 
-        // Real ports and WWNs from the host.
-        let void = drive("naa.5000c500e5f60718", "pci-0000:03:00.0-sas-phy2-lun-0", 34.0);
+        // The example's ports.
+        let tank = drive("naa.5000c500e5f60718", "pci-0000:03:00.0-sas-phy2-lun-0", 34.0);
         let scratch = drive("naa.5000c500a1b2c3d4", "pci-0000:01:00.1-ata-3", 32.0);
         let spare2 = drive("naa.5000c500b7c8d9e0", "pci-0000:01:00.1-ata-4", 37.0);
-        let spare3 = drive("naa.5000c500c1d2e3f4", "pci-0000:01:00.1-ata-6", 38.0);
+        let spare3 = drive("naa.5000c500c1d2e3f4", "pci-0000:01:00.1-ata-5", 38.0);
         let ssd1 = drive("naa.5002538e0a1b2c3d", "pci-0000:01:00.1-ata-1", 43.0);
         let ssd2 = drive("naa.5002538e4e5f6071", "pci-0000:01:00.1-ata-2", 40.0);
 
         // Every HDD in both stacks, neither SSD.
         let cage = curve("drive-cage");
-        assert!([&void, &scratch, &spare2, &spare3].iter().all(|r| matched(&cage, r)));
+        assert!([&tank, &scratch, &spare2, &spare3].iter().all(|r| matched(&cage, r)));
         assert!(![&ssd1, &ssd2].iter().any(|r| matched(&cage, r)));
 
-        // A typical minute from the recorded history: the hottest HDD is a spare at 38C, and
+        // The hottest HDD is a spare at 38C, and
         // it sets the fan. The warmer SSDs don't.
-        let readings = [void.clone(), scratch.clone(), spare2.clone(), spare3.clone(), ssd1.clone(), ssd2.clone()];
+        let readings = [tank.clone(), scratch.clone(), spare2.clone(), spare3.clone(), ssd1.clone(), ssd2.clone()];
         assert_eq!(CurveEngine::default().evaluate(&cage, &readings), 65);
 
         // A replacement disk in a 4-bay port is covered with no config change: the zone is
         // the bay, not the disk.
-        assert!(matched(&cage, &drive("naa.5000c500deadbeef", "pci-0000:01:00.1-ata-6", 50.0)));
+        assert!(matched(&cage, &drive("naa.5000c500deadbeef", "pci-0000:01:00.1-ata-5", 50.0)));
 
         let intake = curve("intake-gpu-lsi");
         assert!([&ssd1, &ssd2].iter().all(|r| matched(&intake, r)));
-        assert!(!matched(&intake, &void));
+        assert!(!matched(&intake, &tank));
 
         assert_eq!(curve("lsi-cooling").members, vec![Member::Named("hba".to_owned())]);
     }

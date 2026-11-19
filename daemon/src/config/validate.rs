@@ -369,16 +369,16 @@ mod tests {
         assert!(has(&errors, "Sensor 'drive:naa.1' is named explicitly in zones 'a', 'b'"));
     }
 
-    /// The dashboard in the dashboard guest reads the socket as its `dashboard` group. A deploy config
-    /// that drops these still passes every check run as root on the host, while the
-    /// dashboard silently loses access.
+    /// The example shows an unprivileged container's consumer, which reads the socket as its
+    /// own group. A config that drops these still passes every check run as root on the host,
+    /// while the consumer silently loses access.
     #[test]
-    fn the_orion_config_gives_the_socket_to_the_dashboard_container() {
-        let config = Config::parse(include_str!("../../../deploy/vigild.toml")).unwrap();
+    fn the_example_config_gives_the_socket_to_a_container() {
+        let config = Config::parse(include_str!("../../../deploy/vigild.example.toml")).unwrap();
 
         assert_eq!((config.api.socket_uid, config.api.socket_gid), (Some(100000), Some(102000)));
         assert_eq!(config.api.socket_mode_bits(), Some(0o660));
-        assert!(config.zfs.enabled, "the host's pools are what the zfs poller exists for");
+        assert!(config.zfs.enabled, "the example shows the zfs poller");
         assert!(config.validate().is_empty());
     }
 

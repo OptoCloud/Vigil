@@ -25,13 +25,13 @@ Most of this README is `vigild`; [vigil-core](#vigil-core) and
 
 ## Why
 
-The stock NCT6798D Smart Fan curves only see board and CPU
-temperatures. This host also carries:
+A board's stock Smart Fan curves (here a Nuvoton NCT6798D's) only see board and CPU
+temperatures. A NAS host carries much more that heats up:
 
-- an LSI SAS9300-8i HBA (`mpt3sas`) driving 8 drives
-- 13 drives total (8 HBA + 5 SATA), each exposed individually via `drivetemp`
+- an LSI SAS HBA (`mpt3sas`, e.g. a SAS9300-8i) driving a drive array
+- a dozen or more drives, each exposed individually via `drivetemp`
 - a GPU (`nvidia-smi`)
-- 2 DIMMs via `jc42`
+- DIMMs via `jc42`
 
 None of that feeds the BIOS curve. This daemon reads all of it and drives the
 board's PWM headers directly.
@@ -51,9 +51,9 @@ started life as a .NET daemon; that implementation is in the git history.)
   (`sensor_rescan_interval_secs`, default 30), so a drive that resets or is
   hot-swapped is picked back up without a restart.
 - **Only whitelisted sensors are read.** Unconnected/floating hwmon inputs
-  (`AUXTIN0/1/2`, `CPUTIN` on this board) are never touched.
+  (`AUXTIN0/1/2`, `CPUTIN` on an NCT6798D board) are never touched.
 - **Fan headers are addressed by verified mapping, not guesswork.** There is
-  no documented `pwmN` to silkscreen header table for this board; the mapping
+  no documented `pwmN` to silkscreen header table for most boards; the mapping
   in config must be established by walking each channel in manual mode and
   watching which tach responds (`deploy/walk-fan-headers.sh`,
   `deploy/pulse-fan.sh`).
@@ -241,7 +241,7 @@ what enforces it, because a rule nothing checks does not survive.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): why the non-obvious choices are
   what they are. Read it before "simplifying" one.
 
-[`docs/CLEANUP.md`](docs/CLEANUP.md) is the live work plan, and `CLAUDE.md` is
+[`docs/CLEANUP.md`](docs/CLEANUP.md) is the work plan, and `CLAUDE.md` is
 the short version of all of it.
 
 ## Build and test
@@ -296,9 +296,10 @@ Status) and need re-verifying there after changes to them.
 
 Pushing a tag deploys: `git tag v1.2.3`, then push that tag to origin. The tag must
 be on master. `release.yml` runs every check, builds vigild and `vigil-core.tar.gz`,
-attests and publishes them, and hands the release to the deployment repo, which pins it and
-installs it on the host with a health check and a rollback ([ADR-022](docs/DECISIONS.md)). The
-manual steps below are what that automates, and what to do without it.
+attests and publishes them, and, when the repository names one, hands the release to a
+deployment repository, which pins it and installs it with a health check and a rollback
+([ADR-022](docs/DECISIONS.md)). The manual steps below are what that automates, and what to
+do without it.
 
 ### vigild
 
@@ -312,7 +313,7 @@ any Proxmox host using ZFS) and `[zfs] enabled = true`.
 |---|---|
 | `target/x86_64-unknown-linux-musl/release/vigild` | `/opt/vigil/vigild` (`chmod +x`) |
 | `deploy/release-fans.sh` | `/opt/vigil/release-fans.sh` |
-| `deploy/vigild.toml` | `/etc/vigil/vigild.toml` |
+| `deploy/vigild.example.toml`, edited for the host | `/etc/vigil/vigild.toml` |
 | `deploy/vigild.service` | `/etc/systemd/system/vigild.service` |
 | `deploy/tmpfiles.d/vigil.conf` | `/etc/tmpfiles.d/vigil.conf` |
 | `deploy/modules-load.d/vigil.conf` | `/etc/modules-load.d/vigil.conf` |
@@ -335,25 +336,26 @@ systemctl enable --now vigild.service
 journalctl -u vigild -f
 ```
 
-`channels` and `curves` in `vigild.toml` are specific to one board and its
+`deploy/vigild.example.toml` describes one machine: start from it, and change the ports,
+channels and curves to yours. `channels` and `curves` are specific to one board and its
 wiring. Leave both empty to run monitor-only, which never writes to any `pwmN`
 file.
 
 `zones` (optional) group sensors by the airflow they sit in, so a curve can
 react to "this part of the case" instead of listing chip-level categories
 that don't say where a device actually sits. Members are sensor ids or drive
-ports, and anything ending in `*` is a prefix wildcard. On the host:
+ports, and anything ending in `*` is a prefix wildcard. From the example:
 
 ```toml
-# The LSI's eight phys: the 8-bay stack.
+# The HBA's eight phys: the 8-bay stack.
 [[zones]]
 id = "eight-bay"
 sensor_ids = ["port:pci-0000:03:00.0-sas-*"]
 
-# The 4-bay stack: scratch, and the two hot spares.
+# The 4-bay stack's three disks.
 [[zones]]
 id = "four-bay"
-sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-4", "port:pci-0000:01:00.1-ata-6"]
+sensor_ids = ["port:pci-0000:01:00.1-ata-3", "port:pci-0000:01:00.1-ata-4", "port:pci-0000:01:00.1-ata-5"]
 
 # The hottest HDD in either stack sets the drive-cage fans.
 [[curves]]
@@ -578,7 +580,7 @@ they happened.
   UPS power events count on the first. While the UPS is unreadable its raised
   conditions are held, not cleared: not knowing is not "back to normal".
   Events go to Postgres and, optionally, ntfy over HTTPS and texts through
-  the SMS gateway on the host (below).
+  an SMS gateway (below).
 - Without a database the live view still works, and it retries the database
   every 15 seconds.
 
@@ -595,7 +597,7 @@ Its HTTP API, all `GET`:
 | `/health` | `ok` once running; says nothing about the database, which the live view does not need |
 
 It is configured entirely from the environment (`/etc/vigil-core.env` in
-production, from `core/deploy/vigil-core.env`). Every value is validated
+production; `core/deploy/vigil-core.example.env` is an example to start from). Every value is validated
 before it starts, with every problem listed:
 
 | Variable | Default | |
@@ -621,13 +623,13 @@ before it starts, with every problem listed:
 | `ALLOWED_HOSTS` | | the host names it answers to, separated by semicolons; unset answers to any |
 | `DAEMON_LOST_AFTER_SECONDS` | `20` | how long `vigild` must be unreachable before that is an event |
 | `WEB_ROOT` | | the dashboard's build; unset serves the API only, as in development |
-| `ZFS_EXPECTED_SPARES` | | hot spares each pool should have `AVAIL`, as `pool:count,…` (the host: `tank:2`); a pool not named is not checked |
+| `ZFS_EXPECTED_SPARES` | | hot spares each pool should have `AVAIL`, as `pool:count,…` (`tank:2`); a pool not named is not checked |
 | `ZFS_SCRUB_MAX_AGE_DAYS` | `35` | how old a pool's last completed scrub may get before that is a warning |
 | `SMART_SELF_TEST_MAX_AGE_DAYS` | | how old a drive's last completed self-test may get; unset leaves it unjudged, as it should be until smartd schedules tests |
 
 ### The SMS gateway's contract
 
-vigil defines it and the gateway on the host implements it ([ADR-027](docs/DECISIONS.md)). The
+vigil defines it and a gateway implements it ([ADR-027](docs/DECISIONS.md)). The
 gateway holds the phone numbers; vigil-core knows only the URL and the token. Warnings and
 worse are sent, each with its all-clear.
 

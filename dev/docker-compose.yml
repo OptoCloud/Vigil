@@ -1,9 +1,9 @@
-# Postgres for local development only (production uses the shared Postgres in the database guest).
+# Postgres for local development only (production runs its own).
 #   docker compose -f dev/docker-compose.yml up -d
 #   DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil
 services:
   postgres:
-    # The same Postgres and TimescaleDB versions as the database guest; the image creates the extension itself.
+    # The same Postgres and TimescaleDB versions as production; the image creates the extension itself.
     image: timescale/timescaledb:2.32.0-pg18
     environment:
       POSTGRES_USER: vigil

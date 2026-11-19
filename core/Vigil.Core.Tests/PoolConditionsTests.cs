@@ -43,10 +43,10 @@ public sealed class PoolConditionsTests
 
         var conditions = PoolConditions.Of(zfs, Judge());
 
-        Assert.Equal(["zfs-pool:tank", "zfs-vdev:void:1", "zfs-vdev:void:8"], conditions.Keys);
+        Assert.Equal(["zfs-pool:tank", "zfs-vdev:tank:1", "zfs-vdev:tank:8"], conditions.Keys);
         Assert.All(conditions.Values, condition => Assert.Equal(Severity.Critical, condition.Severity));
-        Assert.Contains("FAULTED (ERR_EXCEEDED)", conditions["zfs-vdev:void:1"].Message, StringComparison.Ordinal);
-        Assert.Contains("standing in for a failed disk", conditions["zfs-vdev:void:8"].Message, StringComparison.Ordinal);
+        Assert.Contains("FAULTED (ERR_EXCEEDED)", conditions["zfs-vdev:tank:1"].Message, StringComparison.Ordinal);
+        Assert.Contains("standing in for a failed disk", conditions["zfs-vdev:tank:8"].Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public sealed class PoolConditionsTests
 
         var conditions = PoolConditions.Of(Zfs(Pool(state: "DEGRADED", vdevs: [faulted])), Judge(bays: bays));
 
-        Assert.Equal("a (8-bay slot 6) in pool tank is FAULTED (ERR_EXCEEDED).", conditions["zfs-vdev:void:1"].Message);
+        Assert.Equal("a (8-bay slot 6) in pool tank is FAULTED (ERR_EXCEEDED).", conditions["zfs-vdev:tank:1"].Message);
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public sealed class PoolConditionsTests
     [Theory]
     [InlineData("", 0)]
     [InlineData("tank:2", 1)]
-    [InlineData(" tank:2 , tank:1 ", 2)]
+    [InlineData(" tank:2 , backup:1 ", 2)]
     public void SpareCountsParse(string text, int pools)
     {
         Assert.True(SpareCounts.TryParse(text, out var counts, out _));
@@ -147,10 +147,10 @@ public sealed class PoolConditionsTests
 
     [Theory]
     [InlineData("tank")]
-    [InlineData("void:0")]
-    [InlineData("void:-1")]
+    [InlineData("tank:0")]
+    [InlineData("tank:-1")]
     [InlineData(":2")]
-    [InlineData("tank:2,void:1")]
+    [InlineData("tank:2,tank:1")]
     public void SpareCountsRefuseAnythingElse(string text)
     {
         Assert.False(SpareCounts.TryParse(text, out _, out var problem));

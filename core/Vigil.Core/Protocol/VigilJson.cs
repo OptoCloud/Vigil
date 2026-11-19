@@ -16,7 +16,7 @@ public static class VigilJson
 {
     /// <summary>
     /// The source-generated context's options: no reflection, so the NativeAOT build has
-    /// nothing to trim away (CLEANUP, the NativeAOT follow-up). A type outside
+    /// nothing to trim away. A type outside
     /// <see cref="VigilJsonContext"/> fails here at run time, in the tests first.
     /// </summary>
     public static JsonSerializerOptions Options => VigilJsonContext.Default.Options;

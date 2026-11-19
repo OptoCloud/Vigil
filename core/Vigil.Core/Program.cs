@@ -17,7 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSystemd();
 
 // Environment only, as the Rust version was, under the names already in
-// core/deploy/vigil-core.env. See VigilEnvironment for why the mapping is explicit.
+// core/deploy/vigil-core.example.env. See VigilEnvironment for why the mapping is explicit.
 builder.Configuration.AddVigilEnvironment();
 
 builder.Services

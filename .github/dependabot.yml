@@ -2,7 +2,7 @@
 # reviewed and run through scripts/check.sh together rather than as a stream of single PRs.
 #
 # Not covered, deliberately:
-#   - dev/docker-compose.yml's TimescaleDB image matches the production database in the database guest.
+#   - dev/docker-compose.yml's TimescaleDB image matches the production database.
 #     It moves when that database does, not when a newer image appears.
 #   - Microsoft.Extensions major versions: they must match ASP.NET Core's shared framework, so
 #     they move with the target framework and global.json, by hand, never on their own.

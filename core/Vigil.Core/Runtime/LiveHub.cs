@@ -14,7 +14,7 @@ public sealed class LiveHub(ChannelWriter<RuntimeInput> inputs)
     /// <summary>
     /// How many browser streams may be open at once (docs/SECURITY.md §4.2). One tab is one
     /// stream and a closed tab frees its slot at once. The page is public (ADR-023), so this
-    /// is sized for strangers looking as well as for the household; what a stream costs is a
+    /// is sized for strangers looking as well as for its own users; what a stream costs is a
     /// connection and a queue of references to strings every stream shares.
     /// </summary>
     public const int MaxSubscribers = 256;

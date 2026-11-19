@@ -137,8 +137,8 @@ export function zfsDiskVerdict(memberships: Membership[]): Verdict | null {
 
 /**
  * One verdict for a disk, from both of the things that judge it. ZFS's wins when it is worse:
- * a disk ZFS has faulted reads critical whatever SMART says, because on the night of the
- * pool fault SMART still said PASSED for the disk ZFS had thrown out.
+ * a disk ZFS has faulted reads critical whatever SMART says, because SMART can still say
+ * PASSED for a disk ZFS has thrown out.
  */
 export function diskVerdict(health: DriveState | undefined, memberships: Membership[]): Verdict {
 	const smart = smartVerdict(health);
@@ -146,7 +146,7 @@ export function diskVerdict(health: DriveState | undefined, memberships: Members
 	return zfs && RANK[zfs.level] > RANK[smart.level] && zfs.level !== 'good' ? { level: zfs.level, label: `ZFS: ${zfs.label}` } : smart;
 }
 
-/** "tank", "void, spare", "void, log": the pool a disk is in and, unless it holds data, its role. */
+/** "tank", "tank, spare", "tank, log": the pool a disk is in and, unless it holds data, its role. */
 export function roleOf(membership: Membership): string {
 	const role = membership.vdev.class === 'normal' ? '' : `, ${membership.vdev.class}`;
 	return `${membership.pool.name}${role}`;

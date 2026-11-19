@@ -46,7 +46,7 @@ fi
 # The symbols are 56 MB and only a debugger wants them; keep them out of the package.
 rm -f "$out/vigil-core.dbg"
 
-cp "$root/core/deploy/vigil-core.service" "$root/core/deploy/vigil-core.env" "$out/"
+cp "$root/core/deploy/vigil-core.service" "$root/core/deploy/vigil-core.example.env" "$out/"
 # Modes and ownership set explicitly rather than taken from the filesystem: on Windows there
 # are no Unix permission bits to take, and the binary would arrive without its execute bit.
 archive="$root/vigil-core.tar"

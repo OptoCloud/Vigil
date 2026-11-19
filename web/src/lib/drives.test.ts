@@ -172,7 +172,7 @@ describe('diskVerdict', () => {
 		const spare = vdev('sdk', 'a', { class: 'spare', parent: null, state: 'AVAIL' });
 		const memberships = [{ pool: pool([spare]), vdev: spare }];
 		expect(diskVerdict(passed, memberships)).toEqual({ level: 'good', label: 'Passed' });
-		expect(roleOf(memberships[0])).toBe('void, spare');
+		expect(roleOf(memberships[0])).toBe('tank, spare');
 		expect(zfsErrors([])).toBeNull();
 	});
 });

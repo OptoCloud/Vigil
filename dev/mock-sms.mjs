@@ -1,4 +1,4 @@
-// A stand-in for the SMS gateway on the host (ADR-027), for watching vigil-core's texts without
+// A stand-in for an SMS gateway (ADR-027), for watching vigil-core's texts without
 // the modem. Speaks the contract vigil defines: POST, `Authorization: Bearer <token>`, a JSON
 // body `{ "message": "…" }`, 202 for accepted. Prints each text it would have sent.
 //

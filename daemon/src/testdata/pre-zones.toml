@@ -1,4 +1,4 @@
-# fancontrol configuration for the host. Installed as /etc/fancontrol/fancontrol.toml.
+# A fancontrol configuration from before zones existed, kept as written. Installed as /etc/fancontrol/fancontrol.toml.
 # Validate after editing, without touching any fan:
 #   /opt/fancontrol/fancontrol --config /etc/fancontrol/fancontrol.toml --check
 

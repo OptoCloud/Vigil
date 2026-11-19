@@ -110,7 +110,7 @@
 							<th scope="row">Shutdown margin</th>
 							<td colspan="2" class="value">
 								<StatusBadge level={marginBadge.level} label={marginBadge.label} />
-								<span class="detail">the host takes {formatDuration(ups.limits.hostShutdownSeconds)} to shut down</span>
+								<span class="detail">The host takes {formatDuration(ups.limits.hostShutdownSeconds)} to shut down</span>
 							</td>
 						</tr>
 					{/if}
@@ -182,8 +182,8 @@
 			</details>
 		{:else}
 			<p class="mt-3 text-faint">
-				{ups.error ? `No reading: ${ups.error}.` : 'Connecting to upsd.'} This only affects the dashboard; the host's own upsmon still guards the
-				shutdown.
+				{ups.error ? `No reading: ${ups.error}.` : 'Connecting to upsd.'} This only affects the dashboard; the host's own upsmon still guards
+				the shutdown.
 			</p>
 		{/if}
 	</Card.Content>

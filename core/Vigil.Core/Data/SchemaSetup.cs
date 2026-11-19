@@ -22,7 +22,7 @@ namespace Vigil.Core.Data;
 /// | 1 hour | *_1h, a continuous aggregate of *_1m        | forever                                           |
 /// </code>
 /// Every step is idempotent, which is why it runs on every start rather than as numbered
-/// migrations. The extension itself is created by the database guest's recipe: it needs a superuser, and
+/// migrations. The extension itself is created when the database is provisioned: it needs a superuser, and
 /// vigil-core's role is not one.
 ///
 /// The one-time work (converting tables, copying old history, filling the aggregates over all
@@ -71,8 +71,8 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
         if (!await database.ExistsAsync("select 1 from pg_extension where extname = $1", "timescaledb").ConfigureAwait(false))
         {
             throw new DatabaseSetupException(
-                "the timescaledb extension is not installed in this database. the database guest's recipe creates it "
-                + "(create extension timescaledb, as the superuser)");
+                "the timescaledb extension is not installed in this database. A superuser creates it "
+                + "(create extension timescaledb)");
         }
 
         await database.ExecuteAsync(SqlText.Load("schema")).ConfigureAwait(false);

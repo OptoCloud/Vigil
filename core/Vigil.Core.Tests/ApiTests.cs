@@ -277,7 +277,7 @@ public sealed class ApiTests : IAsyncLifetime
         }
 
         // Only a disk's page falls back: deeper or other unknown paths are still a 404.
-        foreach (var path in new[] { "/drives/naa.1/smart", "/pools/void", "/api/events.html" })
+        foreach (var path in new[] { "/drives/naa.1/smart", "/pools/tank", "/api/events.html" })
         {
             using var missing = await Http.GetAsync(new Uri(path, UriKind.Relative), token);
             Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);

@@ -107,7 +107,7 @@ public static class UpsConditions
         {
             conditions["ups-low-battery"] = new Condition(
                 Severity.Critical,
-                $"The UPS battery is LOW.{charge}. the host's upsmon shuts the host down on this.",
+                $"The UPS battery is LOW.{charge}. upsmon shuts the host down on this.",
                 "The UPS battery is no longer low.");
         }
 
@@ -161,7 +161,7 @@ public static class UpsConditions
         {
             conditions["ups-shutdown-too-late"] = new Condition(
                 Severity.Warning,
-                $"the host's shutdown would not finish on battery: upsmon starts it with {Whole(startsAt)} s of runtime left, "
+                $"The host's shutdown would not finish on battery: upsmon starts it with {Whole(startsAt)} s of runtime left, "
                     + $"and it takes {Whole(takes)} s. Raise override.battery.runtime.low in ups.conf, or shorten the shutdown.",
                 "The low-battery warning leaves the host enough time to shut down again.");
         }

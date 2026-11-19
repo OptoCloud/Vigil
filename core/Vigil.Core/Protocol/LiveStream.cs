@@ -53,7 +53,7 @@ public sealed record UpsReading
     /// <summary>
     /// <c>battery.runtime.low</c>: below this much runtime the UPS is LB, and upsmon starts the
     /// shutdown. With the driver's <c>ignorelb</c> flag NUT judges this itself rather than
-    /// trusting the UPS, which is how the host's is set up.
+    /// trusting the UPS, which a deployment that overrides the threshold needs.
     /// </summary>
     public required double? LowBatteryRuntimeSeconds { get; init; }
 

@@ -9,7 +9,7 @@ namespace Vigil.Core.Data;
 /// <remarks>
 /// <para>
 /// Npgsql takes keyword connection strings and does not parse URLs, but <c>DATABASE_URL</c> is a
-/// URL: it is what the Rust implementation read, what <c>core/deploy/vigil-core.env</c> contains,
+/// URL: it is what the Rust implementation read, what <c>core/deploy/vigil-core.example.env</c> contains,
 /// and the form every other tool in this stack uses. Converting is this type's whole job.
 /// </para>
 /// <para>

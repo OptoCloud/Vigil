@@ -3,7 +3,7 @@ using Vigil.Core.Protocol;
 namespace Vigil.Core.Tests;
 
 /// <summary>
-/// ZFS reports shaped like the host's <c>void</c>: a raidz2 of HDDs and two hot spares. Built by
+/// ZFS reports for a pool <c>tank</c>: a raidz2 of HDDs and two hot spares. Built by
 /// hand, with only what a test changes passed in, so each test reads as the one thing it varies.
 /// </summary>
 internal static class PoolSamples

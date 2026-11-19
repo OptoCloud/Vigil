@@ -51,11 +51,10 @@ mod tests {
         errors
     }
 
-    /// The deployed bays, pinned: the spares are where `zpool status` and the cage say they
-    /// are, so the page never sends anyone to the wrong slot.
+    /// The example's bays, pinned, so the file a deployment copies stays one that validates.
     #[test]
-    fn the_orion_config_names_all_twelve_bays() {
-        let config = crate::config::Config::parse(include_str!("../../../deploy/vigild.toml")).unwrap();
+    fn the_example_config_names_all_twelve_bays() {
+        let config = crate::config::Config::parse(include_str!("../../../deploy/vigild.example.toml")).unwrap();
         let slot = |port: &str| config.bays.iter().find(|bay| bay.port == port).map(|bay| (bay.cage.as_str(), bay.slot));
 
         assert_eq!(config.bays.len(), 12);
@@ -63,8 +62,8 @@ mod tests {
         assert_eq!(slot("pci-0000:03:00.0-sas-phy0-lun-0"), Some(("8-bay", 1)));
         assert_eq!(slot("pci-0000:03:00.0-sas-phy7-lun-0"), Some(("8-bay", 8)));
         assert_eq!(slot("pci-0000:01:00.1-ata-4"), Some(("4-bay", 2)));
-        assert_eq!(slot("pci-0000:01:00.1-ata-6"), Some(("4-bay", 3)));
-        assert_eq!(slot("pci-0000:01:00.1-ata-5"), Some(("4-bay", 4)));
+        assert_eq!(slot("pci-0000:01:00.1-ata-5"), Some(("4-bay", 3)));
+        assert_eq!(slot("pci-0000:01:00.1-ata-6"), Some(("4-bay", 4)));
     }
 
     #[test]

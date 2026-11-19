@@ -141,11 +141,11 @@ public sealed class UpsConditionsTests
     {
         var tooLate = Ups(["OL"], 100.0, 2000.0, lowBatteryRuntime: 84) with { Limits = Limits with { HostShutdownSeconds = 150 } };
         Assert.Equal(
-            "the host's shutdown would not finish on battery: upsmon starts it with 84 s of runtime left, and it takes 150 s. "
+            "The host's shutdown would not finish on battery: upsmon starts it with 84 s of runtime left, and it takes 150 s. "
                 + "Raise override.battery.runtime.low in ups.conf, or shorten the shutdown.",
             UpsConditions.Of(tooLate, Fresh)["ups-shutdown-too-late"].Message);
 
-        // the host as configured: LB at 600 s of runtime left.
+        // LB raised at 600 s of runtime left, as an override.battery.runtime.low sets it.
         var inTime = Ups(["OL"], 100.0, 2000.0, lowBatteryRuntime: 600) with { Limits = Limits with { HostShutdownSeconds = 150 } };
         Assert.Empty(UpsConditions.Of(inTime, Fresh));
 

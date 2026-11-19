@@ -7,7 +7,7 @@ namespace Vigil.Core.Notifications;
 /// Decides which events reach which channel. A problem goes to every channel whose minimum it
 /// meets; the info event that later clears it (the same kind) goes to exactly the channels that
 /// were told about the problem, so whoever was woken by a false alarm also hears that it is
-/// over (docs/CLEANUP.md 7.3, decided 2026-11-11). Info events about nothing that was pushed
+/// over (ADR-021). Info events about nothing that was pushed
 /// stay in the log.
 /// </summary>
 /// <remarks>

@@ -94,7 +94,7 @@ public sealed class NutProtocolTests
     [Fact]
     public void ReadsTheBatteryAndOutputDetailsApcModbusReports()
     {
-        // As the host's Smart-UPS 1000 reports them through apc_modbus.
+        // As an APC Smart-UPS reports them through apc_modbus.
         var reading = NutProtocol.ToReading("apc", Variables(
             ("battery.temperature", "34.19"),
             ("battery.date", "2026-08-15"),
@@ -111,7 +111,7 @@ public sealed class NutProtocolTests
         Assert.Equal(49.97, reading.OutputFrequency);
         Assert.Equal(0.81, reading.OutputCurrent);
 
-        // The thresholds NUT raises LB at itself, with ignorelb: the host's ups.conf overrides.
+        // The thresholds NUT raises LB at itself, with ignorelb, unless ups.conf overrides them.
         Assert.Equal(600, reading.LowBatteryRuntimeSeconds);
         Assert.Equal(30, reading.LowBatteryCharge);
 

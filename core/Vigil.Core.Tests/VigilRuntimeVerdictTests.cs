@@ -39,8 +39,8 @@ public sealed partial class VigilRuntimeTests
         var messages = Drain(subscriber);
         var raised = messages.Where(json => json.Contains("\"type\":\"event\"", StringComparison.Ordinal)).ToList();
         Assert.Contains(raised, json => json.Contains("zfs-pool:tank", StringComparison.Ordinal));
-        Assert.Contains(raised, json => json.Contains("zfs-vdev:void:1", StringComparison.Ordinal));
-        Assert.Contains(raised, json => json.Contains("zfs-vdev-errors:void:1", StringComparison.Ordinal));
+        Assert.Contains(raised, json => json.Contains("zfs-vdev:tank:1", StringComparison.Ordinal));
+        Assert.Contains(raised, json => json.Contains("zfs-vdev-errors:tank:1", StringComparison.Ordinal));
         Assert.Equal(3, raised.Count);
 
         var verdict = messages.Last(json => json.Contains("\"type\":\"alerts\"", StringComparison.Ordinal));

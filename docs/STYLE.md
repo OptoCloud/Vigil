@@ -240,7 +240,7 @@ the Rust core's runtime.rs") rather than a path that no longer exists.
 - Error text says what was being attempted, not just what failed:
   `database error while preparing the database: ...`.
 - Messages shown to an operator name the operator action: "the timescaledb extension is not
-  installed in this database. the database guest's recipe creates it" over "setup failed".
+  installed in this database. A superuser creates it" over "setup failed".
 - Never put a secret, a credential or a connection URL in an error or a log line. `DATABASE_URL`
   contains a password, and a private ntfy topic's name is its only secret.
 

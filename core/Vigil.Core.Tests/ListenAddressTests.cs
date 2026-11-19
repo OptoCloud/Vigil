@@ -16,7 +16,7 @@ public sealed class ListenAddressTests
 
     [Theory]
     [InlineData("0.0.0.0", "http://0.0.0.0:3001")]
-    [InlineData("192.0.2.130", "http://192.0.2.130:3001")]
+    [InlineData("192.0.2.10", "http://192.0.2.10:3001")]
     [InlineData(" 127.0.0.1 ", "http://127.0.0.1:3001")]
     [InlineData("localhost", "http://localhost:3001")]
     [InlineData("::", "http://[::]:3001")]

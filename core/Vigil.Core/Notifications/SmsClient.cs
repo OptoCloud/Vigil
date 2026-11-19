@@ -7,7 +7,7 @@ using Vigil.Core.Protocol;
 namespace Vigil.Core.Notifications;
 
 /// <summary>
-/// Text messages through the self-hosted SMS gateway on the host (ADR-027). vigil defines the
+/// Text messages through a self-hosted SMS gateway (ADR-027). vigil defines the
 /// contract and the gateway implements it: a JSON POST with a bearer token, 2xx for accepted.
 /// vigil-core never drives the modem itself (invariant 1), and knows no phone number: the
 /// gateway holds them, so none is in vigil's config or its log.

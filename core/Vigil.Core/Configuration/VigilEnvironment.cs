@@ -7,7 +7,7 @@ namespace Vigil.Core.Configuration;
 /// </summary>
 /// <remarks>
 /// These names are a published contract: they are in <c>/etc/vigil-core.env</c>, in
-/// <c>core/deploy/vigil-core.env</c> and in the README, and the Rust implementation read them
+/// <c>core/deploy/vigil-core.example.env</c> and in the README, and the Rust implementation read them
 /// directly. .NET's own environment provider would bind <c>CorePort</c>, not <c>CORE_PORT</c>,
 /// so the mapping is spelled out here rather than left to a naming convention that would
 /// silently read nothing — which is exactly what it did before this existed.

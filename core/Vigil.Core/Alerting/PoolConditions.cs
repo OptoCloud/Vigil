@@ -19,7 +19,7 @@ public sealed record PoolJudgement(
     IReadOnlyDictionary<string, string> Bays);
 
 /// <summary>
-/// The ZFS problems that hold right now (ADR-018, docs/CLEANUP.md 7.3), as conditions the
+/// The ZFS problems that hold right now (ADR-018), as conditions the
 /// debouncer raises once and clears once. The one-time changes are <see cref="PoolDiff"/>.
 /// </summary>
 public static class PoolConditions

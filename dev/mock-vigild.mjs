@@ -6,7 +6,7 @@
 //
 // Type a letter + Enter to inject a fault: s = stall a fan, g = GPU unreadable,
 // u = loop unhealthy, r = grow a drive's reallocated count, z = fault a pool disk onto a spare
-// (tank's night of 2026-10-08), o = take a pool disk offline (DEGRADED, no resilver, no
+// and resilver it, o = take a pool disk offline (DEGRADED, no resilver, no
 // errors), b = reboot the host (every /proc counter starts again from zero), c = clear all faults.
 
 import http from 'node:http';
@@ -18,16 +18,16 @@ const faults = { stall: false, gpu: false, unhealthy: false, pool: false, offlin
 
 /** vigild polls zpool every 60 s and repeats that poll in every snapshot until the next. */
 const ZFS_POLL_MS = 60_000;
-let reallocated = 1048;
+let reallocated = 24;
 let driveHealthAsOf = new Date().toISOString();
 
-// the host's ports: eight on the LSI's phys, three in the 4-bay stack (ata-3 the SMR scratch disk,
-// ata-4 and ata-6 the hot spares; ata-5 is empty), and the two SSDs on ata-1 and ata-2.
+// deploy/vigild.example.toml's machine: eight disks on the HBA's phys, three in the 4-bay stack
+// (ata-3 a scratch disk, ata-4 and ata-5 the hot spares; ata-6 is empty), and two SSDs on ata-1 and ata-2.
 const PORTS = [
 	...Array.from({ length: 8 }, (_, phy) => `pci-0000:03:00.0-sas-phy${phy}-lun-0`),
 	'pci-0000:01:00.1-ata-3',
 	'pci-0000:01:00.1-ata-4',
-	'pci-0000:01:00.1-ata-6',
+	'pci-0000:01:00.1-ata-5',
 	'pci-0000:01:00.1-ata-1',
 	'pci-0000:01:00.1-ata-2'
 ];
@@ -40,10 +40,10 @@ const drives = Array.from({ length: 13 }, (_, i) => ({
 	ssd: i >= 11
 }));
 
-// deploy/vigild.toml's [[bays]]: the 8-bay is phy0-7 top to bottom, the 4-bay ata-3, 4, 6, 5.
+// The example config's [[bays]]: the 8-bay is phy0-7, the 4-bay ata-3 to ata-6.
 const BAYS = [
 	...Array.from({ length: 8 }, (_, phy) => ({ port: `pci-0000:03:00.0-sas-phy${phy}-lun-0`, cage: '8-bay', slot: phy + 1 })),
-	...[3, 4, 6, 5].map((ata, i) => ({ port: `pci-0000:01:00.1-ata-${ata}`, cage: '4-bay', slot: i + 1 }))
+	...[3, 4, 5, 6].map((ata, i) => ({ port: `pci-0000:01:00.1-ata-${ata}`, cage: '4-bay', slot: i + 1 }))
 ];
 
 const fans = [
@@ -62,7 +62,7 @@ const duty = (celsius, low, high) => Math.round(Math.min(100, Math.max(30, 30 + 
 
 const TIB = 2 ** 40;
 
-// void: a raidz2 of the eight LSI disks with ata-4 and ata-6 as hot spares; rpool: the SSD mirror.
+// tank: a raidz2 of the eight HBA disks with ata-4 and ata-5 as hot spares; rpool: the SSD mirror.
 // Under the pool fault, the sixth disk is FAULTED and the first spare stands in for it.
 let zfsPolledAt = Date.now();
 setInterval(() => (zfsPolledAt = Date.now()), ZFS_POLL_MS);
@@ -261,11 +261,11 @@ function snapshot() {
 			pendingSectorCount: d.ssd ? null : 0,
 			powerOnHours: 9000 + i * 1300,
 			serialNumber: `ZDH8${d.wwn.slice(-4).toUpperCase()}`,
-			// SSDs answer neither the ATA counters nor a self-test log here, as the host's NVMe does not.
+			// SSDs answer neither the ATA counters nor a self-test log here, as many NVMe drives do not.
 			reportedUncorrect: d.ssd ? null : 0,
 			commandTimeout: d.ssd ? null : 0,
-			// The 4-bay's flaky cable (the 10-16 ata2 reset): a few CRC errors that the r key grows too.
-			udmaCrcErrorCount: d.ssd ? null : i === 9 ? 3 + (reallocated - 1048) / 8 : 0,
+			// A flaky cable in the 4-bay: a few CRC errors that the r key grows too.
+			udmaCrcErrorCount: d.ssd ? null : i === 9 ? 3 + (reallocated - 24) / 8 : 0,
 			lastSelfTestPassed: d.ssd ? null : true,
 			lastSelfTestHours: d.ssd ? null : 9000 + i * 1300 - 30,
 			sourcePath: `/dev/${d.device}`,

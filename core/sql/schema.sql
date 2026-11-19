@@ -65,7 +65,7 @@ create index if not exists drive_health_history_wwn_ts on drive_health_history (
 
 alter table drives add column if not exists port text;
 
--- SMART's early warnings and the self-test log (CLEANUP 7.6). Null on rows from before them,
+-- SMART's early warnings and the self-test log. Null on rows from before them,
 -- and on drives that do not report them (SAS has no ATA attributes or ATA self-test log).
 alter table drives add column if not exists serial text;
 alter table drives add column if not exists reported_uncorrect bigint;

@@ -67,7 +67,7 @@ pub struct CpuTicks {
     pub iowait: u64,
     pub irq: u64,
     pub softirq: u64,
-    /// Taken by a hypervisor. Zero on bare metal, which is what the host is.
+    /// Taken by a hypervisor. Zero on bare metal.
     pub steal: u64,
     /// The `cpuN` lines, so that a load average can be read against how many CPUs share it.
     pub logical_cpus: u32,

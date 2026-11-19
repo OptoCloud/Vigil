@@ -81,7 +81,7 @@ public sealed class PoolDiffTests
 
         var grew = PoolDiff.Diff(clean, errors);
         var warning = Assert.Single(grew.Events);
-        Assert.Equal("zfs-vdev-errors:void:1", warning.Kind);
+        Assert.Equal("zfs-vdev-errors:tank:1", warning.Kind);
         Assert.Contains("read 0 → 2, checksum 0 → 1", warning.Message, StringComparison.Ordinal);
         Assert.Single(grew.VdevErrors);
 

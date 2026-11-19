@@ -23,14 +23,14 @@ public sealed class VigilEnvironmentTests
     {
         var options = Bind(
             ("VIGILD_SOCKET", "/mnt/vigil/vigild.sock"),
-            ("DATABASE_URL", "postgres://vigil:secret@192.0.2.130:5432/vigil"),
+            ("DATABASE_URL", "postgres://vigil:secret@192.0.2.10:5432/vigil"),
             ("NUT_HOST", "192.0.2.4"),
             ("NUT_PORT", "3493"),
             ("CORE_PORT", "3097"),
             ("PERSIST_INTERVAL_SECONDS", "10"));
 
         Assert.Equal("/mnt/vigil/vigild.sock", options.VigildSocket);
-        Assert.Equal("postgres://vigil:secret@192.0.2.130:5432/vigil", options.DatabaseUrl);
+        Assert.Equal("postgres://vigil:secret@192.0.2.10:5432/vigil", options.DatabaseUrl);
         Assert.Equal("192.0.2.4", options.NutHost);
         Assert.Equal(3493, options.NutPort);
         // The bug this test exists for: .NET binds "CorePort", so CORE_PORT read as nothing and

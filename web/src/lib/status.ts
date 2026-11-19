@@ -1,7 +1,7 @@
 // The header's one verdict (ADR-019). First whether what the page shows is live: the stream to
 // vigil-core, vigil-core's link to vigild, and the snapshot itself, in that order, the first
 // problem winning. Then everything vigil-core has raised. Green means nothing is raised, not
-// just that the fans are fine: a DEGRADED pool once sat behind a page that said Live for nine days.
+// just that the fans are fine: a DEGRADED pool must not sit behind a page that says Live.
 
 import { relativeTime } from '#lib/chart/scale.ts';
 import type { Alert, Snapshot } from '#lib/types.ts';

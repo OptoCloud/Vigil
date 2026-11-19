@@ -45,7 +45,7 @@ function pool(changes: Partial<PoolStatus> = {}): PoolStatus {
 	};
 }
 
-// The night of the fault (an incident report), as vigild reports it.
+// A faulted disk and the spare resilvering in its place, as vigild reports it.
 const FAULT = pool({
 	state: 'DEGRADED',
 	vdevs: [

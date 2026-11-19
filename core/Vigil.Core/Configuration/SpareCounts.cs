@@ -2,7 +2,7 @@ namespace Vigil.Core.Configuration;
 
 /// <summary>
 /// <c>ZFS_EXPECTED_SPARES</c>: how many hot spares each pool should have available, written
-/// as <c>tank:2</c> or <c>tank:2,tank:1</c>.
+/// as <c>tank:2</c> or <c>tank:2,backup:1</c>.
 /// </summary>
 public static class SpareCounts
 {

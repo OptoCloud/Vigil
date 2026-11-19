@@ -118,14 +118,14 @@ public sealed class VigilOptions
 
     /// <summary>
     /// Hot spares each pool should have AVAIL, as <c>pool:count</c> pairs separated by commas
-    /// (the host: <c>tank:2</c>). A pool not named is not checked. Parsed by <see cref="SpareCounts"/>.
+    /// (<c>tank:2</c>). A pool not named is not checked. Parsed by <see cref="SpareCounts"/>.
     /// </summary>
     public string? ZfsExpectedSpares { get; set; }
 
     /// <summary>
     /// How old a drive's newest completed SMART self-test may be before that is a warning. Unset
     /// leaves it unjudged, which is right until smartd schedules tests on the host: otherwise
-    /// every drive would be overdue. 8 suits a weekly long test (CLEANUP 7.6).
+    /// every drive would be overdue. 8 suits a weekly long test.
     /// </summary>
     public double? SmartSelfTestMaxAgeDays { get; set; }
 }
