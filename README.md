@@ -562,6 +562,11 @@ they happened.
   pool's and interface's throughput in `traffic_samples`, each row the
   average since the row before, so a burst between two rows is not lost.
   `pool_samples` holds each pool's size and allocation once per ZFS poll.
+  The UPS's battery temperature, output frequency and current and how many
+  `upsmon` are logged in go in `ups_detail_samples`, beside `ups_samples`
+  rather than in it: a deployed rollup is never redefined, because a
+  rebuild would drop every minute and hour older than the raw rows
+  ([ADR-026](docs/DECISIONS.md)).
 - It owns alerting: stalled fans, fans not under `vigild`'s control,
   unreadable or vanished sensors, SMART changes, `vigild` outages, and the UPS
   on battery, low, in forced shutdown, needing a battery, overloaded or not

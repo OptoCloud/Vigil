@@ -21,6 +21,7 @@ public sealed class SampleWriter(VigilDataSources databases)
     private static readonly string UpsertBayOccupants = SqlText.Load("upsert_bay_occupants");
     private static readonly string UpsertFans = SqlText.Load("upsert_fans");
     private static readonly string InsertUpsSample = SqlText.Load("insert_ups_sample");
+    private static readonly string InsertUpsDetailSample = SqlText.Load("insert_ups_detail_sample");
 
     /// <summary>
     /// The history keys one reading is stored under: its own id, plus its bay for a drive with a
@@ -155,6 +156,22 @@ public sealed class SampleWriter(VigilDataSources databases)
             new NpgsqlParameter { Value = Real(reading.InputVoltage), NpgsqlDbType = NpgsqlDbType.Real },
             new NpgsqlParameter { Value = Real(reading.OutputVoltage), NpgsqlDbType = NpgsqlDbType.Real },
             new NpgsqlParameter { Value = Real(reading.BatteryVoltage), NpgsqlDbType = NpgsqlDbType.Real });
+
+        // The rest of the poll goes in a table of its own (ADR-026). A failure between the two
+        // costs one row of either, which a gap in the chart already shows.
+        await ExecuteAsync(
+            InsertUpsDetailSample,
+            cancellationToken,
+            Text(reading.TimestampUtc),
+            Text(reading.Name),
+            new NpgsqlParameter { Value = Real(reading.BatteryTemperature), NpgsqlDbType = NpgsqlDbType.Real },
+            new NpgsqlParameter { Value = Real(reading.OutputFrequency), NpgsqlDbType = NpgsqlDbType.Real },
+            new NpgsqlParameter { Value = Real(reading.OutputCurrent), NpgsqlDbType = NpgsqlDbType.Real },
+            new NpgsqlParameter
+            {
+                Value = reading.Monitors is { } monitors ? (short)Math.Clamp(monitors, 0, short.MaxValue) : DBNull.Value,
+                NpgsqlDbType = NpgsqlDbType.Smallint,
+            });
     }
 
     /// <summary>

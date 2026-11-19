@@ -12,7 +12,13 @@ select date_bin($1::interval, ts, 'epoch'::timestamptz) as bucket,
        avg(load15)::float8 as load15,
        avg(pressure_cpu)::float8 as pressure_cpu,
        avg(pressure_memory)::float8 as pressure_memory,
-       avg(pressure_io)::float8 as pressure_io
+       avg(pressure_io)::float8 as pressure_io,
+       max(memory_total)::float8 as memory_total,
+       max(swap_total)::float8 as swap_total,
+       max(arc_max)::float8 as arc_max,
+       avg(pressure_cpu_full)::float8 as pressure_cpu_full,
+       avg(pressure_memory_full)::float8 as pressure_memory_full,
+       avg(pressure_io_full)::float8 as pressure_io_full
 from host_samples
 where ts >= $2
 group by 1

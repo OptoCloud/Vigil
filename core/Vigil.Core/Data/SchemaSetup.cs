@@ -56,6 +56,7 @@ public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup>
         new("sensor_samples", "sensor_id", "sensor_minutes"),
         new("fan_samples", "fan_id", "fan_minutes"),
         new("ups_samples", "ups", "ups_minutes"),
+        new("ups_detail_samples", "ups", null),
         new("host_samples", null, null),
         new("traffic_samples", "id", null),
         new("pool_samples", "pool", null),

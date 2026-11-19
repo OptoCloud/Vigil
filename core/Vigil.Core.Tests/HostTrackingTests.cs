@@ -39,7 +39,7 @@ public sealed class HostTrackingTests
             {
                 Cpu = new PressureStall { SomeMicros = (ulong)(seconds * 10_000), FullMicros = null },
                 Memory = null,
-                Io = new PressureStall { SomeMicros = (ulong)(seconds * 250_000), FullMicros = 0 },
+                Io = new PressureStall { SomeMicros = (ulong)(seconds * 250_000), FullMicros = (ulong)(seconds * 50_000) },
             },
             Disks = disks ?? [Disk("naa.1", seconds), Disk("naa.2", seconds), Disk("nvme0n1", seconds)],
             Interfaces = [new InterfaceCounters { Name = "vmbr0", ReceivedBytes = (ulong)(seconds * 1_000_000), TransmittedBytes = (ulong)(seconds * 200_000) }],
@@ -124,6 +124,10 @@ public sealed class HostTrackingTests
         Assert.Equal(1, load.Pressure!.CpuPercent!.Value, 6);
         Assert.Equal(25, load.Pressure.IoPercent!.Value, 6);
         Assert.Null(load.Pressure.MemoryPercent);
+        // "Full" beside "some": 5 % of the time all of the host waited on I/O, and a kernel that
+        // does not count CPU "full" leaves it null rather than zero.
+        Assert.Equal(5, load.Pressure.IoFullPercent!.Value, 6);
+        Assert.Null(load.Pressure.CpuFullPercent);
 
         var disk = load.Disks[0];
         Assert.Equal((10_000_000d, 2_000_000d, 25d), (disk.ReadBytesPerSecond, disk.WrittenBytesPerSecond, disk.BusyPercent));

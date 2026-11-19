@@ -29,7 +29,15 @@ public sealed class LoadHistoryTests
         },
         Cpu = cpuBusy is { } busy ? new CpuLoad { BusyPercent = busy, IowaitPercent = 1.5, LogicalCpus = 16 } : null,
         Load = new LoadAverage { One = 1.25, Five = 1, Fifteen = 0.75 },
-        Pressure = null,
+        Pressure = new PressureLoad
+        {
+            CpuPercent = 1,
+            MemoryPercent = null,
+            IoPercent = 20,
+            CpuFullPercent = null,
+            MemoryFullPercent = null,
+            IoFullPercent = 4,
+        },
         Disks = [new DiskLoad { DeviceName = "naa.1", Port = null, ReadBytesPerSecond = read, WrittenBytesPerSecond = 1_000, BusyPercent = 12.5 }],
         Pools = [new PoolLoad { Name = "tank", ReadBytesPerSecond = read * 8, WrittenBytesPerSecond = 8_000 }],
         Interfaces = [new InterfaceLoad { Name = "vmbr0", ReceivedBytesPerSecond = 500, TransmittedBytesPerSecond = 250 }],
@@ -77,6 +85,7 @@ public sealed class LoadHistoryTests
 
         // A retry after a blip does not double-count, and an unknown rate is null, not zero.
         Assert.Equal(1, await CountAsync(databases.Writer, "select count(*) from host_samples where cpu_busy is null and arc is null", token));
+        Assert.Equal(1, await CountAsync(databases.Writer, "select count(*) from host_samples where uptime_seconds = 1000 and arc_max is null", token));
         Assert.Equal(3, await CountAsync(databases.Writer, "select count(*) from traffic_samples", token));
         Assert.Equal(1, await CountAsync(databases.Writer, "select count(*) from traffic_samples where busy_percent is not null", token));
         Assert.Equal(1, await CountAsync(databases.Writer, "select count(*) from pool_samples where pool = 'tank' and allocated_bytes = 250", token));
@@ -104,6 +113,10 @@ public sealed class LoadHistoryTests
         Assert.Equal(40L << 30, Assert.Single(history.Host["memoryUsed"])[1]);
         Assert.Equal(1.25, Assert.Single(history.Host["load1"])[1]);
         Assert.False(history.Host.ContainsKey("arc"), "a series with no value at all is left out");
+        // What the rest is out of goes in beside it, so a percent of history divides by its own day's total.
+        Assert.Equal(64L << 30, Assert.Single(history.Host["memoryTotal"])[1]);
+        Assert.Equal(4, Assert.Single(history.Host["pressureIoFull"])[1]);
+        Assert.False(history.Host.ContainsKey("pressureMemoryFull"));
         Assert.Equal(2_000_000, Assert.Single(history.TrafficIn["disk:naa.1"])[1]);
         Assert.Equal(16_000_000, Assert.Single(history.TrafficIn["pool:tank"])[1]);
         Assert.Equal(250, Assert.Single(history.TrafficOut["net:vmbr0"])[1]);

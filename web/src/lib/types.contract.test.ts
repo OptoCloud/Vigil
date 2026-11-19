@@ -171,7 +171,14 @@ const TYPE_KEYS = {
 		swapUsedBytes: 1
 	} satisfies Record<keyof MemoryLoad, 1>,
 	CpuLoad: { busyPercent: 1, iowaitPercent: 1, logicalCpus: 1 } satisfies Record<keyof CpuLoad, 1>,
-	PressureLoad: { cpuPercent: 1, memoryPercent: 1, ioPercent: 1 } satisfies Record<keyof PressureLoad, 1>,
+	PressureLoad: {
+		cpuPercent: 1,
+		memoryPercent: 1,
+		ioPercent: 1,
+		cpuFullPercent: 1,
+		memoryFullPercent: 1,
+		ioFullPercent: 1
+	} satisfies Record<keyof PressureLoad, 1>,
 	DiskLoad: {
 		deviceName: 1,
 		port: 1,

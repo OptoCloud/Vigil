@@ -374,11 +374,14 @@ export interface CpuLoad {
 	logicalCpus: number;
 }
 
-/** PSI's "some": percent of the time at least one task was waiting. */
+/** PSI, percent of the time. "Some": at least one task was waiting. "Full": every runnable task was, so the host stood still. */
 export interface PressureLoad {
 	cpuPercent: number | null;
 	memoryPercent: number | null;
 	ioPercent: number | null;
+	cpuFullPercent: number | null;
+	memoryFullPercent: number | null;
+	ioFullPercent: number | null;
 }
 
 export interface DiskLoad {
@@ -442,9 +445,9 @@ export interface HistoryResponse {
 	/** Keyed by fan id. */
 	duties: Record<string, SeriesPoints>;
 	rpms: Record<string, SeriesPoints>;
-	/** The UPS: "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V). Empty without NUT. */
+	/** The UPS: "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V), "batteryTemperature" (°C), "outputFrequency" (Hz), "outputCurrent" (A), "monitors" (fewest logged in). Empty without NUT. */
 	ups: Partial<Record<UpsMetric, SeriesPoints>>;
-	/** The host's load (ADR-025): bytes for memory, percent for CPU and pressure. A series is absent until it has a value. */
+	/** The host's load (ADR-025): bytes for memory and what it is out of, percent for CPU and pressure. A series is absent until it has a value. */
 	host: Partial<Record<HostMetric, SeriesPoints>>;
 	/** Bytes per second in, keyed "disk:<name>" (read), "pool:<name>" (read) or "net:<interface>" (received). */
 	trafficIn: Record<string, SeriesPoints>;
@@ -468,6 +471,13 @@ export type HostMetric =
 	| 'load15'
 	| 'pressureCpu'
 	| 'pressureMemory'
-	| 'pressureIo';
+	| 'pressureIo'
+	| 'memoryTotal'
+	| 'swapTotal'
+	| 'arcMax'
+	| 'pressureCpuFull'
+	| 'pressureMemoryFull'
+	| 'pressureIoFull';
 
-export type UpsMetric = 'charge' | 'load' | 'runtime' | 'inputVoltage';
+export type UpsMetric =
+	'charge' | 'load' | 'runtime' | 'inputVoltage' | 'batteryTemperature' | 'outputFrequency' | 'outputCurrent' | 'monitors';

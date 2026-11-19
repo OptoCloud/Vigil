@@ -443,3 +443,25 @@ since the row before, plus pool capacity once per `[zfs]` poll.
 vigild, however short, and every consumer would get rates over vigild's interval rather than
 its own. *Rejected:* node_exporter or Proxmox's own metrics. They would be a second agent on
 the host and a second source of truth, and vigil would still have to store and chart the data.
+
+### ADR-026: A deployed continuous aggregate is never redefined; a later metric is a new series
+
+*Decided 2026-11-19.* `SchemaSetup` creates a continuous aggregate only when it is missing, so an
+edited definition would never reach a database that already has the view. Making it reach one
+means dropping and rebuilding the view, and a rebuild reads only the raw rows still there: raw
+history is kept 30 days, and the minute and hour rollups are the only copy of everything older.
+A rebuild would silently delete up to a year of minutes and every hour since vigil began.
+
+So the definitions are frozen once released. A metric that arrives later goes into a raw table of
+its own with its own `_1m` and `_1h` (`ups_detail_samples`: battery temperature, output frequency
+and current, and the number of monitors, which came after `ups_1m` shipped). Its query is read
+beside the old one and merged into the same response, so the page cannot tell. This is also why
+every rollup keeps maxima and minima no chart reads yet: a column cannot be added later.
+
+*Enforcer:* `SchemaSetupTests.NoDeployedAggregateIsRedefined` pins a hash of every definition.
+A hash may change only for a series no release has shipped, in the same commit.
+*Rejected:* a hash of each definition stored in the database, with a rebuild when it differs.
+It turns an edit into data loss on the next start, which is what this rule exists to prevent.
+*Rejected:* adding columns to `ups_samples` and a second pair of aggregates over it. `Series`
+names its aggregates after its raw table, and a table of their own costs nothing.
+

@@ -43,13 +43,19 @@ export function memorySeries(history: HistoryResponse | null, host: HostLoad | n
 		line('memoryUsed', 'Used', 1, memory?.usedBytes),
 		line('arc', 'of which ARC', 3, memory?.arcBytes),
 		line('memoryCached', 'Cache', 4, memory?.cachedBytes),
-		line('swapUsed', 'Swap used', 2, memory?.swapUsedBytes)
+		line('swapUsed', 'Swap used', 2, memory?.swapUsedBytes),
+		// The most the ARC may grow to: the used line can only fall by as much as the ARC gives back.
+		line('arcMax', 'ARC limit', 5, memory?.arcMaxBytes)
 	];
 }
 
-/** The memory chart's axis: 0 to the host's RAM, so a full host reads as a full chart. */
-export function memoryDomain(host: HostLoad | null): [number, number] | undefined {
-	return host?.memory ? [0, host.memory.totalBytes / GIB] : undefined;
+/**
+ * The memory chart's axis: 0 to the most RAM the host had in the window, so a full host reads as
+ * a full chart, and a host that lost a DIMM does not draw last month off the top.
+ */
+export function memoryDomain(history: HistoryResponse | null, host: HostLoad | null): [number, number] | undefined {
+	const totals = [...(history?.host.memoryTotal ?? []).map(([, bytes]) => bytes), ...(host?.memory ? [host.memory.totalBytes] : [])];
+	return totals.length > 0 ? [0, Math.max(...totals) / GIB] : undefined;
 }
 
 export function cpuSeries(history: HistoryResponse | null, host: HostLoad | null, now: number): ChartSeries[] {
@@ -74,6 +80,16 @@ export function pressureSeries(history: HistoryResponse | null, host: HostLoad |
 		hostLine(history, host, now, { id: 'pressureCpu', label: 'CPU', color: color(1), live: pressure?.cpuPercent }),
 		hostLine(history, host, now, { id: 'pressureMemory', label: 'Memory', color: color(4), live: pressure?.memoryPercent }),
 		hostLine(history, host, now, { id: 'pressureIo', label: 'I/O', color: color(2), live: pressure?.ioPercent })
+	];
+}
+
+/** PSI's "full": the time everything runnable was stalled at once. Coloured as "some" is. */
+export function pressureFullSeries(history: HistoryResponse | null, host: HostLoad | null, now: number): ChartSeries[] {
+	const pressure = host?.pressure;
+	return [
+		hostLine(history, host, now, { id: 'pressureCpuFull', label: 'CPU', color: color(1), live: pressure?.cpuFullPercent }),
+		hostLine(history, host, now, { id: 'pressureMemoryFull', label: 'Memory', color: color(4), live: pressure?.memoryFullPercent }),
+		hostLine(history, host, now, { id: 'pressureIoFull', label: 'I/O', color: color(2), live: pressure?.ioFullPercent })
 	];
 }
 
@@ -211,8 +227,12 @@ export function memoryUsedPercent(
 	const memory = host?.memory;
 	if (!memory || memory.totalBytes <= 0) return { value: null, points: [] };
 	const value = (memory.usedBytes / memory.totalBytes) * 100;
-	// Against today's total: RAM does not change size often enough to be worth storing.
-	const points = scaled(history?.host.memoryUsed, memory.totalBytes / 100);
+	// Each bucket against its own total, stored beside it; today's only where none was.
+	const totals = new Map(history?.host.memoryTotal ?? []);
+	const points: SeriesPoints = (history?.host.memoryUsed ?? []).map(([time, used]) => {
+		const total = totals.get(time) ?? memory.totalBytes;
+		return [time, total > 0 ? (used / total) * 100 : 0];
+	});
 	return { value, points: withLivePoint(points, value, timeOf(host), now) };
 }
 

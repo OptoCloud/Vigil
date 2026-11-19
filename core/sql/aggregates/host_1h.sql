@@ -11,5 +11,12 @@ select time_bucket('1 hour', bucket) as bucket,
     sum(avg_pressure_cpu * samples) / sum(samples) as avg_pressure_cpu,
     sum(avg_pressure_memory * samples) / sum(samples) as avg_pressure_memory,
     sum(avg_pressure_io * samples) / sum(samples) as avg_pressure_io, max(max_pressure_io) as max_pressure_io,
+    max(memory_total) as memory_total, max(swap_total) as swap_total, max(arc_max) as arc_max,
+    sum(avg_pressure_cpu_full * samples) / sum(samples) as avg_pressure_cpu_full,
+    sum(avg_pressure_memory_full * samples) / sum(samples) as avg_pressure_memory_full,
+    max(max_pressure_memory_full) as max_pressure_memory_full,
+    sum(avg_pressure_io_full * samples) / sum(samples) as avg_pressure_io_full,
+    max(max_pressure_io_full) as max_pressure_io_full,
+    min(min_uptime_seconds) as min_uptime_seconds, max(max_uptime_seconds) as max_uptime_seconds,
     sum(samples) as samples
 from host_1m group by 1

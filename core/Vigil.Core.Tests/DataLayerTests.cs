@@ -127,6 +127,8 @@ public sealed class DataLayerTests
         Assert.Equal(1, await ScalarAsync(databases.Writer, "select count(*) from ups_samples where status = 'OL CHRG'", token));
         // A UPS that does not report battery volts stores null, not zero.
         Assert.Equal(1, await ScalarAsync(databases.Writer, "select count(*) from ups_samples where battery_voltage is null", token));
+        // The rest of the poll goes beside it (ADR-026), as nullable as the rest.
+        Assert.Equal(1, await ScalarAsync(databases.Writer, "select count(*) from ups_detail_samples where ups = 'apc'", token));
     }
 
     [Fact]

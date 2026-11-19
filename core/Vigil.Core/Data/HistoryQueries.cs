@@ -112,6 +112,21 @@ public sealed class HistoryQueries(VigilDataSources databases)
                     AppendIfPresent(ups, "inputVoltage", reader, 4, at, 1);
                 },
                 cancellationToken);
+
+            await ReadAsync(
+                QueryFor("history_ups_detail", spec.Source, "ups_detail"),
+                bucket,
+                from,
+                upsName,
+                reader =>
+                {
+                    var at = Millis(reader, 0);
+                    for (var column = 0; column < UpsDetailColumns.Length; column++)
+                    {
+                        AppendIfPresent(ups, UpsDetailColumns[column].Key, reader, column + 1, at, UpsDetailColumns[column].Digits);
+                    }
+                },
+                cancellationToken);
         }
 
         var load = await QueryLoadAsync(spec.Source, bucket, from, cancellationToken).ConfigureAwait(false);
@@ -151,6 +166,13 @@ public sealed class HistoryQueries(VigilDataSources databases)
     [
         ("memoryUsed", 0), ("memoryCached", 0), ("arc", 0), ("swapUsed", 0), ("cpuBusy", 1), ("cpuIowait", 1),
         ("load1", 2), ("load5", 2), ("load15", 2), ("pressureCpu", 1), ("pressureMemory", 1), ("pressureIo", 1),
+        ("memoryTotal", 0), ("swapTotal", 0), ("arcMax", 0), ("pressureCpuFull", 1), ("pressureMemoryFull", 1), ("pressureIoFull", 1),
+    ];
+
+    /// <summary>The UPS's later readings (ADR-026), in the order their queries select them after the bucket.</summary>
+    private static readonly (string Key, int Digits)[] UpsDetailColumns =
+    [
+        ("batteryTemperature", 1), ("outputFrequency", 2), ("outputCurrent", 2), ("monitors", 0),
     ];
 
     /// <summary>The host's load, its traffic and its pools' fill (ADR-025).</summary>

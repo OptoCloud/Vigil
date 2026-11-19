@@ -130,7 +130,15 @@ public sealed class CoreContractTests
 
     private static readonly CpuLoad Cpu = new() { BusyPercent = 18.5, IowaitPercent = 1.5, LogicalCpus = 16 };
 
-    private static readonly PressureLoad Pressure = new() { CpuPercent = 0.5, MemoryPercent = 0.25, IoPercent = 2.5 };
+    private static readonly PressureLoad Pressure = new()
+    {
+        CpuPercent = 0.5,
+        MemoryPercent = 0.25,
+        IoPercent = 2.5,
+        CpuFullPercent = 0,
+        MemoryFullPercent = 0.125,
+        IoFullPercent = 1.5,
+    };
 
     private static readonly DiskLoad Disk = new()
     {

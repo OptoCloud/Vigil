@@ -1,7 +1,16 @@
 <script lang="ts">
 	// The host's load (ADR-025): memory, CPU, load, pressure and the network, from vigild's
 	// counters as vigil-core turns them into rates.
-	import { formatBytes, cpuSeries, loadSeries, memoryDomain, memorySeries, networkSeries, pressureSeries } from '#lib/host.ts';
+	import {
+		formatBytes,
+		cpuSeries,
+		loadSeries,
+		memoryDomain,
+		memorySeries,
+		networkSeries,
+		pressureFullSeries,
+		pressureSeries
+	} from '#lib/host.ts';
 	import LineChart from '#lib/components/LineChart.svelte';
 	import RangeBar from '#lib/components/RangeBar.svelte';
 	import { getLive } from '#lib/live.svelte.ts';
@@ -49,7 +58,7 @@
 	from={plotWindow.from}
 	to={plotWindow.to}
 	unit=" GiB"
-	yDomain={memoryDomain(live.host)}
+	yDomain={memoryDomain(live.history, live.host)}
 	loading={live.historyLoading}
 />
 
@@ -77,8 +86,19 @@
 	<!-- PSI: how much of the time something was held up waiting. Usage says how busy the host is;
 	     this says whether that is hurting. -->
 	<LineChart
-		title="Pressure (time stalled)"
+		title="Pressure: something stalled"
 		series={pressureSeries(live.history, live.host, live.now)}
+		from={plotWindow.from}
+		to={plotWindow.to}
+		unit="%"
+		yDomain={[0, 100]}
+		loading={live.historyLoading}
+	/>
+	<!-- "Full" apart from "some", on the same 0-100 scale: one line in each pair is always the
+	     smaller, and on one chart it would sit unreadably under the other. -->
+	<LineChart
+		title="Pressure: everything stalled"
+		series={pressureFullSeries(live.history, live.host, live.now)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"

@@ -2,7 +2,7 @@
 // every line reaches "now". Pure, so the page components only lay it out.
 
 import { humanize } from '#lib/chart/scale.ts';
-import type { ChartSeries, FanStatus, HistoryResponse, SensorReading, SeriesPoints, Snapshot, UpsReading } from '#lib/types.ts';
+import type { ChartSeries, FanStatus, HistoryResponse, SensorReading, SeriesPoints, Snapshot, UpsMetric, UpsReading } from '#lib/types.ts';
 
 /**
  * How old a live reading may be and still be drawn as the newest point. Past this the reading
@@ -119,15 +119,27 @@ export function upsSeries(
 	history: HistoryResponse | null,
 	reading: UpsReading | null,
 	now: number
-): { percent: ChartSeries[]; mains: ChartSeries[] } {
+): { percent: ChartSeries[]; mains: ChartSeries[]; battery: ChartSeries[]; frequency: ChartSeries[]; current: ChartSeries[] } {
 	const at = reading ? new Date(reading.timestampUtc).getTime() : 0;
-	const point = (metric: 'charge' | 'load' | 'inputVoltage', value: number | null | undefined) =>
-		withLivePoint(history?.ups[metric], value, at, now);
+	const point = (metric: UpsMetric, value: number | null | undefined) => withLivePoint(history?.ups[metric], value, at, now);
 	return {
 		percent: [
 			{ id: 'charge', label: 'Battery charge', color: 'var(--series-3)', points: point('charge', reading?.batteryCharge) },
 			{ id: 'load', label: 'Load', color: 'var(--series-2)', points: point('load', reading?.load) }
 		],
-		mains: [{ id: 'inputVoltage', label: 'Mains in', color: 'var(--series-1)', points: point('inputVoltage', reading?.inputVoltage) }]
+		mains: [{ id: 'inputVoltage', label: 'Mains in', color: 'var(--series-1)', points: point('inputVoltage', reading?.inputVoltage) }],
+		// Heat is what ages a battery: a trend here is the earliest sign of one going.
+		battery: [
+			{
+				id: 'batteryTemperature',
+				label: 'Battery',
+				color: 'var(--series-4)',
+				points: point('batteryTemperature', reading?.batteryTemperature)
+			}
+		],
+		frequency: [
+			{ id: 'outputFrequency', label: 'Output', color: 'var(--series-5)', points: point('outputFrequency', reading?.outputFrequency) }
+		],
+		current: [{ id: 'outputCurrent', label: 'Output', color: 'var(--series-6)', points: point('outputCurrent', reading?.outputCurrent) }]
 	};
 }

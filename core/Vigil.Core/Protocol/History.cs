@@ -46,14 +46,17 @@ public sealed record HistoryResponse
     public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Rpms { get; init; }
 
     /// <summary>
-    /// "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V). Empty without NUT.
+    /// "charge" and "load" (%), "runtime" (minutes), "inputVoltage" (V), "batteryTemperature"
+    /// (°C), "outputFrequency" (Hz), "outputCurrent" (A) and "monitors" (the fewest upsmon logged
+    /// in over the bucket). Empty without NUT; a series is absent when the UPS does not report it.
     /// </summary>
     public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Ups { get; init; }
 
     /// <summary>
-    /// The host's load (ADR-025): "memoryUsed", "memoryCached", "arc" and "swapUsed" in bytes;
-    /// "cpuBusy", "cpuIowait", "pressureCpu", "pressureMemory" and "pressureIo" in percent;
-    /// "load1", "load5" and "load15". A series is absent until it has a value.
+    /// The host's load (ADR-025): "memoryUsed", "memoryCached", "arc", "swapUsed" and what they
+    /// are out of, "memoryTotal", "swapTotal" and "arcMax", in bytes; "cpuBusy", "cpuIowait",
+    /// "pressureCpu", "pressureMemory", "pressureIo" and their "…Full" twins in percent; "load1",
+    /// "load5" and "load15". A series is absent until it has a value.
     /// </summary>
     public required IReadOnlyDictionary<string, IReadOnlyList<double[]>> Host { get; init; }
 

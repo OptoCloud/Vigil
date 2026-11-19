@@ -151,16 +151,17 @@ internal sealed class HostTracking(TimeSpan persistInterval)
             return null;
         }
 
-        double? Stalled(PressureStall? earlier, PressureStall? later) =>
-            earlier is not null && later is not null && later.SomeMicros >= earlier.SomeMicros
-                ? Percent((later.SomeMicros - earlier.SomeMicros) / (seconds * 1e6))
-                : null;
+        double? Share(ulong? earlier, ulong? later) =>
+            earlier is { } from && later is { } to && to >= from ? Percent((to - from) / (seconds * 1e6)) : null;
 
         return new PressureLoad
         {
-            CpuPercent = Stalled(before.Cpu, now.Cpu),
-            MemoryPercent = Stalled(before.Memory, now.Memory),
-            IoPercent = Stalled(before.Io, now.Io),
+            CpuPercent = Share(before.Cpu?.SomeMicros, now.Cpu?.SomeMicros),
+            MemoryPercent = Share(before.Memory?.SomeMicros, now.Memory?.SomeMicros),
+            IoPercent = Share(before.Io?.SomeMicros, now.Io?.SomeMicros),
+            CpuFullPercent = Share(before.Cpu?.FullMicros, now.Cpu?.FullMicros),
+            MemoryFullPercent = Share(before.Memory?.FullMicros, now.Memory?.FullMicros),
+            IoFullPercent = Share(before.Io?.FullMicros, now.Io?.FullMicros),
         };
     }
 

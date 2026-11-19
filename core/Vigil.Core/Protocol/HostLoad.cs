@@ -54,12 +54,18 @@ public sealed record CpuLoad
     public required uint LogicalCpus { get; init; }
 }
 
-/// <summary>PSI's "some": percent of the time at least one task was held up waiting.</summary>
+/// <summary>
+/// PSI, as percent of the time. "Some": at least one task was held up waiting. "Full": every
+/// runnable task was, so the host as a whole stood still; null where the kernel does not count it.
+/// </summary>
 public sealed record PressureLoad
 {
     public required double? CpuPercent { get; init; }
     public required double? MemoryPercent { get; init; }
     public required double? IoPercent { get; init; }
+    public required double? CpuFullPercent { get; init; }
+    public required double? MemoryFullPercent { get; init; }
+    public required double? IoFullPercent { get; init; }
 }
 
 public sealed record DiskLoad

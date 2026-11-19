@@ -12,7 +12,8 @@ import {
 	memoryUsedPercent,
 	networkSeries,
 	poolFillSeries,
-	poolTrafficSeries
+	poolTrafficSeries,
+	pressureFullSeries
 } from './host';
 import { MAX_SERIES } from './series';
 import type { HistoryResponse, HostLoad, PoolStatus, ZfsStatus } from './types';
@@ -36,7 +37,7 @@ function host(overrides: Partial<HostLoad> = {}): HostLoad {
 		},
 		cpu: { busyPercent: 20, iowaitPercent: 5, logicalCpus: 16 },
 		load: { one: 1.5, five: 1, fifteen: 0.5 },
-		pressure: { cpuPercent: 1, memoryPercent: null, ioPercent: 25 },
+		pressure: { cpuPercent: 1, memoryPercent: null, ioPercent: 25, cpuFullPercent: null, memoryFullPercent: null, ioFullPercent: 5 },
 		disks: [{ deviceName: 'naa.1', port: null, readBytesPerSecond: 12_000_000, writtenBytesPerSecond: 3_000_000, busyPercent: 40 }],
 		pools: [{ name: 'tank', readBytesPerSecond: 96_000_000, writtenBytesPerSecond: 24_000_000 }],
 		interfaces: [{ name: 'vmbr0', receivedBytesPerSecond: 2_500_000, transmittedBytesPerSecond: 500_000 }],
@@ -87,9 +88,14 @@ describe('memorySeries', () => {
 		expect(memorySeries(null, host({ memory }), NOW)[1].points).toEqual([]);
 	});
 
-	it('runs its axis from nothing to all of the RAM', () => {
-		expect(memoryDomain(host())).toEqual([0, 64]);
-		expect(memoryDomain(null)).toBeUndefined();
+	it('runs its axis from nothing to the most RAM the window saw', () => {
+		expect(memoryDomain(null, host())).toEqual([0, 64]);
+		expect(memoryDomain(history({ host: { memoryTotal: [[NOW - 60_000, 128 * GIB]] } }), host())).toEqual([0, 128]);
+		expect(memoryDomain(null, null)).toBeUndefined();
+	});
+
+	it('draws the ARC limit, and nothing for it without ZFS', () => {
+		expect(memorySeries(null, host(), NOW)[4]).toMatchObject({ label: 'ARC limit', points: [[AT, 32]] });
 	});
 });
 
@@ -118,6 +124,12 @@ describe('poolTrafficSeries and poolFillSeries', () => {
 	});
 });
 
+describe('pressureFullSeries', () => {
+	it('has a line only where the kernel counts "full"', () => {
+		expect(pressureFullSeries(null, host(), NOW).map((s) => s.points)).toEqual([[], [], [[AT, 5]]]);
+	});
+});
+
 describe('networkSeries', () => {
 	it('draws received and sent for each interface in MB/s, three interfaces at most', () => {
 		const lines = networkSeries(null, host(), NOW);
@@ -140,10 +152,21 @@ describe('one disk', () => {
 });
 
 describe('the tiles', () => {
-	it('read memory as a percent of the RAM', () => {
-		const memory = memoryUsedPercent(history({ host: { memoryUsed: [[NOW - 60_000, 32 * GIB]] } }), host(), NOW);
+	it('read memory as a percent of the RAM each bucket had', () => {
+		const stored = history({
+			host: {
+				memoryUsed: [
+					[NOW - 120_000, 32 * GIB],
+					[NOW - 60_000, 32 * GIB]
+				],
+				memoryTotal: [[NOW - 120_000, 128 * GIB]]
+			}
+		});
+		const memory = memoryUsedPercent(stored, host(), NOW);
 		expect(memory.value).toBe(75);
+		// The first bucket had 128 GiB; the second stored no total, so it is read against today's 64.
 		expect(memory.points).toEqual([
+			[NOW - 120_000, 25],
 			[NOW - 60_000, 50],
 			[AT, 75]
 		]);

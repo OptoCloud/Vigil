@@ -161,8 +161,35 @@ create table if not exists host_samples (
     load15 real,
     pressure_cpu real,
     pressure_memory real,
-    pressure_io real
+    pressure_io real,
+    -- What the rest is out of, stored rather than assumed: RAM, swap and the ARC's ceiling can
+    -- change, and a percent of history must divide by the total of its own day.
+    memory_total bigint,
+    swap_total bigint,
+    arc_max bigint,
+    -- PSI's "full": the share of the time every runnable task was stalled at once. "some" says
+    -- something waited; this says the host as a whole stood still.
+    pressure_cpu_full real,
+    pressure_memory_full real,
+    pressure_io_full real,
+    -- Seconds since boot at the row's reading. A drop between two rows is a reboot.
+    uptime_seconds double precision
 );
+
+-- The UPS's readings that came after ups_1m and ups_1h were deployed. A table of their own
+-- because a continuous aggregate cannot gain a column without being rebuilt from raw rows that
+-- retention has dropped (ADR-026), and ups_samples' aggregates hold the only copy of its past.
+create table if not exists ups_detail_samples (
+    ts timestamptz not null,
+    ups text not null,
+    battery_temperature real,
+    output_frequency real,
+    output_current real,
+    -- How many upsmon were logged in to upsd. 0 means nothing will shut the host down.
+    monitors smallint,
+    primary key (ups, ts)
+);
+create index if not exists ups_detail_samples_ts on ups_detail_samples (ts);
 
 -- Bytes per second in and out, narrow like sensor_samples so a disk or interface appearing
 -- needs no schema change. The id says what it is: "disk:<name>" (in is read, out is written),

@@ -45,6 +45,13 @@ public sealed class LoadWriter(VigilDataSources databases)
             command.Parameters.Add(Real(load.Pressure?.CpuPercent));
             command.Parameters.Add(Real(load.Pressure?.MemoryPercent));
             command.Parameters.Add(Real(load.Pressure?.IoPercent));
+            command.Parameters.Add(Bytes(memory?.TotalBytes));
+            command.Parameters.Add(Bytes(memory?.SwapTotalBytes));
+            command.Parameters.Add(Bytes(memory?.ArcMaxBytes));
+            command.Parameters.Add(Real(load.Pressure?.CpuFullPercent));
+            command.Parameters.Add(Real(load.Pressure?.MemoryFullPercent));
+            command.Parameters.Add(Real(load.Pressure?.IoFullPercent));
+            command.Parameters.Add(new NpgsqlParameter { Value = (object?)load.UptimeSeconds ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Double });
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 

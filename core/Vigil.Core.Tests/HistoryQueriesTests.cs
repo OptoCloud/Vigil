@@ -130,6 +130,13 @@ public sealed class HistoryQueriesTests
             await insert.ExecuteNonQueryAsync(token);
         }
 
+        await using (var insert = databases.Writer.CreateCommand(
+            "insert into ups_detail_samples (ts, ups, battery_temperature, output_frequency, monitors) values ($1, 'apc', 31.5, 50.02, 1)"))
+        {
+            insert.Parameters.Add(new NpgsqlParameter { Value = Now.AddMinutes(-5), NpgsqlDbType = NpgsqlDbType.TimestampTz });
+            await insert.ExecuteNonQueryAsync(token);
+        }
+
         var history = await new HistoryQueries(databases).QueryAsync(RangeKey.OneHour, "apc", Now, token);
 
         Assert.Equal(87, Assert.Single(history.Ups["charge"])[1]);
@@ -137,6 +144,11 @@ public sealed class HistoryQueriesTests
         // Minutes, because that is what the chart's axis is in: 2310s is 38.5 min.
         Assert.Equal(38.5, Assert.Single(history.Ups["runtime"])[1]);
         Assert.Equal(231.4, Assert.Single(history.Ups["inputVoltage"])[1]);
+
+        // The later readings come from their own table (ADR-026); one the UPS never reported is left out.
+        Assert.Equal(31.5, Assert.Single(history.Ups["batteryTemperature"])[1]);
+        Assert.Equal(1, Assert.Single(history.Ups["monitors"])[1]);
+        Assert.False(history.Ups.ContainsKey("outputCurrent"));
 
         // A different UPS's history must not leak in.
         var other = await new HistoryQueries(databases).QueryAsync(RangeKey.OneHour, "not-this-one", Now, token);
