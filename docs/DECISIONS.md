@@ -408,3 +408,38 @@ which `X-Forwarded-Proto` says. Encrypting the hop from Cloudflare to this host 
 choice (a tunnel, or an origin certificate and TLS in Kestrel, which ADR-023 leaves out).
 *Rejected:* reading `CF-Connecting-IP`. It carries the same address as the last
 `X-Forwarded-For` hop, and using it would be a second code path that only one vendor exercises.
+
+### ADR-025: Host load comes from vigild as counters, and vigil-core turns them into rates
+
+*Decided 2026-11-19.* The owner wants RAM, CPU, disk and network use recorded and charted
+alongside the temperatures. vigil-core cannot read these itself, because it runs in an
+unprivileged LXC whose `/proc` describes the container, not the host. So vigild reads them,
+for the same reason it reads pool state (ADR-018): reading the host is its job, and it is the
+process running on the host.
+
+All of it comes from `/proc`: `meminfo`, `stat`, `loadavg`, `pressure/*`, `diskstats`,
+`net/dev`, `uptime` and `spl/kstat/zfs/arcstats`. There is no subprocess, no new crate and no
+new privilege, and nothing in it can wake a sleeping disk. A rate needs two readings, and
+vigild keeps no history (invariant 4). So vigild publishes what the kernel counts, which is
+cumulative bytes, ticks and stall microseconds, and vigil-core derives the rate from
+consecutive snapshots. vigil-core already holds the previous snapshot in its runtime loop. A
+rate is the difference over the time that actually passed, so a lost snapshot widens one
+interval and does not distort it. A counter that goes backwards (after a reboot) produces no
+rate for that interval, never a zero or a negative one: an unknown reading is unknown, the
+same rule as invariant 3.
+
+What is published (ADR-023): RAM, swap and ARC, CPU busy and iowait, load averages, pressure,
+uptime, per-disk throughput and busy time keyed by the disk's stable name, and throughput for
+the interfaces listed in `[host] interfaces`. That list is empty by default. It is an
+allow-list because on a Proxmox host the interface names (`tap100i0`, `veth105i0`) give away
+the guest IDs. No addresses, hostnames, mount points or per-process figures are published.
+
+*Consequence:* the public page shows when the host is busy and when its network is in use, and
+so roughly when the house is active, as UPS state already shows mains power. The owner accepted
+this on 2026-11-19. Each snapshot grows by a few hundred bytes. vigil-core writes one host row
+and one traffic row per disk, pool and interface every persist interval (10 s), each the average
+since the row before, plus pool capacity once per `[zfs]` poll.
+*Rejected:* vigild computing the rates from its own previous poll. That would be history in
+vigild, however short, and every consumer would get rates over vigild's interval rather than
+its own. *Rejected:* node_exporter or Proxmox's own metrics. They would be a second agent on
+the host and a second source of truth, and vigil would still have to store and chart the data.

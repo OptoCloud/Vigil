@@ -114,6 +114,13 @@ started life as a .NET daemon; that implementation is in the git history.)
   thread, as JSON, and read-only: it reads what the kernel already holds and
   wakes no disk. Each vdev carries the same disk name as its SMART health, so
   a disk ZFS has faulted can be told apart from one SMART still calls healthy.
+- **The host's load comes from `/proc`.** Memory and the ZFS ARC, CPU time,
+  load averages, pressure (PSI), uptime, every whole disk's traffic and the
+  interfaces `[host] interfaces` names, read every 2s on their own thread. No
+  subprocess, and nothing that touches a disk. They go out as the kernel's
+  cumulative counters; vigil-core turns two readings into a rate
+  ([ADR-025](docs/DECISIONS.md)). Interfaces are published only when listed,
+  because the dashboard is public and a guest's tap device names the guest.
 - **External tools can't hang the daemon.** `nvidia-smi`, `smartctl` and
   `zpool` all run under a hard timeout and are killed if they exceed it. `nvidia-smi`
   stays out-of-process on purpose: a wedged GPU driver can then only hang a
@@ -183,6 +190,19 @@ and clients reconnect on their own. vigil-core reads it with .NET's
           // driveHealth's name for the same disk. States are zpool's own words, as strings.
         ] }
     ]
+  },
+  // null when [host] is off. Counters only grow (until a reboot, which uptimeSeconds going
+  // down shows); a rate is the difference between two readings over the time between asOfs.
+  "host": {
+    "asOf": "2026-09-21T23:01:33.902Z", "uptimeSeconds": 487.25,
+    "memory": { "totalBytes": 67355660288, "availableBytes": 20971520000, "cachedBytes": 11010048000, "arcBytes": 34359738368, "...": "..." },
+    "cpu": { "user": 14199, "system": 13471, "idle": 547156, "iowait": 1626, "logicalCpus": 16, "...": "..." },
+    "load": { "one": 0.46, "five": 0.66, "fifteen": 0.36 },
+    "pressure": { "cpu": { "someMicros": 2161596, "fullMicros": null }, "memory": null, "io": { "...": "..." } },
+    "disks": [ { "deviceName": "naa.5000c500...", "port": "pci-0000:01:00.1-ata-3", "readBytes": 2048000000, "writtenBytes": 3072000000, "busyMillis": 1500 } ],
+    "interfaces": [ { "name": "vmbr0", "receivedBytes": 9876543210, "transmittedBytes": 1234567890 } ]
+    // arcBytes is null without ZFS, pressure parts without PSI; disks are whole hardware disks
+    // only (no partitions, zvols, dm, md or loop devices), named as driveHealth names them.
   }
 }
 ```
@@ -538,7 +558,10 @@ they happened.
   A drive's temperature is stored twice: as `drive:<wwn>`, the disk's own
   trend wherever it's plugged in, and as `port:<by-path>`, the bay's trend
   whichever disk is in it. `bay_occupants` records which disk sat in which
-  bay and when.
+  bay and when. The host's load goes in `host_samples`, and every disk's,
+  pool's and interface's throughput in `traffic_samples`, each row the
+  average since the row before, so a burst between two rows is not lost.
+  `pool_samples` holds each pool's size and allocation once per ZFS poll.
 - It owns alerting: stalled fans, fans not under `vigild`'s control,
   unreadable or vanished sensors, SMART changes, `vigild` outages, and the UPS
   on battery, low, in forced shutdown, needing a battery, overloaded or not
@@ -557,7 +580,7 @@ Its HTTP API, all `GET`:
 
 | Route | What it serves |
 |---|---|
-| `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/power` and `/events` each have a page of their own |
+| `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/system`, `/power` and `/events` each have a page of their own |
 | `/drives/<name>` | one disk's page: its SMART state and changes, temperature, and its place in ZFS. The build's fallback page, rendered in the browser |
 | `/api/live` | Server-Sent Events: the current state on connect, then every change (snapshots, `vigild` reachability, drives, the UPS, new events). A named `keepalive` event after 20s of quiet. At most 64 at once; `503` past that |
 | `/api/history?range=` | chart history for `1h`, `6h`, `24h`, `7d`, `30d` or `1y`, bucketed in SQL. Each range reads the coarsest level that still has its resolution: raw samples up to 6 hours, minute rollups up to 7 days, hourly ones beyond. `503` without a database |
@@ -606,7 +629,8 @@ script SvelteKit emits; vigil-core adds the policies only a header can carry.
 ## Development
 
 Without the hardware, `dev/mock-vigild.mjs` and `dev/mock-upsd.mjs` stand in
-for `vigild` and upsd (type a letter and Enter to inject a fault), and
+for `vigild` and upsd (type a letter and Enter to inject a fault; `b` reboots
+the mock host, so every counter starts again), and
 `dev/docker-compose.yml` runs Postgres with TimescaleDB, the same versions as
 production. `core/.env.example` points vigil-core at all three:
 

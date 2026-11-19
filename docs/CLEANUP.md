@@ -1,6 +1,7 @@
 # Cleanup plan
 
-Agreed 2026-10-01 with six phases; Phase 7 was added on 2026-10-17. Each phase ends green and
+Agreed 2026-10-01 with six phases; Phase 7 was added on 2026-10-17 and
+Phase 8 on 2026-11-19. Each phase ends green and
 shippable: `scripts/check.sh` passes and the tree is deployable. **Review at every phase boundary**; the next phase does not start
 until the previous one is read.
 
@@ -629,6 +630,132 @@ That proposal was written before checking the code. It changed in these places:
       the change within one `[zfs]` poll, that the page goes red, and that everything recovers
       when the change is undone. **Done when** this has been run on the host and the result is
       recorded here.
+
+## Phase 8: Host load (RAM, CPU, disk, network) recorded and charted
+
+Added 2026-11-19 at the owner's request: "can we also log ram, and disk? find more to log and
+have more graphs on it." The owner chose the scope on the same day: pool capacity and per-disk
+I/O, CPU and load, ZFS ARC, pressure (PSI) and network throughput. Decision: ADR-025.
+
+Pool size and allocation are already in every snapshot (`PoolStatus.sizeBytes`,
+`allocatedBytes`). They are shown live but never stored, so the first chart needs no new data
+from vigild. Everything else is new, read from `/proc`.
+
+**Colour still caps a chart at six lines** (`MAX_SERIES`). Thirteen disks therefore do not get
+a line each on a shared chart. A pool's throughput is the sum of its member disks, stored under
+`pool:<name>` the way a drive's temperature is also stored under `port:` (`SeriesIdsOf`). Each
+disk's own lines go on its `/drives/<name>` page.
+
+### Steps, each ending green
+
+- [x] **8.1 vigild reads the host's load.** A new module, `host.rs`. Its job is what the
+      kernel says about the host's load, parsed from `/proc` as pure functions, the way
+      `zfs.rs` parses `zpool`. It reads through the `SysFs` boundary, given a proc root, so
+      `FakeSysFs` serves the tests. `Snapshot.host: Option<HostStatus>` is null when `[host]` is
+      off and from an older daemon, and carries:
+      - memory: total, available, cached, buffers, swap total and free (`meminfo`), plus ARC
+        size and target maximum (`arcstats`). The ARC fields are null without ZFS;
+      - CPU ticks: user, nice, system, idle, iowait, irq, softirq and steal (`stat`'s `cpu`
+        line), the number of logical CPUs, and the three load averages;
+      - pressure: `some` and `full` total microseconds for cpu, memory and io. Each is null
+        when the kernel has no PSI;
+      - uptime, in seconds.
+      Polled every control poll, after the fans are driven, so that a slow `/proc` read can
+      never delay a fan write. A file that is missing or does not parse leaves only its own
+      fields null, never the snapshot. **Bounded:** every `/proc` read is capped (64 KiB), and
+      the cap is added to SECURITY.md §4.1. `vigild.service` must never take `ProcSubset=pid`,
+      which would hide all of this, and the unit says so in a comment.
+      *Enforcer:* parser tests on real captured files (including a kernel without PSI, a host
+      without ZFS and truncated lines), the snapshot round-trip, `contract_json_is_current`, and
+      `DaemonContractTests`. `dev/mock-vigild.mjs` serves moving counters.
+      - **Done 2026-11-19, on its own thread** (`[host] poll_interval_secs`, 2 s) rather than
+        after the fan writes in the control loop: a thread cannot delay a fan write at all, and
+        the snapshot carries the latest reading, with its own `asOf`, as it does for ZFS.
+        `SysFs::read_at_most` is the bounded read, at 1 MiB per file. *Enforcer:* `host.rs`
+        tests, `contract_json_is_current`, `DaemonContractTests`.
+- [x] **8.2 Disks and interfaces.** Read `/proc/diskstats` for whole disks only. A device is
+      kept if `disks.rs` can name it. Partitions, `loop`, `zd` (zvols), `dm-`, `ram` and `nbd`
+      are skipped, because a zvol is a guest's disk and not hardware. Each entry is the stable
+      name and port as `DriveHealth` gives them, plus sectors read and written (published as
+      bytes) and milliseconds busy. Read `/proc/net/dev` only for the interfaces named in
+      `[host] interfaces`. That list is empty by default, and `config/validate.rs` checks each
+      name against the kernel's interface-name rules. Each entry is received and transmitted
+      bytes. For the host, `deploy/vigild.toml` lists the bridge and the physical uplink.
+      *Enforcer:* `host.rs` tests (a zvol and a partition are dropped, and a disk is named the
+      same as in `driveHealth`), validation tests, and the contracts.
+      - **Done 2026-11-19.** A disk counts when `/sys/block/<dev>/device` exists, which
+        is the kernel's own distinction: zvols, dm, md, loop, ram and nbd have none
+        (`DiskResolver::hardware_disk`). the host publishes `vmbr0`. **Open, on the host:** check that
+        `vmbr0` is the LAN bridge and add the physical uplink's name.
+- [x] **8.3 vigil-core turns counters into rates.** `Runtime/HostTracking`, holding host state
+      the way `UpsTracking` does. It keeps the previous counters and works out CPU busy % and
+      iowait %, pressure as % of time stalled, per-disk read and write B/s and busy %, per-pool
+      totals (from the vdevs' `deviceName`), and per-interface rx and tx B/s. A rate is not
+      produced when time did not advance, when any counter went backwards, or when the gap
+      exceeds a named maximum. The live stream gains `host`, which is the gauges plus the
+      rates, so `core/contract.json` and `web/src/lib/types.ts` change with it.
+      *Enforcer:* `HostTrackingTests` (a reboot, a skipped snapshot, a disk that vanishes and
+      a pool's sum), `CoreContractTests` and `types.contract.test.ts`.
+      - **Done 2026-11-19.** `HostTracking` holds two baselines: the previous reading for
+        the page, and the last row written for history, so each row is the average over its whole
+        interval. The live stream gains a `host` message; the snapshot is still relayed as vigild
+        sent it. *Enforcer:* `HostTrackingTests`, `VigilRuntimeHostTests`, both contracts.
+- [x] **8.4 History.** Four new series in `SchemaSetup.AllSeries`, each with `_1m` and `_1h`
+      aggregates and a backfill in `core/sql/aggregates/`:
+      - `host_samples`, one wide row per snapshot like `ups_samples`: memory used, available,
+        cached and ARC, swap used, CPU busy and iowait, load 1, and the three pressures;
+      - `disk_io_samples`, narrow: disk or `pool:<name>`, read and write B/s, busy %;
+      - `net_samples`, narrow: interface, rx and tx B/s;
+      - `pool_samples`: pool, size and allocated, written only when `zfs.asOf` changes.
+      Rollups keep `max` as well as the weighted average for the throughput columns, because a
+      backup that saturates a disk for ninety seconds disappears into an hourly average.
+      `HistoryResponse` gains `host`, `diskIo`, `network` and `pools`, using the same
+      `[epochMillis, value]` shape and the same `RangeKey` levels.
+      *Enforcer:* `DataLayerTests` (every new query loads and round-trips), `SchemaSetupTests`
+      (re-applying is idempotent, and retention and refresh still pair up as ADR-007 requires),
+      `HistoryQueriesTests` (property names against `types.ts`), and the `sql-literal-ok` check.
+      - **Done 2026-11-19, with one change:** disk, pool and interface throughput share one
+        narrow `traffic_samples` (in, out, busy) under `disk:`, `pool:` and `net:` ids, rather
+        than two tables, because they are the same shape. Hence three new series, not four.
+        Rollups keep maxima, which no chart reads yet. *Enforcer:* `LoadHistoryTests` (writes,
+        raw and rollup reads, weighting), `SchemaSetupTests`, `HistoryQueriesTests`.
+- [x] **8.5 The charts.**
+      - A new `/system` page in the nav. Memory: used, ARC, cache and swap, on a 0-to-total
+        axis. CPU: busy and iowait, 0 to 100 %. Load: 1, 5 and 15 minutes. Pressure: cpu,
+        memory and io, 0 to 100 %. Network: rx and tx for each listed interface.
+      - `/storage`: fill % for each pool over time (0 to 100 %), and read and write throughput
+        for each pool.
+      - `/drives/<name>`: that disk's read and write throughput and its busy %, beside the
+        temperature it already has.
+      - The overview gets RAM used, CPU busy and the fullest pool's fill as tiles, each linking
+        to its page.
+      Colours are new `--series-*` tokens assigned per entity in `app.css`, never a status
+      colour (STYLE.md §11). The data shaping goes in `#lib/host.ts`.
+      *Enforcer:* vitest for `#lib/host.ts` (units, the live point, more than `MAX_SERIES`),
+      `svelte-check`, and a look at the running page against the mocks.
+      - **Done 2026-11-19, with one change:** the charts reuse the six `--series-*` tokens,
+        assigned per entity within each chart (a pool is the same colour on all three pool
+        charts), instead of adding new tokens, which would each need a validated light and dark
+        value. `StatTile` takes a value and a unit now. Checked against the mocks in a browser:
+        `/system`, `/storage`, a disk's page and the overview. *Enforcer:* `host.test.ts`,
+        `types.contract.test.ts`, `svelte-check`.
+- [x] **8.6 A pool filling up is a condition. Decide at review.** Recommendation: a warning at
+      80 % allocated and critical at 90 %, judged per `[zfs]` poll like the other pool
+      conditions, with both thresholds options. ZFS slows sharply as a pool fills, and nothing
+      else would warn about it. Swap and memory pressure stay charts and do not become
+      conditions: the right thresholds for them are not obvious yet.
+      - **Already there, found while building 8.3.** `PoolConditions.Capacity` has raised
+        `zfs-capacity:<pool>` at 80 % (warning) and 90 % (critical), with 2 points of hysteresis,
+        since Phase 7. Nothing added; the plan was written without checking.
+- [ ] **8.7 Verify on the host.** Compare a snapshot against `free -b`, `arc_summary`,
+      `iostat -x 2`, `cat /proc/pressure/*` and `ip -s link`. Confirm that a sleeping disk stays
+      asleep across an hour of `diskstats` reads (`hdparm -C`). Check whether this OpenZFS
+      counts the ARC inside `MemAvailable`, and make the memory chart's "used" agree with
+      `free`. **Done when** the numbers agree and the result is recorded here.
+
+**Docs, in the step that changes each:** README's snapshot example and its Development section,
+the `host.rs` row in ARCHITECTURE.md's module map, `/system` in the web table, and
+`deploy/vigild.toml`'s `[host]`.
 
 ## Follow-up: SMS notifications through the self-hosted gateway
 
