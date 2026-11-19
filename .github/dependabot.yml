@@ -6,6 +6,8 @@
 #     It moves when that database does, not when a newer image appears.
 #   - Microsoft.Extensions major versions: they must match ASP.NET Core's shared framework, so
 #     they move with the target framework and global.json, by hand, never on their own.
+#   - TypeScript major versions: svelte-check pins its TypeScript peer range, so a major moves
+#     only once svelte-check accepts it, by hand.
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -26,6 +28,9 @@ updates:
   - package-ecosystem: npm
     directory: /web
     schedule: { interval: weekly, day: monday }
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
     groups:
       npm: { patterns: ['*'] }
 
