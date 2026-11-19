@@ -12,6 +12,7 @@
 	import { deviceOf, formatCount, formatYears, membershipsOf, selfTestAge, shortPort, shortWwn, smartVerdict } from '#lib/drives.ts';
 	import { getLive } from '#lib/live.svelte.ts';
 	import { chartWindow, driveTemperatureSeries } from '#lib/series.ts';
+	import { diskBusySeries, diskTrafficSeries } from '#lib/host.ts';
 	import type { DriveHealthRecord } from '#lib/types.ts';
 	import { vdevVerdict } from '#lib/zfs.ts';
 
@@ -136,6 +137,28 @@
 	unit="°C"
 	loading={live.historyLoading}
 />
+
+<!-- Throughput and busy time are two units, so two charts: a disk can be 100 % busy at 2 MB/s
+     when the I/O is random, and that is the case worth seeing. -->
+<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] gap-3">
+	<LineChart
+		title="Throughput"
+		series={diskTrafficSeries(live.history, live.host, wwn, live.now)}
+		from={plotWindow.from}
+		to={plotWindow.to}
+		unit=" MB/s"
+		loading={live.historyLoading}
+	/>
+	<LineChart
+		title="Busy"
+		series={diskBusySeries(live.history, live.host, wwn, live.now)}
+		from={plotWindow.from}
+		to={plotWindow.to}
+		unit="%"
+		yDomain={[0, 100]}
+		loading={live.historyLoading}
+	/>
+</div>
 
 <Panel title="SMART changes" subtitle="Recorded whenever a count moves; power-on hours alone do not count">
 	{#if recordsError}

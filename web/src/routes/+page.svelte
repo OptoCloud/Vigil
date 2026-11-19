@@ -13,6 +13,7 @@
 	import { shortWwn } from '#lib/drives.ts';
 	import { getLive } from '#lib/live.svelte.ts';
 	import { chartWindow, hottest, liveTemperatures, temperatureSeries } from '#lib/series.ts';
+	import { cpuSeries, formatBytes, fullestPool, memoryUsedPercent, poolFillSeries } from '#lib/host.ts';
 
 	const live = getLive();
 
@@ -25,6 +26,12 @@
 	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
 
 	const temperatures = $derived(liveTemperatures(sensors));
+
+	// The host's load (ADR-025), one tile each, all percents so they read alike.
+	const memory = $derived(memoryUsedPercent(live.history, live.host, live.now));
+	const cpu = $derived(cpuSeries(live.history, live.host, live.now)[0]);
+	const fullest = $derived(fullestPool(live.snapshot?.zfs));
+	const fullestFill = $derived(poolFillSeries(live.history, live.snapshot?.zfs, live.now).find((s) => s.label === fullest?.name));
 </script>
 
 <svelte:head><title>vigil</title></svelte:head>
@@ -35,7 +42,7 @@
 	{#each series as s (s.id)}
 		{@const celsius = temperatures[s.id] ?? null}
 		{#if s.id === 'drives:max'}
-			<StatTile label={s.label} {celsius} points={s.points}>
+			<StatTile label={s.label} value={celsius} points={s.points}>
 				{#snippet detail()}
 					{#if hottestDrive}
 						{@const wwn = hottestDrive.id.replace(/^drive:/, '')}
@@ -44,9 +51,35 @@
 				{/snippet}
 			</StatTile>
 		{:else}
-			<StatTile label={s.label} {celsius} points={s.points} />
+			<StatTile label={s.label} value={celsius} points={s.points} />
 		{/if}
 	{/each}
+</section>
+
+<section class="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3" aria-label="Load">
+	<StatTile label="Memory used" value={memory.value} unit="%" points={memory.points}>
+		{#snippet detail()}
+			{#if live.host?.memory}
+				<a class="underline-offset-4 hover:underline" href={resolve('/system')}
+					>{formatBytes(live.host.memory.usedBytes)} of {formatBytes(live.host.memory.totalBytes)}</a
+				>
+			{:else}&nbsp;{/if}
+		{/snippet}
+	</StatTile>
+	<StatTile label="CPU busy" value={live.host?.cpu?.busyPercent ?? null} unit="%" points={cpu.points}>
+		{#snippet detail()}
+			{#if live.host?.load}
+				<a class="underline-offset-4 hover:underline" href={resolve('/system')}>load {live.host.load.one.toFixed(2)}</a>
+			{:else}&nbsp;{/if}
+		{/snippet}
+	</StatTile>
+	<StatTile label="Fullest pool" value={fullest?.percent ?? null} unit="%" points={fullestFill?.points ?? []}>
+		{#snippet detail()}
+			{#if fullest}
+				<a class="underline-offset-4 hover:underline" href={resolve('/storage')}>{fullest.name}</a>
+			{:else}&nbsp;{/if}
+		{/snippet}
+	</StatTile>
 </section>
 
 <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-3">
