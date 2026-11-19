@@ -12,8 +12,8 @@
 //! one and CI fails.
 
 use super::{
-    Bay, DriveHealth, FanStatus, PoolScan, PoolStatus, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot,
-    VdevStatus, ZfsStatus,
+    Bay, CpuTicks, DiskCounters, DriveHealth, FanStatus, HostStatus, InterfaceCounters, LoadAverage, MemoryStatus, PoolScan, PoolStatus,
+    Pressure, PressureStall, PwmMode, STREAM_KEEPALIVE_SECONDS, SensorCategory, SensorReading, Snapshot, VdevStatus, ZfsStatus,
 };
 use serde_json::{Value, json};
 
@@ -114,6 +114,49 @@ fn samples() -> Value {
     };
     let zfs = ZfsStatus { is_available: true, as_of: "2026-09-21T23:01:02.004Z".to_owned(), pools: vec![pool.clone()] };
     let bay = Bay { port: "pci-0000:03:00.0-sas-phy4-lun-0".to_owned(), cage: "8-bay".to_owned(), slot: 5 };
+    let memory = MemoryStatus {
+        total_bytes: 67_355_660_288,
+        available_bytes: 20_971_520_000,
+        free_bytes: 2_097_152_000,
+        buffers_bytes: 104_857_600,
+        cached_bytes: 11_010_048_000,
+        swap_total_bytes: 8_589_930_496,
+        swap_free_bytes: 8_589_312_000,
+        arc_bytes: Some(34_359_738_368),
+        arc_max_bytes: Some(33_678_233_600),
+    };
+    let cpu = CpuTicks {
+        user: 14_199,
+        nice: 8_798,
+        system: 13_471,
+        idle: 547_156,
+        iowait: 1_626,
+        irq: 763,
+        softirq: 566,
+        steal: 0,
+        logical_cpus: 16,
+    };
+    let load = LoadAverage { one: 0.46, five: 0.66, fifteen: 0.36 };
+    let stall = PressureStall { some_micros: 2_132_541, full_micros: Some(1_901_145) };
+    let pressure = Pressure { cpu: Some(stall.clone()), memory: Some(stall.clone()), io: Some(stall.clone()) };
+    let disk = DiskCounters {
+        device_name: "naa.5000c500a1b2c3d4".to_owned(),
+        port: Some("pci-0000:01:00.1-ata-3".to_owned()),
+        read_bytes: 2_048_000_000,
+        written_bytes: 3_072_000_000,
+        busy_millis: 1_500,
+    };
+    let interface = InterfaceCounters { name: "vmbr0".to_owned(), received_bytes: 9_876_543_210, transmitted_bytes: 1_234_567_890 };
+    let host = HostStatus {
+        as_of: "2026-09-21T23:01:33.902Z".to_owned(),
+        uptime_seconds: Some(487.25),
+        memory: Some(memory.clone()),
+        cpu: Some(cpu.clone()),
+        load: Some(load.clone()),
+        pressure: Some(pressure.clone()),
+        disks: vec![disk.clone()],
+        interfaces: vec![interface.clone()],
+    };
     let snapshot = Snapshot {
         timestamp_utc: "2026-09-21T23:01:34.155Z".to_owned(),
         sensors: vec![sensor.clone()],
@@ -121,6 +164,7 @@ fn samples() -> Value {
         drive_health: vec![drive_health.clone()],
         zfs: Some(zfs.clone()),
         bays: vec![bay.clone()],
+        host: Some(host.clone()),
         control_loop_healthy: true,
     };
 
@@ -143,6 +187,14 @@ fn samples() -> Value {
             "PoolScan": scan,
             "VdevStatus": vdev,
             "Bay": bay,
+            "HostStatus": host,
+            "MemoryStatus": memory,
+            "CpuTicks": cpu,
+            "LoadAverage": load,
+            "Pressure": pressure,
+            "PressureStall": stall,
+            "DiskCounters": disk,
+            "InterfaceCounters": interface,
             "Snapshot": snapshot,
         },
         // vigil-core's read timeout on /events must exceed twice this, and its tests check it.

@@ -65,6 +65,9 @@ LockPersonality=true
 #   /dev/mpt3ctl, and nvidia-smi needs the nvidia device nodes.
 # MemoryDenyWriteExecute: NOT set, because it would also apply to smartctl and
 #   nvidia-smi, vendor binaries whose memory behaviour is not ours to promise.
+# ProtectProc/ProcSubset: NOT set. ProcSubset=pid hides /proc/meminfo, /proc/stat,
+#   /proc/diskstats and the rest of what [host] reads, so the host's load would vanish
+#   from the page. vigild reads no other process's /proc entry, so there is little to hide.
 # CapabilityBoundingSet: NOT set yet. The daemon runs as root and needs CAP_CHOWN
 #   for the socket's uid/gid, and smartctl may need CAP_SYS_RAWIO for SG_IO on
 #   some kernels. Narrowing it blind risks losing fan control or drive health, so

@@ -1,6 +1,9 @@
 // Mirrors two definitions of the JSON: vigild's snapshot (Rust, daemon/) and vigil-core's live
 // stream (C#, core/). Each writes its half to a contract.json that types.contract.test.ts checks
 // this file against, so a change on either side fails here until this file follows.
+//
+// Over the 400-line ceiling (STYLE.md §2.1): it is one mirror of two wire contracts, and
+// splitting it would put the halves of one contract test's subject in separate files.
 
 export type SensorCategory = 'cpu' | 'boardAmbient' | 'drive' | 'gpu' | 'memory' | 'hba';
 
@@ -70,7 +73,77 @@ export interface Snapshot {
 	zfs?: ZfsStatus | null;
 	/** Every configured bay, in config order; absent from a daemon that predates them. */
 	bays?: Bay[];
+	/** The host's /proc counters (ADR-025). Null when vigild's [host] is off; absent from daemons that predate it. The page reads `host` messages instead, which carry them as rates. */
+	host?: HostStatus | null;
 	controlLoopHealthy: boolean;
+}
+
+// ---- The host's load as vigild counts it (ADR-025): cumulative counters, never rates ----
+
+export interface HostStatus {
+	asOf: string;
+	uptimeSeconds: number | null;
+	memory: MemoryStatus | null;
+	cpu: CpuTicks | null;
+	load: LoadAverage | null;
+	pressure: Pressure | null;
+	disks: DiskCounters[];
+	interfaces: InterfaceCounters[];
+}
+
+export interface MemoryStatus {
+	totalBytes: number;
+	availableBytes: number;
+	freeBytes: number;
+	buffersBytes: number;
+	cachedBytes: number;
+	swapTotalBytes: number;
+	swapFreeBytes: number;
+	arcBytes: number | null;
+	arcMaxBytes: number | null;
+}
+
+export interface CpuTicks {
+	user: number;
+	nice: number;
+	system: number;
+	idle: number;
+	iowait: number;
+	irq: number;
+	softirq: number;
+	steal: number;
+	logicalCpus: number;
+}
+
+export interface LoadAverage {
+	one: number;
+	five: number;
+	fifteen: number;
+}
+
+export interface Pressure {
+	cpu: PressureStall | null;
+	memory: PressureStall | null;
+	io: PressureStall | null;
+}
+
+export interface PressureStall {
+	someMicros: number;
+	fullMicros: number | null;
+}
+
+export interface DiskCounters {
+	deviceName: string;
+	port: string | null;
+	readBytes: number;
+	writtenBytes: number;
+	busyMillis: number;
+}
+
+export interface InterfaceCounters {
+	name: string;
+	receivedBytes: number;
+	transmittedBytes: number;
 }
 
 // ---- ZFS pool state, from one `zpool status` poll (ADR-018) ----

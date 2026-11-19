@@ -7,7 +7,7 @@
 // Type a letter + Enter to inject a fault: s = stall a fan, g = GPU unreadable,
 // u = loop unhealthy, r = grow a drive's reallocated count, z = fault a pool disk onto a spare
 // (tank's night of 2026-10-08), o = take a pool disk offline (DEGRADED, no resilver, no
-// errors), c = clear all faults.
+// errors), b = reboot the host (every /proc counter starts again from zero), c = clear all faults.
 
 import http from 'node:http';
 
@@ -125,6 +125,88 @@ function zfs() {
 	};
 }
 
+// The host's /proc counters (ADR-025): they only grow, at rates that follow the same slow
+// waves, so vigil-core has something to turn into rates. A nightly-backup burst every 20 min.
+const GIB = 2 ** 30;
+const HOST_CPUS = 16;
+const TICKS_PER_SECOND = 100;
+let host = freshHost();
+function freshHost() {
+	return {
+		bootedAt: Date.now(),
+		readAt: Date.now(),
+		cpu: { user: 0, nice: 0, system: 0, idle: 0, iowait: 0, irq: 0, softirq: 0, steal: 0 },
+		pressure: { cpu: [0, 0], memory: [0, 0], io: [0, 0] },
+		disks: Object.fromEntries(drives.map((d) => [d.wwn, { read: 0, written: 0, busy: 0 }])),
+		net: { vmbr0: [0, 0] }
+	};
+}
+
+function hostStatus() {
+	const now = Date.now();
+	const seconds = (now - host.readAt) / 1000;
+	host.readAt = now;
+
+	const backup = wave(1200) > 0.85;
+	const busy = Math.min(0.95, Math.max(0.03, 0.18 + wave(600) * 0.12 + noise(0.04) + (backup ? 0.3 : 0)));
+	const iowait = backup ? 0.08 : 0.01;
+	const ticks = seconds * TICKS_PER_SECOND * HOST_CPUS;
+	host.cpu.user += Math.round(ticks * busy * 0.7);
+	host.cpu.system += Math.round(ticks * busy * 0.25);
+	host.cpu.softirq += Math.round(ticks * busy * 0.05);
+	host.cpu.iowait += Math.round(ticks * iowait);
+	host.cpu.idle += Math.round(ticks * (1 - busy - iowait));
+
+	const micros = seconds * 1e6;
+	host.pressure.cpu[0] += Math.round(micros * busy * 0.05);
+	host.pressure.memory[0] += Math.round(micros * 0.002);
+	host.pressure.memory[1] += Math.round(micros * 0.001);
+	host.pressure.io[0] += Math.round(micros * (backup ? 0.2 : 0.02));
+	host.pressure.io[1] += Math.round(micros * (backup ? 0.12 : 0.01));
+
+	const disks = drives.map((d, i) => {
+		const counters = host.disks[d.wwn];
+		const pooled = i < 8 || d.ssd;
+		const readRate = pooled ? (backup ? 140e6 : 4e6 + Math.max(0, wave(300, i)) * 20e6) : 0;
+		const writeRate = pooled ? (backup ? 30e6 : 1e6 + Math.max(0, wave(450, i)) * 6e6) : 0;
+		counters.read += Math.round(readRate * seconds);
+		counters.written += Math.round(writeRate * seconds);
+		counters.busy += Math.round(seconds * 1000 * Math.min(1, (readRate + writeRate) / 180e6));
+		return { deviceName: d.wwn, port: d.port, readBytes: counters.read, writtenBytes: counters.written, busyMillis: counters.busy };
+	});
+
+	host.net.vmbr0[0] += Math.round(seconds * (2e6 + Math.max(0, wave(900)) * 40e6));
+	host.net.vmbr0[1] += Math.round(seconds * (0.5e6 + (backup ? 60e6 : 0)));
+
+	const total = 64 * GIB;
+	const arc = 31 * GIB + wave(3600) * GIB;
+	const stall = ([some, full]) => ({ someMicros: some, fullMicros: full });
+	return {
+		asOf: new Date(now).toISOString(),
+		uptimeSeconds: Math.round((now - host.bootedAt) / 10) / 100,
+		memory: {
+			totalBytes: total,
+			availableBytes: Math.round(total - arc - 14 * GIB - wave(800) * 2 * GIB),
+			freeBytes: Math.round(3 * GIB),
+			buffersBytes: Math.round(0.2 * GIB),
+			cachedBytes: Math.round(6 * GIB),
+			swapTotalBytes: 8 * GIB,
+			swapFreeBytes: 8 * GIB - 40 * 2 ** 20,
+			arcBytes: Math.round(arc),
+			arcMaxBytes: 32 * GIB
+		},
+		cpu: { ...host.cpu, logicalCpus: HOST_CPUS },
+		load: {
+			one: Math.round(busy * HOST_CPUS * 100) / 100,
+			five: Math.round((0.18 + wave(600, -0.3) * 0.1) * HOST_CPUS * 100) / 100,
+			fifteen: Math.round((0.18 + wave(600, -1) * 0.05) * HOST_CPUS * 100) / 100
+		},
+		pressure: { cpu: { someMicros: host.pressure.cpu[0], fullMicros: 0 }, memory: stall(host.pressure.memory), io: stall(host.pressure.io) },
+		disks,
+		interfaces: [{ name: 'vmbr0', receivedBytes: host.net.vmbr0[0], transmittedBytes: host.net.vmbr0[1] }]
+	};
+}
+
 function snapshot() {
 	const cpu = 46 + wave(600) * 12 + noise(1.5);
 	const gpu = 40 + wave(900, 1) * 6 + noise(1);
@@ -192,6 +274,7 @@ function snapshot() {
 		})),
 		zfs: zfs(),
 		bays: BAYS,
+		host: hostStatus(),
 		controlLoopHealthy: !faults.unhealthy
 	};
 }
@@ -215,7 +298,7 @@ http
 			response.writeHead(404).end();
 		}
 	})
-	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/z/o/c + Enter to inject faults)`));
+	.listen(port, '127.0.0.1', () => console.log(`mock vigild on http://127.0.0.1:${port} (s/g/u/r/z/o/b/c + Enter to inject faults)`));
 
 process.stdin.on('data', (input) => {
 	const key = input.toString().trim();
@@ -227,6 +310,7 @@ process.stdin.on('data', (input) => {
 		driveHealthAsOf = new Date().toISOString();
 	} else if (key === 'z') faults.pool = true;
 	else if (key === 'o') faults.offline = true;
+	else if (key === 'b') host = freshHost();
 	else if (key === 'c') faults.stall = faults.gpu = faults.unhealthy = faults.pool = faults.offline = false;
 	zfsPolledAt = Date.now();
 	console.log('faults:', faults, 'reallocated:', reallocated);

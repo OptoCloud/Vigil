@@ -158,6 +158,12 @@ public sealed record Snapshot
     public IReadOnlyList<Bay> Bays { get; init; } = [];
 
     /// <summary>
+    /// The host's load (ADR-025). Null when vigild's <c>[host]</c> is off, before its first read,
+    /// and from a daemon that predates it, which is why it is not required.
+    /// </summary>
+    public HostStatus? Host { get; init; }
+
+    /// <summary>
     /// False when any channel could not be driven this poll, or (judged at read time) when this
     /// snapshot is older than the deadman timeout, i.e. the loop has hung.
     /// </summary>

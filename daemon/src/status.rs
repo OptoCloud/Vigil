@@ -90,6 +90,7 @@ mod tests {
             drive_health: vec![],
             zfs: None,
             bays: vec![],
+            host: None,
             control_loop_healthy: healthy,
         }
     }

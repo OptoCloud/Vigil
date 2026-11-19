@@ -230,6 +230,67 @@
             "slot": 5
           }
         ],
+        "host": {
+          "asOf": "2026-09-21T23:01:33.902Z",
+          "uptimeSeconds": 487.25,
+          "memory": {
+            "totalBytes": 67355660288,
+            "availableBytes": 20971520000,
+            "freeBytes": 2097152000,
+            "buffersBytes": 104857600,
+            "cachedBytes": 11010048000,
+            "swapTotalBytes": 8589930496,
+            "swapFreeBytes": 8589312000,
+            "arcBytes": 34359738368,
+            "arcMaxBytes": 33678233600
+          },
+          "cpu": {
+            "user": 14199,
+            "nice": 8798,
+            "system": 13471,
+            "idle": 547156,
+            "iowait": 1626,
+            "irq": 763,
+            "softirq": 566,
+            "steal": 0,
+            "logicalCpus": 16
+          },
+          "load": {
+            "one": 0.46,
+            "five": 0.66,
+            "fifteen": 0.36
+          },
+          "pressure": {
+            "cpu": {
+              "someMicros": 2132541,
+              "fullMicros": 1901145
+            },
+            "memory": {
+              "someMicros": 2132541,
+              "fullMicros": 1901145
+            },
+            "io": {
+              "someMicros": 2132541,
+              "fullMicros": 1901145
+            }
+          },
+          "disks": [
+            {
+              "deviceName": "naa.5000c500a1b2c3d4",
+              "port": "pci-0000:01:00.1-ata-3",
+              "readBytes": 2048000000,
+              "writtenBytes": 3072000000,
+              "busyMillis": 1500
+            }
+          ],
+          "interfaces": [
+            {
+              "name": "vmbr0",
+              "receivedBytes": 9876543210,
+              "transmittedBytes": 1234567890
+            }
+          ]
+        },
         "controlLoopHealthy": true
       }
     },

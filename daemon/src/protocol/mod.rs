@@ -9,6 +9,9 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+mod host;
+pub use host::{CpuTicks, DiskCounters, HostStatus, InterfaceCounters, LoadAverage, MemoryStatus, Pressure, PressureStall};
+
 /// How long `/events` may stay silent before vigild sends a keepalive comment.
 ///
 /// A consumer's read timeout must be more than twice this, so that one keepalive lost to a slow
@@ -261,6 +264,10 @@ pub struct Snapshot {
     /// that predates them.
     #[serde(default)]
     pub bays: Vec<Bay>,
+    /// The host's load (ADR-025). Null when `[host]` is off, before its first read, and from
+    /// a daemon that predates it.
+    #[serde(default)]
+    pub host: Option<HostStatus>,
     /// False when any channel couldn't be driven this poll, or (judged at read time) when
     /// this snapshot is older than the deadman timeout, i.e. the loop has hung.
     pub control_loop_healthy: bool,
@@ -327,6 +334,7 @@ mod tests {
 
         assert_eq!(snapshot.sensors[0].port, None);
         assert_eq!(snapshot.zfs, None);
+        assert_eq!(snapshot.host, None);
         assert_eq!(snapshot.fans[0].mode, Some(PwmMode::SmartFanIV));
         assert_eq!(serde_json::from_str::<Snapshot>(&serde_json::to_string(&snapshot).unwrap()).unwrap(), snapshot);
     }

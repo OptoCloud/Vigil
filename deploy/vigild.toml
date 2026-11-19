@@ -52,6 +52,15 @@ zpool_path = "/usr/sbin/zpool"
 poll_interval_secs = 60
 timeout_secs = 15
 
+# The host's load from /proc (ADR-025): memory and ARC, CPU, load, pressure, and every whole
+# disk's traffic. Interfaces are published only when listed, because everything vigild
+# publishes reaches the public dashboard, and the names of a guest's tap and veth devices
+# give the guests away. vmbr0 is Proxmox's default bridge, which carries the LAN.
+[host]
+enabled = true
+poll_interval_secs = 2
+interfaces = ["vmbr0"]
+
 # Zones group sensors by the airflow they sit in, not by sensor category. The case has two
 # compartments:
 #

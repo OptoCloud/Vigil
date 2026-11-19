@@ -24,7 +24,8 @@ public sealed class DaemonContractTests
     private static readonly string[] MirroredTypes =
     [
         nameof(Bay), nameof(DriveHealth), nameof(FanStatus), nameof(PoolScan), nameof(PoolStatus), nameof(SensorReading), nameof(Snapshot),
-        nameof(VdevStatus), nameof(ZfsStatus),
+        nameof(VdevStatus), nameof(ZfsStatus), nameof(HostStatus), nameof(MemoryStatus), nameof(CpuTicks), nameof(LoadAverage),
+        nameof(Pressure), nameof(PressureStall), nameof(DiskCounters), nameof(InterfaceCounters),
     ];
 
     private static void RoundTrips<T>(string name)
@@ -54,6 +55,14 @@ public sealed class DaemonContractTests
     [Fact] public void PoolScanRoundTrips() => RoundTrips<PoolScan>(nameof(PoolScan));
     [Fact] public void VdevStatusRoundTrips() => RoundTrips<VdevStatus>(nameof(VdevStatus));
     [Fact] public void BayRoundTrips() => RoundTrips<Bay>(nameof(Bay));
+    [Fact] public void HostStatusRoundTrips() => RoundTrips<HostStatus>(nameof(HostStatus));
+    [Fact] public void MemoryStatusRoundTrips() => RoundTrips<MemoryStatus>(nameof(MemoryStatus));
+    [Fact] public void CpuTicksRoundTrips() => RoundTrips<CpuTicks>(nameof(CpuTicks));
+    [Fact] public void LoadAverageRoundTrips() => RoundTrips<LoadAverage>(nameof(LoadAverage));
+    [Fact] public void PressureRoundTrips() => RoundTrips<Pressure>(nameof(Pressure));
+    [Fact] public void PressureStallRoundTrips() => RoundTrips<PressureStall>(nameof(PressureStall));
+    [Fact] public void DiskCountersRoundTrips() => RoundTrips<DiskCounters>(nameof(DiskCounters));
+    [Fact] public void InterfaceCountersRoundTrips() => RoundTrips<InterfaceCounters>(nameof(InterfaceCounters));
 
     [Theory]
     [InlineData("SensorCategory", typeof(SensorCategory))]

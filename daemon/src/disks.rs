@@ -74,6 +74,19 @@ impl<'a> DiskResolver<'a> {
         Some(Disk { stable_name: stable_name(self.sysfs, &self.block_root, &device, port.as_ref()), device, port })
     }
 
+    /// A whole disk the kernel lists by its own name ("sde", "nvme0n1"), if a device backs it.
+    /// None for a partition, and for what only looks like a disk: zvols, device-mapper, md,
+    /// loop, ram and nbd devices have no `device` link, because no hardware is behind them.
+    pub fn hardware_disk(&self, device: &str) -> Option<Disk> {
+        let backing = sysfs::join(&[&self.disks_root, device, "device"]);
+        if !self.sysfs.list_dirs(&sysfs::join(&[&self.disks_root, device])).contains(&backing) {
+            return None;
+        }
+
+        let port = port_of(device, &self.by_path);
+        Some(Disk { stable_name: stable_name(self.sysfs, &self.block_root, device, port.as_ref()), device: device.to_owned(), port })
+    }
+
     /// The disk itself, or the disk a partition belongs to. Read from sysfs rather than by
     /// trimming digits, which gets "nvme0n1p1" and "sda1" both right only by luck. A disk's
     /// directory also holds `queue`, `power` and the like, so a partition is told apart by the
@@ -134,6 +147,19 @@ mod tests {
         let disk = DiskResolver::new(&sysfs, "/sys", BY_PATH).disk_of("/dev/nvme0n1p1").unwrap();
 
         assert_eq!((disk.device.as_str(), disk.stable_name.as_str(), disk.port), ("nvme0n1", "nvme0n1", None));
+    }
+
+    #[test]
+    fn only_a_whole_disk_with_a_device_behind_it_is_hardware() {
+        let sysfs = host().with_dir("/sys/block/sde/device").with_dir("/sys/block/zd0/queue").with_dir("/sys/block/dm-0/dm");
+        let disks = DiskResolver::new(&sysfs, "/sys", BY_PATH);
+
+        let sde = disks.hardware_disk("sde").unwrap();
+        assert_eq!((sde.stable_name.as_str(), sde.port.as_deref()), ("naa.5000c500a1b2c3d4", Some("pci-0000:03:00.0-sas-phy4-lun-0")));
+        // A zvol, device-mapper, a partition, and a disk with nothing in sysfs at all.
+        for device in ["zd0", "dm-0", "sde1", "sdz"] {
+            assert_eq!(disks.hardware_disk(device), None, "{device}");
+        }
     }
 
     #[test]

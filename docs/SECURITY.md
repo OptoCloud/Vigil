@@ -186,6 +186,7 @@ realistic cases here, not an attacker.
 |---|---|
 | HTTP requests to vigild and vigil-core | hyper's and Kestrel's own header and body limits |
 | child process stdout | 1 MiB, then the child is killed (`daemon/src/process.rs`) |
+| `/proc` files, in vigild | 1 MiB each, refused whole past that (`host.rs`, `SysFs::read_at_most`) |
 | vigild's response headers, in vigil-core | 16 KiB (`VigildClient`) |
 | vigild's response, in vigil-core | 10s for the headers (`Limits.DaemonResponseTimeout`) |
 | vigild's stream, in vigil-core | 50s of silence ends it (`IdleTimeoutStream`); 1 MiB per event (`ReadBudgetStream`, `Limits.MaxDaemonEventBytes`) |

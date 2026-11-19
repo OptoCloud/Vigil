@@ -49,6 +49,18 @@ impl Config {
             }
         }
 
+        if self.host.enabled {
+            positive(&mut errors, "host.poll_interval_secs", self.host.poll_interval_secs);
+            for name in self.host.interfaces.iter().filter(|name| !is_interface_name(name)) {
+                errors.push(format!("host.interfaces: '{name}' is not an interface name (1 to 15 characters, no '/', ':' or whitespace)."));
+            }
+            for (name, count) in counts(self.host.interfaces.iter().map(String::as_str)) {
+                if count > 1 {
+                    errors.push(format!("host.interfaces lists '{name}' {count} times."));
+                }
+            }
+        }
+
         if !(self.gpu.min_read_interval_secs.is_finite() && self.gpu.min_read_interval_secs >= 0.0) {
             errors.push(format!("gpu.min_read_interval_secs must not be negative (is {}).", self.gpu.min_read_interval_secs));
         }
@@ -199,6 +211,13 @@ fn validate_input(
     }
 }
 
+/// The kernel's own rule (`dev_valid_name`): under IFNAMSIZ (16) bytes with its NUL, not "."
+/// or "..", and no '/', ':' or whitespace. `/proc/net/dev` separates the name with a colon, so
+/// a name the kernel would refuse could never match a line there anyway.
+fn is_interface_name(name: &str) -> bool {
+    (1..=15).contains(&name.len()) && name != "." && name != ".." && !name.chars().any(|c| c == '/' || c == ':' || c.is_whitespace())
+}
+
 /// A PWM duty the chip will accept. Anything else refuses to start rather than being clamped:
 /// a duty out of range is a typo, and guessing what was meant is how a fan ends up at 0%.
 fn is_duty(percent: i64) -> bool {
@@ -220,7 +239,7 @@ fn counts<'a>(items: impl Iterator<Item = &'a str>) -> Vec<(&'a str, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{ChannelConfig, CurveConfig, ZfsConfig, ZoneConfig};
+    use crate::config::{ChannelConfig, CurveConfig, HostConfig, ZfsConfig, ZoneConfig};
 
     fn channel(id: &str, index: i64) -> ChannelConfig {
         ChannelConfig { id: id.to_owned(), chip_name: "nct6798".to_owned(), index, minimum_duty_percent: 30 }
@@ -374,6 +393,24 @@ mod tests {
         assert!(zfs(false, 0.0, 99.0).validate().is_empty());
         assert!(has(&zfs(true, 60.0, 60.0).validate(), "zfs.timeout_secs"));
         assert!(has(&zfs(true, 0.0, 15.0).validate(), "zfs.poll_interval_secs"));
+    }
+
+    #[test]
+    fn host_interfaces_must_be_names_the_kernel_would_accept_and_listed_once() {
+        let host = |interfaces: &[&str]| Config {
+            host: HostConfig { interfaces: interfaces.iter().map(|name| (*name).to_owned()).collect(), ..HostConfig::default() },
+            ..Config::default()
+        };
+
+        assert!(host(&["vmbr0", "enp5s0", "a234567890abcde"]).validate().is_empty());
+        for bad in ["", "..", "eth0:1", "a b", "../x", "a234567890abcdef"] {
+            assert!(has(&host(&[bad]).validate(), "host.interfaces"), "{bad:?}");
+        }
+        assert!(has(&host(&["vmbr0", "vmbr0"]).validate(), "2 times"));
+        assert!(has(
+            &Config { host: HostConfig { poll_interval_secs: 0.0, ..HostConfig::default() }, ..Config::default() }.validate(),
+            "host.poll_interval_secs"
+        ));
     }
 
     #[test]

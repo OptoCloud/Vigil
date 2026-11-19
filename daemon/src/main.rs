@@ -19,6 +19,7 @@ mod disks;
 mod fans;
 mod gpu;
 mod hba;
+mod host;
 mod instance;
 mod logging;
 mod mpt3;
@@ -122,6 +123,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
     let hub = Arc::new(StatusHub::new());
     let drive_health = Arc::new(Mutex::new(Vec::new()));
     let pools = Arc::new(Mutex::new(None));
+    let host = Arc::new(Mutex::new(None));
 
     start_status_api(&config, &hub)?;
     if config.drive_health.enabled {
@@ -133,6 +135,11 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
         spawn_zfs_poller(&config, Arc::clone(&sysfs), Arc::clone(&pools));
     } else {
         info!("ZFS pool polling disabled via config.");
+    }
+    if config.host.enabled {
+        spawn_host_poller(&config, Arc::clone(&sysfs), Arc::clone(&host));
+    } else {
+        info!("Host load reading disabled via config.");
     }
 
     let mut gpu = gpu::GpuTemperatureProvider::new(config.gpu.clone());
@@ -159,6 +166,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
             drive_health: drive_health.lock().unwrap_or_else(|e| e.into_inner()).clone(),
             zfs: pools.lock().unwrap_or_else(|e| e.into_inner()).clone(),
             bays: bays.clone(),
+            host: host.lock().unwrap_or_else(|e| e.into_inner()).clone(),
             control_loop_healthy: result.healthy,
         });
 
@@ -302,6 +310,38 @@ fn spawn_zfs_poller(config: &Config, sysfs: Arc<dyn SysFs>, results: Arc<Mutex<O
 
     if let Err(error) = spawned {
         error!("Cannot start the ZFS poller; pool state will be unavailable: {error}");
+    }
+}
+
+/// The host's load on its own thread. `/proc` reads do not block in practice, but the fan loop
+/// is the one thing that must never wait on anything it does not need, so this is not in it.
+fn spawn_host_poller(config: &Config, sysfs: Arc<dyn SysFs>, results: Arc<Mutex<Option<protocol::HostStatus>>>) {
+    let sysfs_root = config.sysfs_root.clone();
+    let by_path_dir = config.disk_by_path_dir.clone();
+    let config = config.host.clone();
+    info!(
+        "Host load read every {:?}, with {} interface(s) published.",
+        Duration::from_secs_f64(config.poll_interval_secs),
+        config.interfaces.len()
+    );
+
+    let spawned = std::thread::Builder::new().name("host".to_owned()).spawn(move || {
+        let mut log = conditions::ConditionLog::default();
+        let mut next_read = Instant::now();
+        while !SHUTDOWN.load(Ordering::Relaxed) {
+            // Resolved on every read, so a disk that is hot-swapped or renamed carries its new name.
+            let disks = disks::DiskResolver::new(&*sysfs, &sysfs_root, &by_path_dir);
+            let status = host::read(&*sysfs, &disks, &config, &status::now_rfc3339());
+            host::log_changes(&mut log, &status, &config);
+
+            *results.lock().unwrap_or_else(|e| e.into_inner()) = Some(status);
+            next_read = (next_read + Duration::from_secs_f64(config.poll_interval_secs)).max(Instant::now());
+            sleep_until(next_read);
+        }
+    });
+
+    if let Err(error) = spawned {
+        error!("Cannot start the host load reader; host load will be unavailable: {error}");
     }
 }
 

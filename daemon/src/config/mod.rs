@@ -32,6 +32,7 @@ pub struct Config {
     pub hba: HbaConfig,
     pub drive_health: DriveHealthConfig,
     pub zfs: ZfsConfig,
+    pub host: HostConfig,
     pub zones: Vec<ZoneConfig>,
     pub channels: Vec<ChannelConfig>,
     pub curves: Vec<CurveConfig>,
@@ -51,6 +52,7 @@ impl Default for Config {
             hba: HbaConfig::default(),
             drive_health: DriveHealthConfig::default(),
             zfs: ZfsConfig::default(),
+            host: HostConfig::default(),
             zones: Vec::new(),
             channels: Vec::new(),
             curves: Vec::new(),
@@ -167,6 +169,28 @@ pub struct ZfsConfig {
 impl Default for ZfsConfig {
     fn default() -> Self {
         Self { enabled: false, zpool_path: "zpool".to_owned(), poll_interval_secs: 60.0, timeout_secs: 15.0 }
+    }
+}
+
+/// The host's load, from `/proc` (ADR-025). On by default: every Linux has these files, and
+/// reading them costs a few small reads per poll and touches no disk.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HostConfig {
+    pub enabled: bool,
+    /// Where procfs is mounted. Only ever changed to read a fake tree.
+    pub proc_root: String,
+    /// Read on its own thread, so a slow read can never delay a fan poll.
+    pub poll_interval_secs: f64,
+    /// The interfaces whose traffic is published. Empty by default, because everything
+    /// published reaches a public page (ADR-023) and on a Proxmox host the names of the others
+    /// (`tap100i0`, `veth105i0`) give away the guests.
+    pub interfaces: Vec<String>,
+}
+
+impl Default for HostConfig {
+    fn default() -> Self {
+        Self { enabled: true, proc_root: "/proc".to_owned(), poll_interval_secs: 2.0, interfaces: Vec::new() }
     }
 }
 

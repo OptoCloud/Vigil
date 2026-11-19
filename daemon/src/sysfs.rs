@@ -11,6 +11,13 @@ pub trait SysFs: Send + Sync {
     /// for racing sysfs attributes (e.g. the temperature of a drive that just spun down).
     fn read(&self, path: &str) -> Option<String>;
 
+    /// As `read`, but None when the file holds more than `limit` bytes, read no further than
+    /// that. For files whose size the kernel does not bound, such as `/proc/diskstats` on a host
+    /// with many zvols (SECURITY.md §4.1).
+    fn read_at_most(&self, path: &str, limit: usize) -> Option<String> {
+        self.read(path).filter(|contents| contents.len() <= limit)
+    }
+
     fn write(&self, path: &str, contents: &str) -> io::Result<()>;
 
     fn file_exists(&self, path: &str) -> bool;
@@ -38,6 +45,16 @@ pub struct LinuxSysFs;
 impl SysFs for LinuxSysFs {
     fn read(&self, path: &str) -> Option<String> {
         std::fs::read_to_string(path).ok().map(|s| s.trim().to_owned())
+    }
+
+    fn read_at_most(&self, path: &str, limit: usize) -> Option<String> {
+        use std::io::Read;
+
+        // One byte past the limit is how a file that is too big is told from one that fits.
+        let mut contents = String::new();
+        let file = std::fs::File::open(path).ok()?;
+        file.take(u64::try_from(limit).ok()?.saturating_add(1)).read_to_string(&mut contents).ok()?;
+        (contents.len() <= limit).then(|| contents.trim().to_owned())
     }
 
     fn write(&self, path: &str, contents: &str) -> io::Result<()> {
