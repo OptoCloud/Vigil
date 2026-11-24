@@ -80,9 +80,9 @@
 				<Table.Row class="border-grid">
 					<!-- The WWN is the drive's identity: unlike sdX it survives reboots and port changes. -->
 					<Table.Head scope="row" class="pl-0 font-normal" title={row.wwn}>
-						<a class="mr-1.5 font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: row.wwn })}
-							>{shortWwn(row.wwn)}</a
-						>
+						<a class="mr-1.5 font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: row.wwn })}>
+							{shortWwn(row.wwn)}
+						</a>
 						<span class="text-faint">{deviceOf(row.health?.sourcePath)}</span>
 					</Table.Head>
 					<Table.Cell class="tabular-nums" title={row.port ?? ''}>{shortPort(row.port)}</Table.Cell>
@@ -139,9 +139,9 @@
 					</Table.Head>
 					<Table.Cell title={bay.wwn ?? ''}>
 						{#if bay.wwn}
-							<a class="font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: bay.wwn })}
-								>{#if bay.health?.serialNumber}<Withheld text={bay.health.serialNumber} />{:else}{shortWwn(bay.wwn)}{/if}</a
-							>
+							<a class="font-medium tabular-nums underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: bay.wwn })}>
+								{#if bay.health?.serialNumber}<Withheld text={bay.health.serialNumber} />{:else}{shortWwn(bay.wwn)}{/if}
+							</a>
 							{#if bay.health?.serialNumber}<span class="block text-xs text-faint tabular-nums">{shortWwn(bay.wwn)}</span>{/if}
 						{:else}
 							<span class="text-faint">empty</span>
@@ -157,21 +157,21 @@
 					</Table.Cell>
 					<Table.Cell class="text-right tabular-nums">{bay.wwn ? formatCount(zfsErrors(memberships)) : ''}</Table.Cell>
 					<!-- A bay that is empty now but had a disk earlier in the range keeps its trend. -->
-					<Table.Cell
-						>{#if bay.wwn}{@render temperature(bay.sensor?.celsiusOrNull ?? null)}{/if}</Table.Cell
-					>
-					<Table.Cell
-						>{#if bay.wwn || bay.trend.length > 0}<Sparkline points={bay.trend} />{/if}</Table.Cell
-					>
-					<Table.Cell class="pr-0"
-						>{#if bay.wwn}<StatusBadge level={s.level} label={s.label} />{/if}</Table.Cell
-					>
+					<Table.Cell>
+						{#if bay.wwn}{@render temperature(bay.sensor?.celsiusOrNull ?? null)}{/if}
+					</Table.Cell>
+					<Table.Cell>
+						{#if bay.wwn || bay.trend.length > 0}<Sparkline points={bay.trend} />{/if}
+					</Table.Cell>
+					<Table.Cell class="pr-0">
+						{#if bay.wwn}<StatusBadge level={s.level} label={s.label} />{/if}
+					</Table.Cell>
 				</Table.Row>
 			{:else}
 				<Table.Row>
-					<Table.Cell colspan={7} class="text-faint"
-						>No bays yet: list them as [[bays]] in vigild.toml, or wait for a drive that reports its port.</Table.Cell
-					>
+					<Table.Cell colspan={7} class="text-faint">
+						No bays yet: list them as [[bays]] in vigild.toml, or wait for a drive that reports its port.
+					</Table.Cell>
 				</Table.Row>
 			{/each}
 		</Table.Body>

@@ -95,17 +95,18 @@
 			{#each groups as group (group.parent)}
 				<Table.Body>
 					<Table.Row class="border-grid hover:bg-transparent">
-						<Table.Head scope="rowgroup" colspan={6} class="h-8 pl-0 text-xs font-semibold text-muted-foreground">{group.parent}</Table.Head
-						>
+						<Table.Head scope="rowgroup" colspan={6} class="h-8 pl-0 text-xs font-semibold text-muted-foreground">
+							{group.parent}
+						</Table.Head>
 					</Table.Row>
 					{#each group.vdevs as vdev (vdev.guid ?? vdev.name)}
 						{@const v = vdevVerdict(vdev)}
 						<Table.Row class="border-grid">
 							<Table.Head scope="row" class="max-w-80 truncate pl-3 font-normal" title={vdev.path ?? vdev.name}>
 								{#if vdev.deviceName}
-									<a class="underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: vdev.deviceName })}
-										><Withheld text={vdev.name} device /></a
-									>
+									<a class="underline-offset-4 hover:underline" href={resolve('/drives/[wwn]', { wwn: vdev.deviceName })}>
+										<Withheld text={vdev.name} device />
+									</a>
 								{:else}
 									<Withheld text={vdev.name} device />
 								{/if}

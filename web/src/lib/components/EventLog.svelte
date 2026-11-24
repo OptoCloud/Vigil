@@ -26,9 +26,9 @@
 			<span class="pt-px text-xs"><StatusBadge level={event.severity} label={label[event.severity]} /></span>
 			<!-- Messages come from the server's own templates, but they embed device names; text interpolation keeps them inert. -->
 			<span><Withheld text={event.message} /></span>
-			<time class="text-xs whitespace-nowrap text-faint tabular-nums" datetime={event.ts} title={new Date(event.ts).toLocaleString()}
-				>{relativeTime(event.ts, now)}</time
-			>
+			<time class="text-xs whitespace-nowrap text-faint tabular-nums" datetime={event.ts} title={new Date(event.ts).toLocaleString()}>
+				{relativeTime(event.ts, now)}
+			</time>
 		</li>
 	{:else}
 		<li class="text-faint">

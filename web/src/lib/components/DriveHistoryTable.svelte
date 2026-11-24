@@ -32,11 +32,11 @@
 				<Table.Cell class="pr-0 text-right tabular-nums">{formatYears(record.powerOnHours)}</Table.Cell>
 			</Table.Row>
 		{:else}
-			<Table.Row
-				><Table.Cell colspan={5} class="text-faint"
-					>No changes recorded: the counts have not moved since vigil first saw this drive.</Table.Cell
-				></Table.Row
-			>
+			<Table.Row>
+				<Table.Cell colspan={5} class="text-faint">
+					No changes recorded: the counts have not moved since vigil first saw this drive.
+				</Table.Cell>
+			</Table.Row>
 		{/each}
 	</Table.Body>
 </Table.Root>

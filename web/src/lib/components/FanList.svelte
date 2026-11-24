@@ -18,10 +18,13 @@
 
 <Table.Root>
 	<Table.Header class="sr-only">
-		<Table.Row
-			><Table.Head scope="col">Fan</Table.Head><Table.Head scope="col">Duty</Table.Head><Table.Head scope="col">Speed</Table.Head
-			><Table.Head scope="col">State</Table.Head></Table.Row
-		>
+		<Table.Row>
+			<Table.Head scope="col">Fan</Table.Head><Table.Head scope="col">Duty</Table.Head><Table.Head scope="col">Speed</Table.Head><Table.Head
+				scope="col"
+			>
+				State
+			</Table.Head>
+		</Table.Row>
 	</Table.Header>
 	<Table.Body>
 		{#each sorted as fan (fan.id)}
@@ -34,9 +37,9 @@
 						<span class="w-9.5 text-right font-semibold tabular-nums">{fan.dutyPercent}%</span>
 					</div>
 				</Table.Cell>
-				<Table.Cell class="px-4 text-right tabular-nums"
-					>{fan.rpm === null ? 'n/a' : fan.rpm.toLocaleString()} <span class="text-faint">rpm</span></Table.Cell
-				>
+				<Table.Cell class="px-4 text-right tabular-nums">
+					{fan.rpm === null ? 'n/a' : fan.rpm.toLocaleString()} <span class="text-faint">rpm</span>
+				</Table.Cell>
 				<Table.Cell class="pr-0 text-xs"><StatusBadge level={s.level} label={s.label} /></Table.Cell>
 			</Table.Row>
 		{:else}

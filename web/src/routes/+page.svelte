@@ -60,9 +60,9 @@
 	<StatTile label="Memory used" value={memory.value} unit="%" points={memory.points}>
 		{#snippet detail()}
 			{#if live.host?.memory}
-				<a class="underline-offset-4 hover:underline" href={resolve('/system')}
-					>{formatBytes(live.host.memory.usedBytes)} of {formatBytes(live.host.memory.totalBytes)}</a
-				>
+				<a class="underline-offset-4 hover:underline" href={resolve('/system')}>
+					{formatBytes(live.host.memory.usedBytes)} of {formatBytes(live.host.memory.totalBytes)}
+				</a>
 			{:else}&nbsp;{/if}
 		{/snippet}
 	</StatTile>

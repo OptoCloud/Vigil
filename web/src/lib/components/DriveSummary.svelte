@@ -32,8 +32,10 @@
 						<a
 							class="font-medium tabular-nums underline-offset-4 hover:underline"
 							href={resolve('/drives/[wwn]', { wwn: row.wwn })}
-							title={row.wwn}>{shortWwn(row.wwn)}</a
+							title={row.wwn}
 						>
+							{shortWwn(row.wwn)}
+						</a>
 						<StatusBadge level={row.smart.level} label={row.smart.label} />
 					</li>
 				{/each}

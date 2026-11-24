@@ -88,9 +88,9 @@
 					</tr>
 					<tr>
 						<th scope="row">Runtime</th>
-						<td colspan="2" class="value"
-							>{reading.batteryRuntimeSeconds === null ? 'n/a' : formatRuntime(reading.batteryRuntimeSeconds)}</td
-						>
+						<td colspan="2" class="value">
+							{reading.batteryRuntimeSeconds === null ? 'n/a' : formatRuntime(reading.batteryRuntimeSeconds)}
+						</td>
 					</tr>
 					{#if margin}
 						<tr>
@@ -99,9 +99,9 @@
 								{formatDuration(margin.startsAt)} left{#if reading.lowBatteryCharge !== null}&nbsp;or {Math.round(
 										reading.lowBatteryCharge
 									)}%{/if}
-								{#if margin.untilShutdown !== null}<span class="detail"
-										>after {formatRuntime(margin.untilShutdown)} on battery at this load</span
-									>{/if}
+								{#if margin.untilShutdown !== null}<span class="detail">
+										after {formatRuntime(margin.untilShutdown)} on battery at this load
+									</span>{/if}
 							</td>
 						</tr>
 					{/if}
@@ -167,9 +167,9 @@
 			</table>
 
 			<details class="mt-2 text-xs">
-				<summary class="cursor-pointer text-faint"
-					>All {variables.length} variables from upsd, read {relativeTime(reading.timestampUtc, now)}</summary
-				>
+				<summary class="cursor-pointer text-faint">
+					All {variables.length} variables from upsd, read {relativeTime(reading.timestampUtc, now)}
+				</summary>
 				<table
 					class="w-full text-xs tabular-nums [&_td]:py-0.75 [&_td]:text-right [&_td]:break-words [&_th]:py-0.75 [&_th]:text-left [&_th]:font-normal [&_th]:break-words"
 				>

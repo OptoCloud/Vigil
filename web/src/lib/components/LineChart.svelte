@@ -165,13 +165,14 @@
 				>
 					{#each yTicks as tick (tick)}
 						<line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} stroke="var(--grid)" />
-						<text class="fill-faint text-[11px] tabular-nums" x={MARGIN.left - 8} y={y(tick)} text-anchor="end" dominant-baseline="middle"
-							>{tick}</text
-						>
+						<text class="fill-faint text-[11px] tabular-nums" x={MARGIN.left - 8} y={y(tick)} text-anchor="end" dominant-baseline="middle">
+							{tick}
+						</text>
 					{/each}
 					{#each xTicks as tick (tick)}
-						<text class="fill-faint text-[11px] tabular-nums" x={x(tick)} y={HEIGHT - 8} text-anchor="middle">{formatTick(tick, span)}</text
-						>
+						<text class="fill-faint text-[11px] tabular-nums" x={x(tick)} y={HEIGHT - 8} text-anchor="middle">
+							{formatTick(tick, span)}
+						</text>
 					{/each}
 					<line x1={MARGIN.left} x2={width - MARGIN.right} y1={HEIGHT - MARGIN.bottom} y2={HEIGHT - MARGIN.bottom} stroke="var(--axis)" />
 

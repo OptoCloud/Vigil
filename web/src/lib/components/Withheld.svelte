@@ -16,5 +16,7 @@
 
 {#each parts as part, index (index)}{#if part.withheld}<span
 			class="rounded-sm bg-muted px-0.5 tracking-tighter text-faint"
-			title="Withheld: this page is public"><span aria-hidden="true">{MASK}</span><span class="sr-only">withheld</span></span
-		>{:else}{part.text}{/if}{/each}
+			title="Withheld: this page is public"
+		>
+			<span aria-hidden="true">{MASK}</span><span class="sr-only">withheld</span>
+		</span>{:else}{part.text}{/if}{/each}

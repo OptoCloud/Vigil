@@ -25,8 +25,10 @@
 				<time
 					class="text-xs whitespace-nowrap text-faint tabular-nums"
 					datetime={alert.since}
-					title="Raised {new Date(alert.since).toLocaleString()}">since {relativeTime(alert.since, now)}</time
+					title="Raised {new Date(alert.since).toLocaleString()}"
 				>
+					since {relativeTime(alert.since, now)}
+				</time>
 			</li>
 		{/each}
 	</ul>
