@@ -5,9 +5,6 @@
 #   scripts/check.sh              run everything installed, skip what is not
 #   CHECK_STRICT=1 scripts/check.sh   a missing tool is a failure (this is what CI uses)
 #   scripts/check.sh --rust|--dotnet|--web|--rules   just that section
-#
-# Checks marked PENDING report known outstanding findings without failing: they are debt
-# docs/CLEANUP.md already tracks, and they become hard failures when their phase lands.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -15,17 +12,12 @@ cd "$(dirname "$0")/.."
 readonly RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m' DIM=$'\033[2m' OFF=$'\033[0m'
 failures=0
 skipped=0
-pending=0
 
 pass()    { printf '  %s✓%s %s\n' "$GREEN" "$OFF" "$1"; }
 fail()    { printf '  %s✗%s %s\n' "$RED" "$OFF" "$1"; failures=$((failures + 1)); }
 warn()    { printf '  %s!%s %s\n' "$YELLOW" "$OFF" "$1"; }
 note()    { printf '    %s%s%s\n' "$DIM" "$1" "$OFF"; }
 section() { printf '\n%s\n' "$1"; }
-
-# PENDING: a known finding tracked in docs/CLEANUP.md. Reported every run, never silent,
-# but not a failure until its phase lands.
-todo() { printf '  %s·%s %s %s(pending: %s)%s\n' "$YELLOW" "$OFF" "$1" "$DIM" "$2" "$OFF"; pending=$((pending + 1)); }
 
 have() {
 	if command -v "$1" >/dev/null 2>&1; then return 0; fi
@@ -179,8 +171,6 @@ if [ "$want_rules" = 1 ]; then
 		pass 'every file is under the 400-line ceiling, or says why not'
 	fi
 
-	# ---- Checks whose findings are tracked debt, reported every run until their phase lands.
-
 	# STYLE.md §3.3 / SECURITY.md §6: a VALUE is never formatted into a statement. The shape of
 	# that mistake is an interpolated string that is SQL: one starting with a statement keyword,
 	# or an interpolated raw-string block, which this code uses for nothing else. Scoped to the
@@ -208,8 +198,8 @@ if [ "$want_rules" = 1 ]; then
 
 	# SECURITY.md §3.3: the systemd hardening baseline. A directive may be absent ONLY if the
 	# unit says why in a `# <Directive>: NOT set, <reason>` comment - some of them genuinely
-	# break a component (ProtectKernelTunables stops vigild writing /sys, MemoryDenyWriteExecute
-	# stops .NET's JIT), and the guide's rule is that an omission is documented, not silent.
+	# break a component (ProtectKernelTunables stops vigild writing /sys, PrivateDevices hides
+	# the HBA's ioctl device), and the guide's rule is that an omission is documented, not silent.
 	missing_units=''
 	for unit in deploy/vigild.service core/deploy/vigil-core.service; do
 		if [ ! -f "$unit" ]; then missing_units="$missing_units $unit:(missing)"; continue; fi
@@ -248,7 +238,6 @@ fi
 
 # ----------------------------------------------------------------- Result
 section 'Result'
-[ "$pending" -gt 0 ] && note "$pending tracked finding(s) pending, see docs/CLEANUP.md"
 [ "$skipped" -gt 0 ] && note "$skipped check(s) skipped; CHECK_STRICT=1 makes a missing tool a failure"
 if [ "$failures" -gt 0 ]; then
 	printf '  %s%d check(s) failed%s\n\n' "$RED" "$failures" "$OFF"

@@ -42,7 +42,7 @@ allow-wildcard-paths = true
 
 # ADR-003: no TLS stack in vigild. One needs C in it, which would end the static musl build from
 # a machine with no cross toolchain, and vigild talks only to its own unix socket. (vigil-core,
-# which sends ntfy over HTTPS, is .NET and has TLS built in; this gate does not reach it.) If
+# which fetches Cloudflare's ranges over HTTPS, is .NET and has TLS built in; this gate does not reach it.) If
 # one of these ever appears in the tree, something pulled HTTPS in by accident - most likely an
 # HTTP client crate added with default features.
 #

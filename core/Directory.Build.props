@@ -32,5 +32,14 @@
          that is 30 MB of nothing. -->
     <InvariantGlobalization>true</InvariantGlobalization>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Known vulnerabilities in any package, direct or transitive, at moderate and above: the
+         same line cargo-deny and `npm audit` draw (ADR-014). The findings are warnings, so the
+         line above this group makes them fail the build, which is what scripts/check.sh runs.
+         NU1900 is "the advisory list could not be fetched": not a finding, and not a reason
+         for a build on a train to fail. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

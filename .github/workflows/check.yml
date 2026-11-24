@@ -23,6 +23,24 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The database tests skip without a TimescaleDB, and a test that only ever skips is not a
+    # test: two of them were broken for a month before anyone ran them. The same image as
+    # dev/docker-compose.yml, which is the same version as production; it creates the
+    # extension itself. Its password is the dev one, for a database that lives as long as this job.
+    services:
+      timescaledb:
+        image: timescale/timescaledb:2.32.0-pg18
+        env:
+          POSTGRES_USER: vigil
+          POSTGRES_PASSWORD: vigil
+          POSTGRES_DB: vigil
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U vigil -d vigil"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -60,6 +78,7 @@ jobs:
       - name: scripts/check.sh
         env:
           CHECK_STRICT: '1'
+          VIGIL_TEST_DATABASE_URL: postgres://vigil:vigil@127.0.0.1:5433/vigil
         run: ./scripts/check.sh
 
   # vigild's static Linux binary is what actually gets deployed to the host, so a change that
@@ -93,6 +112,11 @@ jobs:
           # A dynamically linked binary would not run on a minimal host, which is the whole
           # point of the musl target.
           file "$path" | grep -q 'static' || { echo "vigild is not statically linked"; exit 1; }
+
+      # The real binary against a fake sysfs and stand-in tools: the socket API, real fan
+      # writes, the fail-safe, and the fans handed back on SIGTERM. No hardware, no root.
+      - name: Run vigild end to end
+        run: daemon/scripts/integration-test.sh target/x86_64-unknown-linux-musl/release/vigild
 
   # vigil-core ships as a NativeAOT binary (docs/DECISIONS.md ADR-016). The trimmer and the AOT
   # compiler warn about reflection only when they run, which an ordinary build never does, and
