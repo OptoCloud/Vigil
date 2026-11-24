@@ -4,7 +4,7 @@ What changed for someone running vigil: settings, routes, alerts, and anything a
 to do. The reasons are in `docs/DECISIONS.md` and the commits. Releases are tags
 (`vMAJOR.MINOR.PATCH`, ADR-022); each one's full list is on its GitHub release.
 
-## Unreleased
+## v1.3.1 (2026-11-24)
 
 ### Fixed
 
