@@ -4,6 +4,13 @@ What changed for someone running vigil: settings, routes, alerts, and anything a
 to do. The reasons are in `docs/DECISIONS.md` and the commits. Releases are tags
 (`vMAJOR.MINOR.PATCH`, ADR-022); each one's full list is on its GitHub release.
 
+## Unreleased
+
+### Fixed
+
+- The capacity forecast takes its rate from what a usual day adds, so one large copy is
+  reported as the one-off it was and no longer reads as "full in three weeks".
+
 ## v1.3.0 (2026-11-24)
 
 ### To do when upgrading

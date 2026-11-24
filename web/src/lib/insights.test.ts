@@ -115,35 +115,42 @@ describe("the day's rhythm", () => {
 });
 
 describe('when a pool is full', () => {
-	it('fits the rate and says when each level is reached', () => {
-		// 70 % and a point a day: 80 % in ten days from the last reading, 90 % in twenty.
-		const points: SeriesPoints = Array.from({ length: 6 }, (_, day) => [day * DAY, 65 + day]);
-		const result = some(forecast(points));
+	// Local noon of consecutive days, as a day is the viewer's.
+	const noon = (day: number) => new Date(2026, 10, day, 12).getTime();
+	const daily = (fill: number[]): SeriesPoints => fill.map((percent, i) => [noon(10 + i), percent]);
+
+	it("takes the usual day's change as the rate and says when each level is reached", () => {
+		// A point a day, at 70 % now: 80 % in ten days, 90 % in twenty.
+		const result = some(forecast(daily([65, 66, 67, 68, 69, 70])));
 
 		expect(result.percent).toBe(70);
 		expect(result.perDay).toBeCloseTo(1);
-		expect(result.reaches[0]).toBeCloseTo(15 * DAY, -3);
-		expect(result.reaches[1]).toBeCloseTo(25 * DAY, -3);
-		expect(result.basisDays).toBe(5);
+		expect(result.reaches[0]).toBeCloseTo(noon(15) + 10 * DAY, -3);
+		expect(result.reaches[1]).toBeCloseTo(noon(15) + 20 * DAY, -3);
+		expect([result.basisDays, result.jump]).toEqual([5, null]);
+	});
+
+	it("does not turn one day's copy into a trend, and says which day it was", () => {
+		// What happened: flat for days, 30 GB copied in once, flat again.
+		const result = some(forecast(daily([44.2, 44.1, 44.2, 44.2, 51.5, 51.6, 51.6])));
+
+		expect(result.perDay).toBeCloseTo(0, 0);
+		expect(result.reaches[0] === null || result.reaches[0] > noon(16) + 100 * DAY).toBe(true);
+		expect(result.jump?.points).toBeCloseTo(7.3);
+		expect(result.jump?.day).toBe(dayStart(noon(14)));
 	});
 
 	it('never reaches a level it is shrinking away from, or is already past', () => {
-		const shrinking: SeriesPoints = Array.from({ length: 6 }, (_, day) => [day * DAY, 50 - day]);
-		const past: SeriesPoints = Array.from({ length: 6 }, (_, day) => [day * DAY, 82 + day]);
+		const shrinking = some(forecast(daily([50, 49, 48, 47, 46, 45])));
+		const past = some(forecast(daily([82, 83, 84, 85, 86, 87])));
 
-		expect(some(forecast(shrinking)).reaches).toEqual([null, null]);
-		expect(some(forecast(past)).reaches[0]).toBeNull();
-		expect(some(forecast(past)).reaches[1]).not.toBeNull();
+		expect(shrinking.reaches).toEqual([null, null]);
+		expect(past.reaches[0]).toBeNull();
+		expect(past.reaches[1]).not.toBeNull();
 	});
 
-	it('does not guess from an afternoon', () => {
-		expect(
-			forecast([
-				[0, 40],
-				[HOUR, 41],
-				[2 * HOUR, 42]
-			])
-		).toBeNull();
+	it('does not guess from an afternoon or two', () => {
+		expect(forecast(daily([40, 41, 42]))).toBeNull();
 		expect(forecast([])).toBeNull();
 	});
 });

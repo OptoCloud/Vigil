@@ -146,40 +146,58 @@ export const FILL_LEVELS = [80, 90] as const;
 
 export interface Forecast {
 	percent: number;
-	/** Percentage points a day, by least squares over the window. Zero or below: not growing. */
+	/** Percentage points a day: the median of the day-to-day changes. Zero or below: not growing. */
 	perDay: number;
 	/** When each of FILL_LEVELS is reached at this rate; null when never, or already past. */
 	reaches: (number | null)[];
 	/** How many days of readings the rate rests on. */
 	basisDays: number;
+	/** The largest one-day change, when it stands far outside the rest: a copy, not a trend. */
+	jump: { day: number; points: number } | null;
 }
 
 /** Fewer days than this and a rate is a guess about one afternoon. */
-export const FORECAST_MIN_DAYS = 2;
+export const FORECAST_MIN_DAYS = 3;
 
-/** A pool's fill, its rate of change, and when it reaches each level. Null without enough history. */
+/** A day's change this many points beyond the usual one is called out as a one-off. */
+export const JUMP_POINTS = 2;
+
+const median = (values: number[]) => {
+	const sorted = [...values].sort((a, b) => a - b);
+	const middle = Math.floor(sorted.length / 2);
+	return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+/**
+ * A pool's fill, its usual rate of change, and when it reaches each level at that rate. Null
+ * without enough history.
+ *
+ * The rate is the median of the changes from one day to the next, not a line through every
+ * reading: someone copying 30 GB in on a Tuesday is one day out of the window, and a fitted
+ * line would turn it into "full by Christmas". The median says what a usual day adds, and
+ * the copy is reported beside it as what it was.
+ */
 export function forecast(points: SeriesPoints): Forecast | null {
-	if (points.length < 3) return null;
-	const first = points[0][0];
+	// The last reading of each day.
+	const daily = new Map<number, number>();
+	for (const [time, value] of points) daily.set(dayStart(time), value);
+	const days = [...daily].sort(([a], [b]) => a - b);
+	if (days.length < FORECAST_MIN_DAYS + 1) return null;
+
+	const changes = days.slice(1).map(([day, value], i) => ({ day, points: value - days[i][1] }));
+	const perDay = median(changes.map((change) => change.points));
+	const largest = changes.reduce((most, change) => (Math.abs(change.points - perDay) > Math.abs(most.points - perDay) ? change : most));
+
 	const last = points[points.length - 1];
-	const basisDays = (last[0] - first) / DAY;
-	if (basisDays < FORECAST_MIN_DAYS) return null;
-
-	const xs = points.map(([time]) => (time - first) / DAY);
-	const ys = points.map(([, value]) => value);
-	const mx = xs.reduce((sum, x) => sum + x, 0) / xs.length;
-	const my = ys.reduce((sum, y) => sum + y, 0) / ys.length;
-	let sxy = 0;
-	let sxx = 0;
-	xs.forEach((x, i) => {
-		sxy += (x - mx) * (ys[i] - my);
-		sxx += (x - mx) ** 2;
-	});
-	const perDay = sxx === 0 ? 0 : sxy / sxx;
-
 	const percent = last[1];
 	const reaches = FILL_LEVELS.map((level) => (perDay > 0 && percent < level ? last[0] + ((level - percent) / perDay) * DAY : null));
-	return { percent, perDay, reaches, basisDays };
+	return {
+		percent,
+		perDay,
+		reaches,
+		basisDays: changes.length,
+		jump: Math.abs(largest.points - perDay) >= JUMP_POINTS ? largest : null
+	};
 }
 
 // ---------------------------------------------------------------- when a source went quiet

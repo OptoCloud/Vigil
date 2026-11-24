@@ -168,7 +168,7 @@
 	</Panel>
 
 	<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] gap-3">
-		<Panel title="Capacity forecast" subtitle="Each pool's fill and where its trend over this window leads.">
+		<Panel title="Capacity forecast" subtitle="Each pool's fill and where a usual day's change leads.">
 			<table class="w-full text-sm tabular-nums">
 				<thead>
 					<tr class="text-left text-xs text-muted-foreground">
@@ -199,8 +199,18 @@
 					{/each}
 				</tbody>
 			</table>
+			{#each pools.filter((pool) => pool.forecast?.jump) as pool (pool.name)}
+				{@const jump = pool.forecast?.jump}
+				{#if jump}
+					<p class="mt-2 text-xs text-muted-foreground">
+						{pool.name} changed by {jump.points > 0 ? '+' : ''}{round(jump.points)} points on {day(jump.day)}: a one-off, which the rate
+						above leaves out.
+					</p>
+				{/if}
+			{/each}
 			<p class="mt-2 text-xs text-faint">
-				A straight line through this window's readings. A one-off copy bends it, so read the date as "at this rate", not as a promise.
+				The rate is what a usual day in this window adds (the median of the day-to-day changes), so one large copy does not pass for a
+				trend. Read a date as "at this rate", not as a promise.
 			</p>
 		</Panel>
 
