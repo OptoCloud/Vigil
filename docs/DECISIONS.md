@@ -321,6 +321,13 @@ a phone number, gateway URL or token is never logged and never put in an error o
 
 ### ADR-022: A tag on master is a deploy
 
+**Amended on 2026-11-24.** A tag no longer runs the checks. `release.yml` builds, attests,
+publishes and hands off, and nothing else: `check.yml` runs on every push to master, so the
+commit a tag names has its result already, and the owner decides at the moment of tagging
+whether to release on it. *Consequence:* a tag on a commit whose checks failed, or have not
+finished, is released all the same. The tag must still be on master, and the deployment's own
+health check and rollback still stand between a bad build and the host.
+
 *Decided 2026-11-11.* Releases were built by hand on a build guest and installed by a
 runbook, so a fix reached the NAS whenever someone found an evening for it.
 

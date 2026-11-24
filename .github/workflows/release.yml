@@ -1,6 +1,10 @@
-# A tag like v1.2.3 on master becomes a deployed release (docs/DECISIONS.md ADR-022):
-# every check, then the two artifacts a host runs, attested, published, and handed to the
-# deployment repository, if one is set, whose own workflow pins and installs them.
+# A tag like v1.2.3 on master becomes a deployed release (docs/DECISIONS.md ADR-022): the
+# two artifacts a host runs, built, attested, published, and handed to the deployment
+# repository, if one is set, whose own workflow pins and installs them.
+#
+# It runs no checks. check.yml ran them when the commit reached master, and whoever tags
+# decides whether that result is good enough to release: a tag is never held up, or refused,
+# by a check (ADR-022, amended 2026-11-24).
 name: release
 
 on:
@@ -15,11 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
-    uses: ./.github/workflows/check.yml
-
   release:
-    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: write      # the GitHub release

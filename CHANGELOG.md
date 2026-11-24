@@ -4,7 +4,7 @@ What changed for someone running vigil: settings, routes, alerts, and anything a
 to do. The reasons are in `docs/DECISIONS.md` and the commits. Releases are tags
 (`vMAJOR.MINOR.PATCH`, ADR-022); each one's full list is on its GitHub release.
 
-## Unreleased
+## v1.2.0 (2026-11-24)
 
 ### To do when upgrading
 
@@ -25,6 +25,10 @@ to do. The reasons are in `docs/DECISIONS.md` and the commits. Releases are tags
 - `/api/status`: readiness and the running version. `/health` stays the liveness check.
 - `/metrics`, in Prometheus' text format, and `core/openapi.json`, which describes the API.
 - Each release carries an SBOM, `vigil.spdx.json`.
+
+### Changed
+
+- A release tag no longer runs the checks; it builds and publishes what master already holds.
 - `/api/events` takes `limit`, `before` and `severity`, and the Events page can load older events.
 - Every chart downloads as CSV, and the charts step to earlier windows (`/api/history?to=`).
 

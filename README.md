@@ -298,7 +298,8 @@ Status) and need re-verifying there after changes to them.
 ## Deployment
 
 Pushing a tag deploys: `git tag v1.2.3`, then push that tag to origin. The tag must
-be on master. `release.yml` runs every check, builds vigild and `vigil-core.tar.gz`,
+be on master. `release.yml` builds vigild and `vigil-core.tar.gz` (it runs no checks: those ran
+when the commit reached master, so look at that result before tagging),
 attests and publishes them with an SBOM (`vigil.spdx.json`), and, when the repository names one, hands the release to a
 deployment repository, which pins it and installs it with a health check and a rollback
 ([ADR-022](docs/DECISIONS.md)). The manual steps below are what that automates, and what to
