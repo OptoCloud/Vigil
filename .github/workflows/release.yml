@@ -52,15 +52,18 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      # What the release is made of, from the three lock files, before any build fills the tree
-      # with what it downloaded. Published beside the artifacts.
-      - uses: anchore/sbom-action@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
-        with:
-          path: .
-          format: spdx-json
-          output-file: vigil.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
+      # What the release is made of: GitHub's own dependency graph for this repository, as SPDX,
+      # so no third-party action runs in the job that publishes. It covers the cargo and npm
+      # lock files, vigil-core's package references and these workflows' actions. The graph
+      # describes master, not the tag: the tag is on master (checked above) and is normally its
+      # head, and a release cut from an older commit gets master's list.
+      - name: Export the SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" --jq .sbom > vigil.spdx.json
+          # An empty or refused export must not be published as if it were the list.
+          jq -e '.spdxVersion and (.packages | length > 0)' vigil.spdx.json > /dev/null
 
       # No cache on purpose: what is published is built from nothing but the tagged tree.
       - name: Build vigild

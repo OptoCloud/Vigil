@@ -354,7 +354,8 @@ headers and the build's hash mode are both still there.
 - `cargo-deny` gates vigild's advisories and licences; `npm audit` gates the web tree; NuGet's
   own audit gates vigil-core's packages, transitive ones included, as part of the build
   (`core/Directory.Build.props`). All three draw the line at moderate (ADR-014).
-- A release publishes an SBOM beside its artifacts, and CodeQL reads all three languages and
+- A release publishes an SBOM beside its artifacts, exported from GitHub's dependency graph
+  (every action in the workflows is GitHub's own), and CodeQL reads all three languages and
   the workflows weekly and on every change (`codeql.yml`). Its findings inform; they do not gate.
 - Lockfiles are committed and updated deliberately, never as a side effect.
 
