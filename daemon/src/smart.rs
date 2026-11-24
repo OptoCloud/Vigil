@@ -186,6 +186,31 @@ mod tests {
     }
 
     #[test]
+    fn answers_whatever_smartctl_prints_in_place_of_any_field() {
+        let json = r#"{
+            "smart_status": { "passed": true },
+            "serial_number": "ZDH8XK2P",
+            "ata_smart_attributes": { "table": [
+                { "id": 5, "name": "Reallocated_Sector_Ct", "raw": { "value": 0 } },
+                { "id": 197, "name": "Current_Pending_Sector", "raw": { "value": 8 } }
+            ] },
+            "ata_smart_self_test_log": { "standard": { "count": 1, "table": [
+                { "type": { "string": "Extended offline" }, "status": { "value": 0, "passed": true }, "lifetime_hours": 20001 }
+            ] } },
+            "power_on_time": { "hours": 8760 }
+        }"#;
+
+        for variant in crate::mangle::json_variants(json).into_iter().chain(crate::mangle::text_variants(json)) {
+            // No panic is the test. What can be said about the answer: it is for this drive,
+            // and it never claims a pass it was not told of.
+            let health = parse("naa.1", &variant, "/dev/sda", NOW);
+
+            assert_eq!(health.device_name, "naa.1", "{variant}");
+            assert!(health.is_available || health.passed.is_none(), "{variant}");
+        }
+    }
+
+    #[test]
     fn scsi_drive_without_ata_attributes_still_reports_passed() {
         let json = r#"{ "smart_status": { "passed": true }, "power_on_time": { "hours": 100 } }"#;
 

@@ -283,6 +283,37 @@ enp5s0:  42 1 0 0 0 0 0 0 43 1 0 0 0 0 0 0";
     }
 
     #[test]
+    fn answers_whatever_proc_holds_in_place_of_any_file() {
+        // /proc is the kernel's, and a newer kernel may lay a file out differently: every
+        // file here, cut short, missing a line, or with a number that is not one.
+        let files = [
+            ("/proc/meminfo", MEMINFO),
+            ("/proc/spl/kstat/zfs/arcstats", ARCSTATS),
+            ("/proc/stat", STAT),
+            ("/proc/loadavg", "0.46 0.66 0.36 1/1159 26639"),
+            ("/proc/uptime", "487.25 5471.57"),
+            ("/proc/pressure/io", PRESSURE_IO),
+            ("/proc/diskstats", DISKSTATS),
+            ("/proc/net/dev", NET_DEV),
+        ];
+
+        for (path, original) in files {
+            for variant in crate::mangle::text_variants(original) {
+                let sysfs = host().with_file(path, &variant);
+                let disks = DiskResolver::new(&sysfs, "/sys", "/dev/disk/by-path");
+
+                // No panic is the test; what was not touched is still read.
+                let status = read(&sysfs, &disks, &config(&["vmbr0"]), "2026-11-19T12:00:00.000Z");
+
+                assert_eq!(status.as_of, "2026-11-19T12:00:00.000Z");
+                if path != "/proc/loadavg" {
+                    assert_eq!(status.load, Some(LoadAverage { one: 0.46, five: 0.66, fifteen: 0.36 }), "{path}: {variant:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn reads_every_part_of_the_host() {
         let sysfs = host();
         let disks = DiskResolver::new(&sysfs, "/sys", "/dev/disk/by-path");

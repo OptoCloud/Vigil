@@ -22,6 +22,8 @@ mod hba;
 mod host;
 mod instance;
 mod logging;
+#[cfg(test)]
+mod mangle;
 mod mpt3;
 mod notify;
 mod process;

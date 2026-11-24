@@ -274,6 +274,21 @@ mod tests {
     }
 
     #[test]
+    fn answers_a_page_of_any_length_and_any_content() {
+        // The page is whatever the HBA's firmware put in the buffer. Every length a reply can
+        // be, filled with each of the bytes that mean something special to the decoding.
+        for length in 0..=REPLY_SIZE {
+            for fill in [0x00, 0x01, 0x7f, 0x80, 0xff] {
+                let reading = parse_temperature(&vec![fill; length]);
+
+                assert_eq!(reading.id, "hba");
+                assert_eq!(reading.is_available, reading.celsius_or_null.is_some(), "{length} bytes of {fill:#04x}");
+                assert!(reading.celsius_or_null.is_none_or(f64::is_finite), "{length} bytes of {fill:#04x}");
+            }
+        }
+    }
+
+    #[test]
     fn unavailable_when_neither_sensor_present_or_buffer_too_short() {
         assert!(!parse_temperature(&[0u8; 36]).is_available);
         assert!(!parse_temperature(&[0u8; 10]).is_available); // firmware could report a smaller/older page

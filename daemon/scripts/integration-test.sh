@@ -162,7 +162,10 @@ check "POST is 405" "$(curl -s -o /dev/null -w '%{http_code}' -X POST --unix-soc
 echo "GET /events, three consumers at once"
 for n in 1 2 3; do curl -sN --max-time 2 --unix-socket "$SOCKET" http://localhost/events > "$WORK/events$n" & done
 sleep 0.5
-check "a fourth connection over max_clients is refused" "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$SOCKET" http://localhost/status)" "503"
+# max_clients caps open event streams, not requests in flight: a fourth stream is refused
+# while /status, which holds nothing open, still answers.
+check "a fourth stream over max_clients is refused" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 --unix-socket "$SOCKET" http://localhost/events)" "503"
+check "/status still answers while every stream slot is taken" "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$SOCKET" http://localhost/status)" "200"
 wait $(jobs -p | grep -v "^$DAEMON_PID$") 2>/dev/null
 for n in 1 2 3; do
     COUNT="$(grep -c '^event: status' "$WORK/events$n")"
@@ -170,7 +173,7 @@ for n in 1 2 3; do
 done
 # A consumer's departure is only noticed when the next event is written to it.
 sleep 0.5
-check "slots are freed once consumers leave" "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$SOCKET" http://localhost/status)" "200"
+check "slots are freed once consumers leave" "$(curl -sN -o /dev/null -w '%{http_code}' --max-time 1 --unix-socket "$SOCKET" http://localhost/events)" "200"
 
 echo "reacts to a temperature change"
 echo 30000 > "$SYS/class/hwmon/hwmon0/temp1_input"
