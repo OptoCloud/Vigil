@@ -74,6 +74,8 @@ poll_interval_secs = 0.2
 deadman_timeout_secs = 5
 sysfs_root = "$SYS"
 disk_by_path_dir = "$WORK/by-path"
+# /run is root's, and this runs as anyone.
+instance_lock_path = "$WORK/vigild.lock"
 
 [api]
 socket_path = "$SOCKET"

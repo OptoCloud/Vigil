@@ -110,7 +110,7 @@ fn run(config_path: &str, check_only: bool) -> Result<(), String> {
     }
 
     // Before the first PWM write or the socket: a second instance must stop here.
-    let _instance = instance::claim(std::path::Path::new(instance::LOCK_PATH))?;
+    let _instance = instance::claim(std::path::Path::new(&config.instance_lock_path))?;
 
     install_signal_handlers();
 

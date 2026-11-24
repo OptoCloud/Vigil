@@ -6,6 +6,7 @@ use std::fs::{File, OpenOptions, TryLockError};
 use std::path::Path;
 
 /// On the tmpfs every Linux host has at /run, which the unit's ProtectSystem=full leaves writable.
+/// The default for `instance_lock_path`, which only a run against a fake sysfs changes.
 pub const LOCK_PATH: &str = "/run/vigild.lock";
 
 /// Takes the lock at `path`, or says why not. Keep the returned file open for as long as the

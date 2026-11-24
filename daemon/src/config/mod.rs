@@ -27,6 +27,10 @@ pub struct Config {
     /// points at it: a fixed physical location (controller PCI address plus port or phy),
     /// unlike the drive's WWN, which follows the disk wherever it is plugged in.
     pub disk_by_path_dir: String,
+    /// The lock that keeps a second vigild off the fans. Like `sysfs_root`, only ever changed to
+    /// run the daemon against a fake tree: /run is root's, and the integration test is not root.
+    /// Two daemons on the real sysfs with different locks would defeat it, so leave it alone.
+    pub instance_lock_path: String,
     pub api: ApiConfig,
     pub gpu: GpuConfig,
     pub hba: HbaConfig,
@@ -47,6 +51,7 @@ impl Default for Config {
             sensor_rescan_interval_secs: 30.0,
             sysfs_root: "/sys".to_owned(),
             disk_by_path_dir: "/dev/disk/by-path".to_owned(),
+            instance_lock_path: crate::instance::LOCK_PATH.to_owned(),
             api: ApiConfig::default(),
             gpu: GpuConfig::default(),
             hba: HbaConfig::default(),
