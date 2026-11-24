@@ -56,9 +56,9 @@ same commit.
 
 ### 1.4 One name means one thing
 
-`notify.rs` once meant sd_notify in vigild and ntfy push notifications in vigil-core, and
+`notify.rs` once meant sd_notify in vigild and push notifications in vigil-core, and
 `ConditionTracker` existed twice with different semantics. Both were renamed, not merged
-(`NtfyClient`, `ConditionLog` and `ConditionDebouncer`): if two things genuinely differ, their
+(`ConditionLog` and `ConditionDebouncer`; the push client has since gone, ADR-028): if two things genuinely differ, their
 names must differ.
 
 *Enforcer:* review checklist.
@@ -242,7 +242,7 @@ the Rust core's runtime.rs") rather than a path that no longer exists.
 - Messages shown to an operator name the operator action: "the timescaledb extension is not
   installed in this database. A superuser creates it" over "setup failed".
 - Never put a secret, a credential or a connection URL in an error or a log line. `DATABASE_URL`
-  contains a password, and a private ntfy topic's name is its only secret.
+  contains a password, and a notification channel's address is private (SECURITY.md §7).
 
 *Enforcer:* `clippy::unwrap_used` and `clippy::expect_used` warn outside tests; nullable
 reference types as errors in C#; review checklist.
@@ -258,9 +258,16 @@ reference types as errors in C#; review checklist.
   fake upsd, `FakeRuntimeStore`, a Kestrel on loopback) rather than skipping the test. The one
   exception is the database tests, which skip unless `VIGIL_TEST_DATABASE_URL` points at a
   TimescaleDB, because what they check (hypertables, aggregates, `unnest`) a fake cannot.
+  CI sets it, so there they run: a test that only ever skips is not a test.
+- A parser of something vigil does not control is tested with wrong input as well as right:
+  `daemon/src/mangle.rs` derives it from the fixture (every value the wrong kind, every line
+  cut or dropped, every number absurd), and the test requires an answer and not a panic.
+- A test's clock is the test's or today's, never a date written in it: the database's
+  retention makes a fixed date pass for a month and then fail for ever.
 - Boundary-crossing behaviour gets a contract test rather than a comment (§1.3).
 
-*Enforcer:* review checklist; `scripts/check.sh` runs every suite.
+*Enforcer:* review checklist; `scripts/check.sh` runs every suite, and `check.yml` gives it a
+TimescaleDB and runs `daemon/scripts/integration-test.sh` against the static build.
 
 ## 8. Rust (vigild)
 
@@ -311,7 +318,7 @@ review checklist for field naming.
 
 ## 11. CSS
 
-From Phase 5, `web/` is Tailwind CSS v4 plus shadcn-svelte.
+`web/` is Tailwind CSS v4 plus shadcn-svelte (ADR-011).
 
 - **Utilities in markup.** `@apply` is not a way to make a component: a repeated class list
   becomes a component or a `tailwind-variants` variant set.

@@ -25,6 +25,7 @@ import type {
 	DiskCounters,
 	DiskLoad,
 	FanStatus,
+	HistoryResponse,
 	HostLoad,
 	HostStatus,
 	InterfaceCounters,
@@ -41,10 +42,12 @@ import type {
 	PoolScan,
 	PoolStatus,
 	PwmMode,
+	RangeKey,
 	SensorCategory,
 	SensorReading,
 	Severity,
 	Snapshot,
+	StatusResponse,
 	UpsLimits,
 	UpsReading,
 	UpsState,
@@ -278,7 +281,30 @@ const TYPE_KEYS = {
 	} satisfies Record<keyof DriveHealthRecord, 1>,
 	EventRecord: { id: 1, ts: 1, severity: 1, kind: 1, message: 1 } satisfies Record<keyof EventRecord, 1>,
 	Alert: { kind: 1, severity: 1, message: 1, since: 1 } satisfies Record<keyof Alert, 1>,
-	PoolHistory: { name: 1, lastScrub: 1 } satisfies Record<keyof PoolHistory, 1>
+	PoolHistory: { name: 1, lastScrub: 1 } satisfies Record<keyof PoolHistory, 1>,
+	HistoryResponse: {
+		range: 1,
+		from: 1,
+		to: 1,
+		bucketSeconds: 1,
+		temperatures: 1,
+		duties: 1,
+		rpms: 1,
+		ups: 1,
+		host: 1,
+		trafficIn: 1,
+		trafficOut: 1,
+		busy: 1,
+		poolFill: 1
+	} satisfies Record<keyof HistoryResponse, 1>,
+	StatusResponse: {
+		ready: 1,
+		version: 1,
+		daemonConnected: 1,
+		lastSnapshot: 1,
+		databaseReady: 1,
+		loopAgeSeconds: 1
+	} satisfies Record<keyof StatusResponse, 1>
 };
 
 const ENUM_MEMBERS = {
@@ -291,7 +317,8 @@ const ENUM_MEMBERS = {
 		smartFanIII: 1,
 		smartFanIV: 1
 	} satisfies Record<PwmMode, 1>,
-	Severity: { info: 1, warning: 1, critical: 1 } satisfies Record<Severity, 1>
+	Severity: { info: 1, warning: 1, critical: 1 } satisfies Record<Severity, 1>,
+	RangeKey: { '1h': 1, '6h': 1, '24h': 1, '7d': 1, '30d': 1, '1y': 1 } satisfies Record<RangeKey, 1>
 };
 
 /** The payload keys of each `LiveMessage` variant, `type` included. */

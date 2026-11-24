@@ -263,12 +263,21 @@ public sealed class DataLayerTests
             await store.InsertAsync(severity, kind, $"{kind} event", token);
         }
 
-        var recent = await store.RecentAsync(2, token);
+        var recent = await store.PageAsync(2, before: null, Severity.Info, token);
 
         // Same-millisecond inserts are ordered by id, which is why the query breaks ties on it.
         Assert.Equal(["third", "second"], recent.Select(e => e.Kind));
         Assert.Equal([Severity.Warning, Severity.Info], recent.Select(e => e.Severity));
         Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$", recent[0].Ts);
+
+        // The next page starts below the oldest id of this one.
+        var older = await store.PageAsync(2, before: recent[^1].Id, Severity.Info, token);
+        Assert.Equal(["first"], older.Select(e => e.Kind));
+
+        // Narrowed to a severity and worse, across pages.
+        Assert.Equal(["third", "first"], (await store.PageAsync(10, before: null, Severity.Warning, token)).Select(e => e.Kind));
+        Assert.Equal(["first"], (await store.PageAsync(10, before: null, Severity.Critical, token)).Select(e => e.Kind));
+        Assert.Empty(await store.PageAsync(10, before: older[0].Id, Severity.Info, token));
     }
 
     [Fact]

@@ -34,6 +34,30 @@ export const RANGES: { key: RangeKey; label: string }[] = [
 	{ key: '1y', label: '1 year' }
 ];
 
+/** How long each range's window is, which is also how far one step moves it. */
+export const RANGE_MS: Record<RangeKey, number> = {
+	'1h': 3_600_000,
+	'6h': 21_600_000,
+	'24h': 86_400_000,
+	'7d': 604_800_000,
+	'30d': 2_592_000_000,
+	'1y': 31_536_000_000
+};
+
+/** The request for a range's history: the window that ends now, or the one ending at `end`. */
+export function historyUrl(range: RangeKey, end: number | null): string {
+	return end === null ? `/api/history?range=${range}` : `/api/history?range=${range}&to=${end}`;
+}
+
+/**
+ * Where the window ends after one step from `end` (null: it ends now). A step later that
+ * would reach the present lands on null instead, so the window follows the clock again.
+ */
+export function steppedEnd(end: number | null, range: RangeKey, direction: -1 | 1, now: number): number | null {
+	const next = (end ?? now) + direction * RANGE_MS[range];
+	return next >= now ? null : next;
+}
+
 export class Live {
 	snapshot = $state<Snapshot | null>(null);
 	daemonConnected = $state(false);
@@ -60,9 +84,21 @@ export class Live {
 	now = $state(Date.now());
 
 	range = $state<RangeKey>('1h');
+	/**
+	 * Where the charts' window ends, in epoch milliseconds, when someone has stepped back to
+	 * look at an earlier one. Null is the usual case: the window ends now and follows the clock.
+	 */
+	historyEnd = $state<number | null>(null);
 	history = $state<HistoryResponse | null>(null);
 	historyError = $state('');
 	historyLoading = $state(false);
+
+	/**
+	 * The clock the charts are built against: the page's, while their window ends now. For a
+	 * window in the past it is never, so no live reading counts as recent: none is appended to
+	 * a line and the window is not slid forward to meet one (`withLivePoint`, `chartWindow`).
+	 */
+	readonly chartNow = $derived(this.historyEnd === null ? this.now : Number.POSITIVE_INFINITY);
 
 	readonly snapshotAt = $derived(this.snapshot ? Date.parse(this.snapshot.timestampUtc) : 0);
 
@@ -79,7 +115,8 @@ export class Live {
 		void this.loadHistory(this.range, true);
 
 		const clock = setInterval(() => (this.now = Date.now()), 1000);
-		const refresh = setInterval(() => void this.loadHistory(this.range, false), HISTORY_REFRESH_MS);
+		// A window in the past does not change, so only the one that ends now is refetched.
+		const refresh = setInterval(() => this.historyEnd === null && void this.loadHistory(this.range, false), HISTORY_REFRESH_MS);
 		return () => {
 			source.close();
 			clearInterval(clock);
@@ -104,6 +141,21 @@ export class Live {
 	}
 
 	/**
+	 * Moves the charts' window one whole window earlier (-1) or later (+1). Stepping later from
+	 * the newest earlier window, or past it, returns to the one that ends now.
+	 */
+	stepHistory(direction: -1 | 1) {
+		this.historyEnd = steppedEnd(this.historyEnd, this.range, direction, Date.now());
+		void this.loadHistory(this.range, true);
+	}
+
+	/** Back to the window that ends now and follows the clock. */
+	followNow() {
+		this.historyEnd = null;
+		void this.loadHistory(this.range, true);
+	}
+
+	/**
 	 * The newest events, for what the stream cannot replay: it carries only events raised after
 	 * it connects. Merged by id, so one raised between the two requests is not shown twice.
 	 * vigil-core answers [] when the database is down, which leaves the live ones in place.
@@ -124,21 +176,23 @@ export class Live {
 	}
 
 	async loadHistory(requested: RangeKey, showLoading: boolean) {
+		const end = this.historyEnd;
+		// A slow response for a window the user has since left must not overwrite the current one.
+		const current = () => requested === this.range && end === this.historyEnd;
 		if (showLoading) this.historyLoading = true;
 		try {
-			const response = await fetch(`/api/history?range=${requested}`);
+			const response = await fetch(historyUrl(requested, end));
 			// vigil-core explains a failure in plain text ("History is unavailable: ...").
 			if (!response.ok) throw new Error((await response.text().catch(() => '')).trim() || `HTTP ${response.status}`);
 			const result = (await response.json()) as HistoryResponse;
-			// A slow response for a range the user has since left must not overwrite the current one.
-			if (requested === this.range) {
+			if (current()) {
 				this.history = result;
 				this.historyError = '';
 			}
 		} catch (error) {
-			if (requested === this.range) this.historyError = error instanceof Error ? error.message : String(error);
+			if (current()) this.historyError = error instanceof Error ? error.message : String(error);
 		} finally {
-			if (requested === this.range) this.historyLoading = false;
+			if (current()) this.historyLoading = false;
 		}
 	}
 }

@@ -24,12 +24,16 @@ public sealed class ApiTests : IAsyncLifetime
 {
     private readonly Channel<RuntimeInput> _inputs = Channel.CreateUnbounded<RuntimeInput>();
     private readonly string _webRoot = Directory.CreateTempSubdirectory("vigil-web-root-").FullName;
+    private readonly ManualTime _time = new();
+    private readonly RuntimePulse _pulse;
     private WebApplication? _app;
     private HttpClient? _http;
 
     private HttpClient Http => _http ?? throw new InvalidOperationException("not started");
 
     private LiveHub Hub => _app?.Services.GetRequiredService<LiveHub>() ?? throw new InvalidOperationException("not started");
+
+    public ApiTests() => _pulse = new RuntimePulse(_time);
 
     public async ValueTask InitializeAsync()
     {
@@ -50,6 +54,7 @@ public sealed class ApiTests : IAsyncLifetime
         builder.Services.AddSingleton<EventStore>();
         builder.Services.AddSingleton<DriveStore>();
         builder.Services.AddSingleton(new LiveHub(_inputs.Writer));
+        builder.Services.AddSingleton(_pulse);
         builder.Services.AddAdmission(new VigilOptions());
 
         _app = builder.Build();
@@ -90,6 +95,26 @@ public sealed class ApiTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// core/openapi.json describes the API, and a description nothing checks is a description
+    /// of last year's API. Rewritten when stale, as the contract files are; and every route
+    /// that is not a page of the dashboard must be in it, and nothing else.
+    /// </summary>
+    [Fact]
+    public void TheOpenApiDocumentIsCurrentAndDescribesEveryRoute()
+    {
+        var document = OpenApiDocument.Generate();
+        var mapped = _app!.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => "/" + endpoint.RoutePattern.RawText!.TrimStart('/'))
+            // The catch-all is the 404 with a hint, and /drives/{wwn} is a page, not the API.
+            .Where(route => (route.StartsWith("/api/", StringComparison.Ordinal) && !route.Contains("**", StringComparison.Ordinal)) || route is "/health" or "/metrics");
+
+        Assert.Equal(mapped.Order(StringComparer.Ordinal), document["paths"]!.AsObject().Select(path => path.Key).Order(StringComparer.Ordinal));
+
+        Assert.True(OpenApiDocument.IsOnDiskOrRewrite(document), "core/openapi.json was out of date and has been rewritten. Commit it.");
+    }
+
+    /// <summary>
     /// docs/SECURITY.md §4.2: nothing here is authenticated, so every route that reaches the
     /// database has to be under the admission limit. A route is one that does if its handler
     /// is handed something from the data layer, so a new one cannot be added without it.
@@ -120,6 +145,52 @@ public sealed class ApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StatusIsUnavailableUntilTheLoopTurnsWithVigildConnectedAndAgainOnceItStalls()
+    {
+        async Task<(HttpStatusCode Code, System.Text.Json.JsonElement Body)> StatusAsync()
+        {
+            using var response = await Http.GetAsync(new Uri("/api/status", UriKind.Relative), TestContext.Current.CancellationToken);
+            return (response.StatusCode, System.Text.Json.JsonElement.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
+        }
+
+        var (beforeAnyTurn, never) = await StatusAsync();
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, beforeAnyTurn);
+        Assert.False(never.GetProperty("ready").GetBoolean());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, never.GetProperty("loopAgeSeconds").ValueKind);
+
+        _pulse.Record(daemonConnected: false, databaseReady: true, RuntimeView.Empty);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await StatusAsync()).Code);
+
+        // The database being down is reported, and is not unready: the live view works without it.
+        _pulse.Record(daemonConnected: true, databaseReady: false, RuntimeView.Empty with { Snapshot = MetricsTests.Sample });
+        _time.Advance(TimeSpan.FromSeconds(3));
+        var (turning, body) = await StatusAsync();
+        Assert.Equal(HttpStatusCode.OK, turning);
+        Assert.True(body.GetProperty("ready").GetBoolean());
+        Assert.False(body.GetProperty("databaseReady").GetBoolean());
+        Assert.Equal(MetricsTests.Sample.TimestampUtc, body.GetProperty("lastSnapshot").GetString());
+        Assert.Equal(3, body.GetProperty("loopAgeSeconds").GetDouble());
+        Assert.Equal("development", body.GetProperty("version").GetString());
+
+        _time.Advance(Limits.LoopStalledAfter);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, (await StatusAsync()).Code);
+    }
+
+    [Theory]
+    [InlineData("limit=0")]
+    [InlineData("limit=201")]
+    [InlineData("before=0")]
+    [InlineData("severity=fatal")]
+    [InlineData("severity=Warning")]
+    public async Task ABadEventsQueryIsRefusedBeforeItReachesTheDatabase(string query)
+    {
+        using var response = await Http.GetAsync(new Uri($"/api/events?{query}", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("severity one of info, warning, critical", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnUnknownApiPathIsANotFoundRatherThanThePage()
     {
         using var response = await Http.GetAsync(new Uri("/api/nope", UriKind.Relative), TestContext.Current.CancellationToken);
@@ -138,6 +209,18 @@ public sealed class ApiTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("range must be one of 1h, 6h, 24h, 7d, 30d, 1y\n", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    // Seconds where milliseconds were meant, and a time that has not happened yet.
+    [InlineData("1795000000")]
+    [InlineData("99999999999999")]
+    public async Task HistoryRefusesAWindowThatEndsWhenNothingCouldHaveBeenRecorded(string to)
+    {
+        using var response = await Http.GetAsync(new Uri($"/api/history?range=24h&to={to}", UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.StartsWith("to must be a time in the past", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), StringComparison.Ordinal);
     }
 
     [Fact]

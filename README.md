@@ -249,7 +249,9 @@ the short version of all of it.
 `scripts/check.sh` runs every check there is: formatting, clippy, the Rust
 tests, `cargo-deny`, the .NET format, build and tests, both wire contracts,
 the web lint, type-check and tests, `npm audit`, and the project rules a grep
-can enforce. CI runs that same script and nothing else.
+can enforce. The .NET build audits its packages too: a known vulnerability at
+moderate or above fails it. CI runs that same script, with a TimescaleDB beside
+it so the database tests run rather than skip.
 
 ```bash
 ./scripts/check.sh            # everything, before every commit
@@ -282,7 +284,8 @@ VIGIL_TEST_DATABASE_URL=postgres://vigil:vigil@127.0.0.1:5433/vigil dotnet test 
 end to end against a fake sysfs tree with stand-in `nvidia-smi`/`smartctl`:
 the socket API, several simultaneous event consumers, real fan writes,
 fail-safe on a vanished sensor, and the fans being handed back on SIGTERM.
-It needs no hardware and no root, so it runs under WSL or in CI:
+It needs no hardware and no root, so it runs under WSL, and CI runs it against the
+static build on every change:
 
 ```powershell
 wsl -e bash /mnt/e/path/to/daemon/scripts/integration-test.sh /mnt/e/path/to/target/x86_64-unknown-linux-musl/release/vigild
@@ -296,7 +299,7 @@ Status) and need re-verifying there after changes to them.
 
 Pushing a tag deploys: `git tag v1.2.3`, then push that tag to origin. The tag must
 be on master. `release.yml` runs every check, builds vigild and `vigil-core.tar.gz`,
-attests and publishes them, and, when the repository names one, hands the release to a
+attests and publishes them with an SBOM (`vigil.spdx.json`), and, when the repository names one, hands the release to a
 deployment repository, which pins it and installs it with a health check and a rollback
 ([ADR-022](docs/DECISIONS.md)). The manual steps below are what that automates, and what to
 do without it.
@@ -421,8 +424,8 @@ build beside it as `web/`, and the unit and env template. NativeAOT needs
 and `zlib1g-dev` installed, and anywhere else inside the .NET SDK image, with
 only docker or podman needed.
 
-The guest is Debian. The binary links only libc; OpenSSL is loaded for TLS (ntfy,
-and Postgres if it asks for it):
+The guest is Debian. The binary links only libc; OpenSSL is loaded for TLS (the mail
+server, and Postgres if it asks for it):
 
 ```bash
 apt install libssl3 ca-certificates
@@ -448,8 +451,8 @@ journalctl -u vigil-core -f
 ```
 
 The unit is `Type=notify`, so `systemctl start` returns once vigil-core is
-listening. It takes the systemd hardening baseline except
-`MemoryDenyWriteExecute`, which .NET's JIT cannot run under; the unit says so.
+listening. It takes the whole systemd hardening baseline, `MemoryDenyWriteExecute`
+included: a NativeAOT binary writes no code at run time.
 
 The dashboard answers on `CORE_PORT` (3000 in the template, where it has
 always been). **It is public and has no authentication, deliberately: every
@@ -509,6 +512,33 @@ The role keeps the name it had when the dashboard was a separate process, so
 an existing grant still works. Left unset, the read path shares the owner's
 role and vigil-core says so at startup. See [`docs/SECURITY.md`](docs/SECURITY.md).
 
+#### Backing up the database
+
+The hourly rollups are the only copy of anything older than a year, and the
+minute ones of anything older than 30 days ([ADR-026](docs/DECISIONS.md)):
+nothing can rebuild them, so they are worth a backup. A plain `pg_dump` holds
+all of it, hypertables, continuous aggregates and their policies included:
+
+```bash
+pg_dump -Fc -f vigil.dump "$DATABASE_URL"
+```
+
+Restoring is TimescaleDB's own procedure, into an empty database with the
+**same TimescaleDB version** the dump was taken from, with vigil-core stopped:
+
+```bash
+createdb vigil
+psql -d vigil -c 'create extension timescaledb' -c 'select timescaledb_pre_restore()'
+pg_restore -d vigil vigil.dump
+psql -d vigil -c 'select timescaledb_post_restore()'
+```
+
+`pg_dump` warns about circular foreign keys in TimescaleDB's catalog; that is
+expected and the restore above is what makes it harmless. Tried against
+TimescaleDB 2.32.0 on Postgres 18: every aggregate, hypertable, policy and row
+came back. The `vigil_web` role and its grants are the cluster's, not the
+database's, so on a new server they are created again (above).
+
 ## Status
 
 Live and running in production on the target host. Verified there: every
@@ -529,10 +559,9 @@ Known accepted quirks:
   based on limited data. Revisit once real-load history exists.
 
 `vigil-core` was rewritten in C# and merged with the dashboard's server on
-2026-10-01, replacing a Rust `vigil-core` and a Node `vigil-web`. It has been
-run end to end against the stand-ins in `dev/`, and its writes and history
-queries against TimescaleDB 2.30.2. Its port of the schema setup has not yet
-run against a real TimescaleDB, and it has not yet been deployed to the host.
+2026-10-01, replacing a Rust `vigil-core` and a Node `vigil-web`. It is
+deployed too: it runs in its guest as the NativeAOT build, against the real
+TimescaleDB, whose schema it set up itself.
 
 ## vigil-core
 
@@ -570,7 +599,11 @@ they happened.
   rebuild would drop every minute and hour older than the raw rows
   ([ADR-026](docs/DECISIONS.md)).
 - It owns alerting: stalled fans, fans not under `vigild`'s control,
-  unreadable or vanished sensors, SMART changes, `vigild` outages, and the UPS
+  unreadable or vanished sensors, a sensor over its category's limit
+  (`TEMPERATURE_LIMITS`; each level lets go 2 °C under itself, and a hot
+  sensor that stops answering stays raised), the host's memory nearly gone,
+  its swap half used or its tasks stalled on memory, each as a five-minute
+  average, SMART changes, `vigild` outages, and the UPS
   on battery, low, in forced shutdown, needing a battery, overloaded or not
   protecting; no `upsmon` watching it for a minute; a battery at or over
   `UPS_BATTERY_TEMPERATURE_WARN` (cleared 2 °C under it); and a
@@ -579,22 +612,27 @@ they happened.
   for three polls before it is raised and be gone for three before it clears;
   UPS power events count on the first. While the UPS is unreadable its raised
   conditions are held, not cleared: not knowing is not "back to normal".
-  Events go to Postgres and, optionally, ntfy over HTTPS and texts through
-  an SMS gateway (below).
+  Events go to Postgres and, optionally, to a person: as a text through an
+  SMS gateway (below), as an email, or both. Warnings and worse are sent,
+  each with its all-clear, in order, and a send that fails is tried again
+  after 30 seconds, 2 minutes and 10 minutes before it is given up on.
 - Without a database the live view still works, and it retries the database
   every 15 seconds.
 
-Its HTTP API, all `GET`:
+Its HTTP API, all `GET`, which `core/openapi.json` describes for tools (generated by the
+tests, and checked against the routes that are mapped):
 
 | Route | What it serves |
 |---|---|
 | `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/system`, `/power` and `/events` each have a page of their own |
 | `/drives/<name>` | one disk's page: its SMART state and changes, temperature, and its place in ZFS. The build's fallback page, rendered in the browser |
 | `/api/live` | Server-Sent Events: the current state on connect, then every change (snapshots, `vigild` reachability, drives, the UPS, new events). A named `keepalive` event after 20s of quiet. At most 64 at once; `503` past that |
-| `/api/history?range=` | chart history for `1h`, `6h`, `24h`, `7d`, `30d` or `1y`, bucketed in SQL. Each range reads the coarsest level that still has its resolution: raw samples up to 6 hours, minute rollups up to 7 days, hourly ones beyond. `503` without a database |
-| `/api/events` | the newest 50 events, `[]` without a database |
+| `/api/history?range=&to=` | chart history for `1h`, `6h`, `24h`, `7d`, `30d` or `1y`, bucketed in SQL, ending now or at `to` (milliseconds since 1970) for a look further back. Each range reads the coarsest level that still has its resolution: raw samples up to 6 hours, minute rollups up to 7 days, hourly ones beyond, and a window that starts before a level's rows were dropped reads the next one up. `503` without a database |
+| `/api/events?limit=&before=&severity=` | the event log, newest first: 50 unless `limit` (at most 200) says otherwise, older than the event with id `before` when given, and only `severity` (`warning`, `critical`) and worse. `[]` without a database |
+| `/api/status` | readiness, as JSON: `ready`, the running `version`, whether `vigild` is connected and when its last snapshot was, whether the database is up, and how long ago the runtime's loop turned. `503` when not ready (the loop is stuck, or `vigild` is unreachable), with the same body |
 | `/api/drives/<name>/history` | one disk's recorded SMART changes, newest first, at most 200. `503` without a database |
-| `/health` | `ok` once running; says nothing about the database, which the live view does not need |
+| `/metrics` | the current state in Prometheus' text format: temperatures, fans, pools, drives' SMART counts, the UPS, the host's memory and CPU, and how many alerts are raised. Gauges only, and what is unknown is absent, never zero |
+| `/health` | liveness: `ok` once running, whatever else is wrong. `/api/status` is the one that says |
 
 It is configured entirely from the environment (`/etc/vigil-core.env` in
 production; `core/deploy/vigil-core.example.env` is an example to start from). Every value is validated
@@ -614,9 +652,18 @@ before it starts, with every problem listed:
 | `NUT_POLL_SECONDS` | `5` | |
 | `HOST_SHUTDOWN_SECONDS` | | how long the host takes to shut down, guests included; unset shows no shutdown margin |
 | `UPS_BATTERY_TEMPERATURE_WARN` | `40` | °C at which the UPS battery is too hot |
-| `NTFY_URL` | | an ntfy topic URL; unset sends no notifications |
+| `TEMPERATURE_LIMITS` | `cpu:85/95,boardAmbient:50/60,drive:50/60,gpu:85/95,memory:70/85,hba:75/85` | °C at which each kind of sensor is a warning and a critical, as `category:warn/critical`; a category not named keeps its default |
+| `HEARTBEAT_URL` | | a URL fetched every `HEARTBEAT_INTERVAL_SECONDS` while the runtime's loop is turning, for a service that alerts when the requests stop. Never logged |
+| `HEARTBEAT_INTERVAL_SECONDS` | `60` | |
 | `SMS_URL` | | the SMS gateway's endpoint; set with `SMS_TOKEN`, or neither. Never logged |
 | `SMS_TOKEN` | | the gateway's bearer token, a secret like `DATABASE_URL` |
+| `SMTP_HOST` | | the mail server alerts are handed to; set with `EMAIL_FROM` and `EMAIL_TO`, or none of them. Never logged |
+| `SMTP_PORT` | `587` | |
+| `SMTP_STARTTLS` | `true` | upgrade to TLS before anything else; `false` only for a relay that asks for no login |
+| `SMTP_USERNAME` | | the mail server's login; with `SMTP_PASSWORD`, or neither |
+| `SMTP_PASSWORD` | | a secret like `DATABASE_URL` |
+| `EMAIL_FROM` | | the address alerts come from |
+| `EMAIL_TO` | | who they go to: up to ten addresses, separated by commas |
 | `CORE_HOST` | `0.0.0.0` | the one address it listens on; an IP address or `localhost` |
 | `CORE_PORT` | `3001` | the production template sets `3000` |
 | `TRUSTED_PROXIES` | | the reverse proxies in front, separated by commas: IP addresses, networks, or `cloudflare` for its published ranges, kept current; only their `X-Forwarded-For` and `X-Forwarded-Proto` are believed |

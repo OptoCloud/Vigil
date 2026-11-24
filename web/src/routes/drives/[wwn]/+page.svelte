@@ -26,7 +26,7 @@
 	const port = $derived(sensor?.port ?? health?.port ?? null);
 	const memberships = $derived(membershipsOf(live.snapshot?.zfs, wwn));
 	const known = $derived(sensor !== undefined || health !== undefined);
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
 
 	let records = $state<DriveHealthRecord[] | null>(null);
 	let recordsError = $state('');
@@ -135,7 +135,7 @@
 
 <LineChart
 	title="Temperature"
-	series={driveTemperatureSeries(live.history, live.snapshot, wwn, live.now)}
+	series={driveTemperatureSeries(live.history, live.snapshot, wwn, live.chartNow)}
 	from={plotWindow.from}
 	to={plotWindow.to}
 	unit="°C"
@@ -147,7 +147,7 @@
 <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] gap-3">
 	<LineChart
 		title="Throughput"
-		series={diskTrafficSeries(live.history, live.host, wwn, live.now)}
+		series={diskTrafficSeries(live.history, live.host, wwn, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit=" MB/s"
@@ -155,7 +155,7 @@
 	/>
 	<LineChart
 		title="Busy"
-		series={diskBusySeries(live.history, live.host, wwn, live.now)}
+		series={diskBusySeries(live.history, live.host, wwn, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"

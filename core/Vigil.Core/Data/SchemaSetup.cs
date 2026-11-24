@@ -33,7 +33,10 @@ namespace Vigil.Core.Data;
 public sealed class SchemaSetup(VigilDataSources databases, ILogger<SchemaSetup> logger)
 {
     /// <summary>Minute rollups are kept this long; hourly ones forever.</summary>
-    private const string MinuteRetention = "365 days";
+    /// <summary>How long the minute rollups are kept. HistoryQueries reads the hourly ones for anything older.</summary>
+    internal const int MinuteRetentionDays = 365;
+
+    private static readonly string MinuteRetention = $"{MinuteRetentionDays} days";
 
     /// <summary>Raw chunks older than this are compressed (only the 1h and 6h charts read them).</summary>
     private const string CompressAfter = "7 days";

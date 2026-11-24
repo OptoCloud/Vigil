@@ -459,6 +459,18 @@ export interface HistoryResponse {
 	poolFill: Record<string, SeriesPoints>;
 }
 
+/** `GET /api/status`: whether vigil-core is doing its job, for a monitor rather than the page. */
+export interface StatusResponse {
+	/** The loop is turning and vigild is connected. The route answers 503 when false. */
+	ready: boolean;
+	/** The release tag, or "development". */
+	version: string;
+	daemonConnected: boolean;
+	lastSnapshot: string | null;
+	databaseReady: boolean;
+	loopAgeSeconds: number | null;
+}
+
 export type HostMetric =
 	| 'memoryUsed'
 	| 'memoryCached'

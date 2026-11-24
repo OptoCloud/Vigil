@@ -27,7 +27,8 @@ public sealed class VigilEnvironmentTests
             ("NUT_HOST", "192.0.2.4"),
             ("NUT_PORT", "3493"),
             ("CORE_PORT", "3097"),
-            ("PERSIST_INTERVAL_SECONDS", "10"));
+            ("PERSIST_INTERVAL_SECONDS", "10"),
+            ("SMTP_STARTTLS", "false"));
 
         Assert.Equal("/mnt/vigil/vigild.sock", options.VigildSocket);
         Assert.Equal("postgres://vigil:secret@192.0.2.10:5432/vigil", options.DatabaseUrl);
@@ -37,6 +38,7 @@ public sealed class VigilEnvironmentTests
         // vigil-core silently listened on the default port instead of the configured one.
         Assert.Equal(3097, options.CorePort);
         Assert.Equal(10, options.PersistIntervalSeconds);
+        Assert.False(options.SmtpStartTls);
     }
 
     [Fact]
@@ -53,10 +55,10 @@ public sealed class VigilEnvironmentTests
     [Fact]
     public void AnEmptyVariableMeansUnset()
     {
-        // An EnvironmentFile line left as `NTFY_URL=` must not configure an empty URL.
-        var options = Bind(("NTFY_URL", ""), ("NUT_HOST", ""));
+        // An EnvironmentFile line left as `SMS_URL=` must not configure an empty URL.
+        var options = Bind(("SMS_URL", ""), ("NUT_HOST", ""));
 
-        Assert.Null(options.NtfyUrl);
+        Assert.Null(options.SmsUrl);
         Assert.Null(options.NutHost);
     }
 

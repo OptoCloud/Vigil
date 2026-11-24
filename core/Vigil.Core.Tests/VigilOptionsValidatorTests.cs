@@ -33,14 +33,77 @@ public sealed class VigilOptionsValidatorTests
     }
 
     [Theory]
-    [InlineData("ntfy.sh/private-topic")]
-    [InlineData("ftp://ntfy.sh/private-topic")]
-    public void AnNtfyUrlThatIsNotHttpIsRefusedWithoutRepeatingIt(string url)
+    [InlineData("heartbeat.example/private-check", 60)]
+    [InlineData("ftp://heartbeat.example/private-check", 60)]
+    [InlineData("https://heartbeat.example/private-check", 5)]
+    [InlineData("https://heartbeat.example/private-check", double.NaN)]
+    public void ABadHeartbeatIsRefusedWithoutRepeatingItsUrl(string url, double interval)
     {
-        var problem = Assert.Single(Problems(new VigilOptions { NtfyUrl = url }));
+        var problem = Assert.Single(Problems(new VigilOptions { HeartbeatUrl = url, HeartbeatIntervalSeconds = interval }));
 
-        Assert.Contains("NTFY_URL", problem, StringComparison.Ordinal);
-        Assert.DoesNotContain("private-topic", problem, StringComparison.Ordinal);
+        Assert.Contains("HEARTBEAT_", problem, StringComparison.Ordinal);
+        Assert.DoesNotContain("private-check", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ABadTemperatureLimitIsRefused()
+    {
+        Assert.Contains("TEMPERATURE_LIMITS", Assert.Single(Problems(new VigilOptions { TemperatureLimits = "drive:60/50" })), StringComparison.Ordinal);
+        Assert.Empty(Problems(new VigilOptions { TemperatureLimits = "drive:45/55,hba:70/80" }));
+    }
+
+    private static VigilOptions Email(Action<VigilOptions>? change = null)
+    {
+        var options = new VigilOptions
+        {
+            SmtpHost = "mail.example",
+            SmtpUsername = "vigil-login",
+            SmtpPassword = "s3cret-password",
+            EmailFrom = "vigil@example.com",
+            EmailTo = "owner@example.com, second@example.com",
+        };
+        change?.Invoke(options);
+        return options;
+    }
+
+    [Fact]
+    public void AWholeEmailChannelIsAccepted()
+    {
+        Assert.Empty(Problems(Email()));
+        // A relay that asks for no login, and offers no TLS.
+        Assert.Empty(Problems(Email(options => (options.SmtpUsername, options.SmtpPassword, options.SmtpStartTls) = (null, null, false))));
+    }
+
+    [Fact]
+    public void PartOfAnEmailChannelIsRefusedWithoutRepeatingAnyOfIt()
+    {
+        VigilOptions[] partial =
+        [
+            Email(options => options.SmtpHost = null),
+            Email(options => options.EmailFrom = null),
+            Email(options => options.EmailTo = null),
+            Email(options => options.SmtpPassword = null),
+            Email(options => options.SmtpUsername = null),
+            Email(options => options.SmtpHost = "smtp://mail.example:587"),
+            Email(options => options.SmtpPort = 0),
+            Email(options => options.EmailFrom = "not an address"),
+            Email(options => options.EmailTo = "owner@example.com, not an address"),
+            Email(options => options.EmailTo = string.Join(',', Enumerable.Repeat("owner@example.com", MailAddresses.MaximumRecipients + 1))),
+            // A login is never sent in the clear.
+            Email(options => options.SmtpStartTls = false),
+        ];
+
+        Assert.All(partial, options =>
+        {
+            var problems = Problems(options);
+            Assert.NotEmpty(problems);
+            Assert.All(problems, problem =>
+            {
+                Assert.DoesNotContain("s3cret", problem, StringComparison.Ordinal);
+                Assert.DoesNotContain("vigil-login", problem, StringComparison.Ordinal);
+                Assert.DoesNotContain("example.com", problem, StringComparison.Ordinal);
+            });
+        });
     }
 
     [Theory]

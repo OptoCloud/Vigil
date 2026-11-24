@@ -52,6 +52,16 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      # What the release is made of, from the three lock files, before any build fills the tree
+      # with what it downloaded. Published beside the artifacts.
+      - uses: anchore/sbom-action@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
+        with:
+          path: .
+          format: spdx-json
+          output-file: vigil.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
       # No cache on purpose: what is published is built from nothing but the tagged tree.
       - name: Build vigild
         env:
@@ -59,13 +69,15 @@ jobs:
         run: cargo build --locked --release --target x86_64-unknown-linux-musl -p vigild
 
       - name: Build vigil-core and the dashboard
+        env:
+          VIGIL_VERSION: ${{ github.ref_name }}   # what /api/status reports
         run: core/deploy/package.sh
 
       - name: Collect the artifacts
         run: |
           mkdir dist
-          cp target/x86_64-unknown-linux-musl/release/vigild vigil-core.tar.gz dist/
-          (cd dist && sha256sum vigild vigil-core.tar.gz > SHA256SUMS && cat SHA256SUMS)
+          cp target/x86_64-unknown-linux-musl/release/vigild vigil-core.tar.gz vigil.spdx.json dist/
+          (cd dist && sha256sum vigild vigil-core.tar.gz vigil.spdx.json > SHA256SUMS && cat SHA256SUMS)
 
       # Proves each artifact came from this workflow at this tag. A deployment verifies it
       # before pinning anything, so a file uploaded to the release by hand is never deployed.
@@ -79,7 +91,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/vigild dist/vigil-core.tar.gz dist/SHA256SUMS --verify-tag --generate-notes
+        run: gh release create "$TAG" dist/vigild dist/vigil-core.tar.gz dist/vigil.spdx.json dist/SHA256SUMS --verify-tag --generate-notes
 
       # DEPLOY_REPOSITORY (owner/name) receives a `vigil-release` repository_dispatch with the
       # tag. It is a secret, not a variable, so the public run log masks it. HOSTS_DISPATCH_TOKEN:

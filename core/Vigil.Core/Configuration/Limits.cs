@@ -39,6 +39,14 @@ public static class Limits
     public static readonly TimeSpan DaemonResponseTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// How long the runtime's loop may go without turning before it counts as stuck, for the
+    /// status route and the heartbeat. It turns every second; the one thing that holds it is a
+    /// database statement, which <see cref="DatabaseStatementTimeout"/> ends, and a turn can run
+    /// a handful of those in a row.
+    /// </summary>
+    public static readonly TimeSpan LoopStalledAfter = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// Inputs the runtime may have queued before the pollers wait for it (docs/SECURITY.md
     /// §4.2). The loop falls behind only while the database stalls it; at vigild's 2s and the
     /// UPS's 5s this is about twenty minutes of that, far past the schema's first fill, and a

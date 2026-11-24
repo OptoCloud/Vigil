@@ -92,3 +92,15 @@ describe('fanSeries', () => {
 		expect(series[0].points).toEqual([[NOW, 900]]);
 	});
 });
+
+describe('a window in the past', () => {
+	// Live.chartNow is Infinity then: no reading is recent against a clock that never comes.
+	it('gets no live point and is not slid forward to the live reading', () => {
+		const points: [number, number][] = [[NOW - 86_400_000, 40]];
+
+		expect(withLivePoint(points, 41, NOW - 1_000, Number.POSITIVE_INFINITY)).toBe(points);
+
+		const past = { ...history(), from: NOW - 2 * 86_400_000, to: NOW - 86_400_000 };
+		expect(chartWindow(past, NOW - 1_000, Number.POSITIVE_INFINITY)).toEqual({ from: past.from, to: past.to });
+	});
+});

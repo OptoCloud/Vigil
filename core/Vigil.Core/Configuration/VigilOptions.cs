@@ -65,14 +65,54 @@ public sealed class VigilOptions
     /// </summary>
     public double UpsBatteryTemperatureWarn { get; set; } = 40;
 
-    /// <summary>Optional. HTTPS is free in .NET, so this no longer goes through curl.</summary>
-    public string? NtfyUrl { get; set; }
+    /// <summary>
+    /// Where each kind of sensor is too hot, as <c>category:warn/critical</c> entries in °C
+    /// (<c>drive:50/60,cpu:85/95</c>). A category not named keeps its default; see
+    /// <c>Alerting.TemperatureLimits</c> for those.
+    /// </summary>
+    public string? TemperatureLimits { get; set; }
 
     /// <summary>Optional, with <see cref="SmsToken"/>: the SMS gateway's endpoint (ADR-027). Never logged.</summary>
     public string? SmsUrl { get; set; }
 
     /// <summary>The gateway's bearer token. A secret like DATABASE_URL: never logged, never in an error.</summary>
     public string? SmsToken { get; set; }
+
+    /// <summary>
+    /// Optional, with <see cref="EmailFrom"/> and <see cref="EmailTo"/>: the mail server that
+    /// alerts are handed to (ADR-028). Like every address here, never logged.
+    /// </summary>
+    public string? SmtpHost { get; set; }
+
+    /// <summary>587 is the submission port, where STARTTLS is expected.</summary>
+    public int SmtpPort { get; set; } = 587;
+
+    /// <summary>
+    /// Upgrade to TLS before logging in. Off only for a relay on this machine or the LAN that
+    /// offers none; the validator refuses a password without it.
+    /// </summary>
+    public bool SmtpStartTls { get; set; } = true;
+
+    /// <summary>Optional, with <see cref="SmtpPassword"/>: the mail server's login.</summary>
+    public string? SmtpUsername { get; set; }
+
+    /// <summary>A secret like DATABASE_URL: never logged, never in an error.</summary>
+    public string? SmtpPassword { get; set; }
+
+    /// <summary>The address alerts are sent from.</summary>
+    public string? EmailFrom { get; set; }
+
+    /// <summary>Who alerts are sent to, separated by commas.</summary>
+    public string? EmailTo { get; set; }
+
+    /// <summary>
+    /// Optional: a URL fetched every <see cref="HeartbeatIntervalSeconds"/> while vigil-core is
+    /// working, for a service that alerts when the requests stop. It is that check's only
+    /// secret: never logged.
+    /// </summary>
+    public string? HeartbeatUrl { get; set; }
+
+    public double HeartbeatIntervalSeconds { get; set; } = 60;
 
     /// <summary>
     /// The one address vigil-core listens on, which serves the dashboard: every interface by

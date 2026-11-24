@@ -18,6 +18,9 @@ internal static class ContractFiles
 
     public static string Core => Path.Combine(RepositoryRoot(), "core", "contract.json");
 
+    /// <summary>The HTTP API's description, written by ApiTests from <see cref="OpenApiDocument"/>.</summary>
+    public static string OpenApi => Path.Combine(RepositoryRoot(), "core", "openapi.json");
+
     public static JsonNode Load(string path) =>
         JsonNode.Parse(File.ReadAllText(path)) ?? throw new InvalidOperationException($"{path} is not JSON");
 

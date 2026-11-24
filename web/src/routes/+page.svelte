@@ -22,16 +22,16 @@
 
 	const sensors = $derived(live.snapshot?.sensors ?? []);
 	const hottestDrive = $derived(hottest(sensors, 'drive'));
-	const series = $derived(temperatureSeries(live.history, live.snapshot, live.now));
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
+	const series = $derived(temperatureSeries(live.history, live.snapshot, live.chartNow));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
 
 	const temperatures = $derived(liveTemperatures(sensors));
 
 	// The host's load (ADR-025), one tile each, all percents so they read alike.
-	const memory = $derived(memoryUsedPercent(live.history, live.host, live.now));
-	const cpu = $derived(cpuSeries(live.history, live.host, live.now)[0]);
+	const memory = $derived(memoryUsedPercent(live.history, live.host, live.chartNow));
+	const cpu = $derived(cpuSeries(live.history, live.host, live.chartNow)[0]);
 	const fullest = $derived(fullestPool(live.snapshot?.zfs));
-	const fullestFill = $derived(poolFillSeries(live.history, live.snapshot?.zfs, live.now).find((s) => s.label === fullest?.name));
+	const fullestFill = $derived(poolFillSeries(live.history, live.snapshot?.zfs, live.chartNow).find((s) => s.label === fullest?.name));
 </script>
 
 <svelte:head><title>vigil</title></svelte:head>

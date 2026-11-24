@@ -41,30 +41,39 @@ public sealed class VigilServicesTests
         Assert.NotNull(provider.GetRequiredService<HistoryQueries>());
         Assert.NotNull(provider.GetRequiredService<EventStore>());
 
-        // The runtime and vigild's feed always; UPS, ntfy and SMS only when configured.
+        // The runtime and vigild's feed always; the UPS, texts and email only when configured.
         Assert.Equal(
             [nameof(RuntimeService), nameof(DaemonFeed)],
             provider.GetServices<IHostedService>().Select(service => service.GetType().Name));
-        Assert.Null(provider.GetService<NtfyClient>());
+        Assert.Null(provider.GetService<EmailClient>());
+        Assert.Empty(provider.GetServices<INotifier>());
         Assert.Null(provider.GetService<SmsClient>());
     }
 
     [Fact]
-    public async Task AddsTheUpsFeedAndNtfyOnlyWhenTheyAreConfigured()
+    public async Task AddsTheUpsFeedAndTheChannelsOnlyWhenTheyAreConfigured()
     {
         await using var provider = Compose(new VigilOptions
         {
             VigildUrl = "http://127.0.0.1:1",
             NutHost = "192.0.2.4",
-            NtfyUrl = "https://ntfy.example/topic",
+            SmtpHost = "mail.example",
+            SmtpUsername = "vigil",
+            SmtpPassword = "s3cret",
+            EmailFrom = "vigil@example.com",
+            EmailTo = "owner@example.com, second@example.com",
             SmsUrl = "http://192.0.2.2:8080/send",
             SmsToken = "token",
+            HeartbeatUrl = "https://heartbeat.example/private-check",
         });
 
         Assert.Contains(provider.GetServices<IHostedService>(), service => service is UpsFeed);
-        Assert.NotNull(provider.GetService<NtfyClient>());
+        Assert.Contains(provider.GetServices<IHostedService>(), service => service is Heartbeat);
         Assert.NotNull(provider.GetService<SmsClient>());
-        Assert.Equal(["ntfy", "sms"], provider.GetServices<INotifier>().Select(channel => channel.Name));
+        Assert.NotNull(provider.GetService<EmailClient>());
+        // Each behind the queue that retries it.
+        Assert.All(provider.GetServices<INotifier>(), channel => Assert.IsType<RetryingNotifier>(channel));
+        Assert.Equal(["sms", "email"], provider.GetServices<INotifier>().Select(channel => channel.Name));
     }
 
     [Fact]

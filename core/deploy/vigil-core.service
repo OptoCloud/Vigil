@@ -16,7 +16,7 @@ Restart=always
 RestartSec=5
 
 # Sandboxing. docs/SECURITY.md §3.3. vigil-core reads vigild's socket, upsd and Postgres,
-# posts to ntfy, and serves the public dashboard (ADR-023). It writes nothing to disk and
+# sends texts and email, and serves the public dashboard (ADR-023). It writes nothing to disk and
 # needs no privilege at all, so it takes all of it that .NET can run under.
 NoNewPrivileges=true
 # "strict", not "full". The socket directory is listed read-write because connecting to a
@@ -32,7 +32,8 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-# vigild's socket (AF_UNIX); upsd, Postgres, ntfy and the dashboard (AF_INET/AF_INET6).
+# vigild's socket (AF_UNIX); upsd, Postgres, the SMS gateway, the mail server and the
+# dashboard (AF_INET/AF_INET6).
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 RestrictSUIDSGID=true

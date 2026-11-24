@@ -3,7 +3,7 @@
 # build beside it, ready to unpack into /opt/vigil-core on the host.
 #
 # linux-x64 (glibc), for the Debian guest vigil-core runs in. The binary links only libc and
-# libm; OpenSSL is loaded when TLS is first used (ntfy, and Postgres if it asks for it), so the
+# libm; OpenSSL is loaded when TLS is first used (the mail server, and Postgres if it asks for it), so the
 # guest needs:
 #   apt install libssl3 ca-certificates
 # No .NET runtime and no libicu: the runtime is compiled in and InvariantGlobalization is on.
@@ -35,7 +35,8 @@ else
 	fi
 	# The tree is copied in rather than built in place, so the host's bin/ and obj/ (another
 	# OS's, perhaps) never meet the container's.
-	"$engine" run --rm -v "$root:/src:ro" -v "$out:/out" "$sdk_image" sh -c "
+	# VIGIL_VERSION goes in with the tree: it is what /api/status will say this build is.
+	"$engine" run --rm -e VIGIL_VERSION -v "$root:/src:ro" -v "$out:/out" "$sdk_image" sh -c "
 		set -e
 		apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq clang zlib1g-dev >/dev/null
 		cp -r /src /work && cd /work && rm -rf core/*/bin core/*/obj

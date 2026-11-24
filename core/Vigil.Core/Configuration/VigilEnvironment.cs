@@ -29,9 +29,18 @@ public static class VigilEnvironment
         ("NUT_POLL_SECONDS", nameof(VigilOptions.NutPollSeconds)),
         ("HOST_SHUTDOWN_SECONDS", nameof(VigilOptions.HostShutdownSeconds)),
         ("UPS_BATTERY_TEMPERATURE_WARN", nameof(VigilOptions.UpsBatteryTemperatureWarn)),
-        ("NTFY_URL", nameof(VigilOptions.NtfyUrl)),
+        ("TEMPERATURE_LIMITS", nameof(VigilOptions.TemperatureLimits)),
         ("SMS_URL", nameof(VigilOptions.SmsUrl)),
         ("SMS_TOKEN", nameof(VigilOptions.SmsToken)),
+        ("SMTP_HOST", nameof(VigilOptions.SmtpHost)),
+        ("SMTP_PORT", nameof(VigilOptions.SmtpPort)),
+        ("SMTP_STARTTLS", nameof(VigilOptions.SmtpStartTls)),
+        ("SMTP_USERNAME", nameof(VigilOptions.SmtpUsername)),
+        ("SMTP_PASSWORD", nameof(VigilOptions.SmtpPassword)),
+        ("EMAIL_FROM", nameof(VigilOptions.EmailFrom)),
+        ("EMAIL_TO", nameof(VigilOptions.EmailTo)),
+        ("HEARTBEAT_URL", nameof(VigilOptions.HeartbeatUrl)),
+        ("HEARTBEAT_INTERVAL_SECONDS", nameof(VigilOptions.HeartbeatIntervalSeconds)),
         ("CORE_HOST", nameof(VigilOptions.CoreHost)),
         ("CORE_PORT", nameof(VigilOptions.CorePort)),
         ("TRUSTED_PROXIES", nameof(VigilOptions.TrustedProxies)),
@@ -66,7 +75,7 @@ public static class VigilEnvironment
         foreach (var (variable, property) in Names)
         {
             // An empty variable means "unset", as it did in the Rust version: an EnvironmentFile
-            // line left as `NTFY_URL=` should not configure an empty URL.
+            // line left as `SMS_URL=` should not configure an empty URL.
             if (lookup(variable) is { Length: > 0 } value)
             {
                 settings[property] = value;

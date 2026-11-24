@@ -9,7 +9,7 @@
 
 	const live = getLive();
 
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
 	const fans = $derived(fanIds(live.history, live.snapshot?.fans ?? []));
 </script>
 
@@ -19,7 +19,7 @@
 
 <LineChart
 	title="Temperatures"
-	series={temperatureSeries(live.history, live.snapshot, live.now)}
+	series={temperatureSeries(live.history, live.snapshot, live.chartNow)}
 	from={plotWindow.from}
 	to={plotWindow.to}
 	unit="°C"
@@ -31,7 +31,7 @@
 	     a 2,700 rpm HBA fan next to 600 rpm case fans would say nothing, and two scales invent correlations. -->
 	<LineChart
 		title="Fan duty"
-		series={fanSeries(live.history, live.snapshot, live.now, 'duty')}
+		series={fanSeries(live.history, live.snapshot, live.chartNow, 'duty')}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"
@@ -40,7 +40,7 @@
 	/>
 	<LineChart
 		title="Fan speed"
-		series={fanSeries(live.history, live.snapshot, live.now, 'rpm')}
+		series={fanSeries(live.history, live.snapshot, live.chartNow, 'rpm')}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit=" rpm"

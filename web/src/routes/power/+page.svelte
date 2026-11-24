@@ -8,8 +8,8 @@
 
 	const live = getLive();
 
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
-	const series = $derived(upsSeries(live.history, live.ups.reading, live.now));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
+	const series = $derived(upsSeries(live.history, live.ups.reading, live.chartNow));
 </script>
 
 <svelte:head><title>Power · vigil</title></svelte:head>
@@ -19,7 +19,7 @@
 {:else}
 	<RangeBar />
 	<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-3">
-		<UpsPanel ups={live.ups} inputVoltage={live.history?.ups.inputVoltage ?? []} now={live.now} />
+		<UpsPanel ups={live.ups} inputVoltage={live.history?.ups.inputVoltage ?? []} now={live.chartNow} />
 		<div class="flex flex-col gap-3">
 			<LineChart
 				title="Battery and load"

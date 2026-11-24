@@ -41,17 +41,30 @@ public sealed class HistoryQueries(VigilDataSources databases)
     public static int BucketSecondsFor(RangeKey range) => Ranges[range].BucketSeconds;
 
     /// <param name="upsName">The UPS whose history to include, or null without NUT.</param>
-    public async Task<HistoryResponse> QueryAsync(RangeKey range, string? upsName, DateTimeOffset now, CancellationToken cancellationToken)
+    /// <param name="now">The time now, which is where the window ends unless <paramref name="to"/> says otherwise.</param>
+    /// <param name="to">The end of the window, for a look further back. Null ends it now.</param>
+    /// <param name="rawRetention">
+    /// How long raw samples are kept. A window that starts before that reads a rollup, whatever
+    /// its range would read for the present. Null assumes the raw samples are there.
+    /// </param>
+    public async Task<HistoryResponse> QueryAsync(
+        RangeKey range,
+        string? upsName,
+        DateTimeOffset now,
+        CancellationToken cancellationToken,
+        DateTimeOffset? to = null,
+        TimeSpan? rawRetention = null)
     {
         var spec = Ranges[range];
-        var from = now.AddSeconds(-spec.Seconds);
-        var bucket = $"{spec.BucketSeconds} seconds";
+        var until = to ?? now;
+        var from = until.AddSeconds(-spec.Seconds);
+        var source = SourceFor(spec.Source, now - from, rawRetention);
+        var window = new Window($"{spec.BucketSeconds} seconds", from, until);
 
         var temperatures = new Dictionary<string, IReadOnlyList<double[]>>(StringComparer.Ordinal);
         await ReadAsync(
-            QueryFor("history_sensors", spec.Source, "sensor"),
-            bucket,
-            from,
+            QueryFor("history_sensors", source, "sensor"),
+            window,
             null,
             reader =>
             {
@@ -67,9 +80,8 @@ public sealed class HistoryQueries(VigilDataSources databases)
         var duties = new Dictionary<string, IReadOnlyList<double[]>>(StringComparer.Ordinal);
         var rpms = new Dictionary<string, IReadOnlyList<double[]>>(StringComparer.Ordinal);
         await ReadAsync(
-            QueryFor("history_fans", spec.Source, "fan"),
-            bucket,
-            from,
+            QueryFor("history_fans", source, "fan"),
+            window,
             null,
             reader =>
             {
@@ -94,9 +106,8 @@ public sealed class HistoryQueries(VigilDataSources databases)
         if (upsName is { Length: > 0 })
         {
             await ReadAsync(
-                QueryFor("history_ups", spec.Source, "ups"),
-                bucket,
-                from,
+                QueryFor("history_ups", source, "ups"),
+                window,
                 upsName,
                 reader =>
                 {
@@ -114,9 +125,8 @@ public sealed class HistoryQueries(VigilDataSources databases)
                 cancellationToken);
 
             await ReadAsync(
-                QueryFor("history_ups_detail", spec.Source, "ups_detail"),
-                bucket,
-                from,
+                QueryFor("history_ups_detail", source, "ups_detail"),
+                window,
                 upsName,
                 reader =>
                 {
@@ -129,7 +139,7 @@ public sealed class HistoryQueries(VigilDataSources databases)
                 cancellationToken);
         }
 
-        var load = await QueryLoadAsync(spec.Source, bucket, from, cancellationToken).ConfigureAwait(false);
+        var load = await QueryLoadAsync(source, window, cancellationToken).ConfigureAwait(false);
 
         // Thirteen drives and two DIMMs would blow through what colour can distinguish, so each
         // group is charted as one line: its hottest member in each bucket.
@@ -140,7 +150,7 @@ public sealed class HistoryQueries(VigilDataSources databases)
         {
             Range = range,
             From = from.ToUnixTimeMilliseconds(),
-            To = now.ToUnixTimeMilliseconds(),
+            To = until.ToUnixTimeMilliseconds(),
             BucketSeconds = spec.BucketSeconds,
             Temperatures = temperatures,
             Duties = duties,
@@ -176,11 +186,11 @@ public sealed class HistoryQueries(VigilDataSources databases)
     ];
 
     /// <summary>The host's load, its traffic and its pools' fill (ADR-025).</summary>
-    private async Task<LoadHistory> QueryLoadAsync(Source source, string bucket, DateTimeOffset from, CancellationToken cancellationToken)
+    private async Task<LoadHistory> QueryLoadAsync(Source source, Window window, CancellationToken cancellationToken)
     {
         var history = new LoadHistory(Series(), Series(), Series(), Series(), Series());
 
-        await ReadAsync(QueryFor("history_host", source, "host"), bucket, from, null, reader =>
+        await ReadAsync(QueryFor("history_host", source, "host"), window, null, reader =>
         {
             var at = Millis(reader, 0);
             for (var column = 0; column < HostColumns.Length; column++)
@@ -189,7 +199,7 @@ public sealed class HistoryQueries(VigilDataSources databases)
             }
         }, cancellationToken).ConfigureAwait(false);
 
-        await ReadAsync(QueryFor("history_traffic", source, "traffic"), bucket, from, null, reader =>
+        await ReadAsync(QueryFor("history_traffic", source, "traffic"), window, null, reader =>
         {
             var (id, at) = (reader.GetString(0), Millis(reader, 1));
             AppendIfPresent(history.TrafficIn, id, reader, 2, at, 0);
@@ -197,7 +207,7 @@ public sealed class HistoryQueries(VigilDataSources databases)
             AppendIfPresent(history.Busy, id, reader, 4, at, 1);
         }, cancellationToken).ConfigureAwait(false);
 
-        await ReadAsync(QueryFor("history_pools", source, "pool"), bucket, from, null, reader =>
+        await ReadAsync(QueryFor("history_pools", source, "pool"), window, null, reader =>
             AppendIfPresent(history.PoolFill, reader.GetString(0), reader, 2, Millis(reader, 1), 2), cancellationToken).ConfigureAwait(false);
 
         return history;
@@ -231,21 +241,37 @@ public sealed class HistoryQueries(VigilDataSources databases)
         return SqlText.Load($"{query}_rollup").Replace("{table}", table, StringComparison.Ordinal);
     }
 
+    /// <summary>What every history query is asked for: a bucket width (a Postgres interval) and the span of time.</summary>
+    private sealed record Window(string Bucket, DateTimeOffset From, DateTimeOffset To);
+
+    /// <summary>
+    /// The level a window reads. A range has one for the present; a window further back may
+    /// start before that level's rows were dropped, and then reads the next one up, which
+    /// still has them. Coarser points in the same buckets, rather than an empty chart.
+    /// </summary>
+    private static Source SourceFor(Source preferred, TimeSpan age, TimeSpan? rawRetention)
+    {
+        var source = preferred == Source.Raw && rawRetention is { } raw && age > raw ? Source.Minute : preferred;
+        return source == Source.Minute && age > TimeSpan.FromDays(SchemaSetup.MinuteRetentionDays) ? Source.Hour : source;
+    }
+
     private async Task ReadAsync(
         string sql,
-        string bucket,
-        DateTimeOffset from,
+        Window window,
         string? upsName,
         Action<NpgsqlDataReader> onRow,
         CancellationToken cancellationToken)
     {
         await using var command = databases.Reader.CreateCommand(sql);
-        command.Parameters.Add(new NpgsqlParameter { Value = bucket, NpgsqlDbType = NpgsqlDbType.Text });
-        command.Parameters.Add(new NpgsqlParameter { Value = from, NpgsqlDbType = NpgsqlDbType.TimestampTz });
+        command.Parameters.Add(new NpgsqlParameter { Value = window.Bucket, NpgsqlDbType = NpgsqlDbType.Text });
+        command.Parameters.Add(new NpgsqlParameter { Value = window.From, NpgsqlDbType = NpgsqlDbType.TimestampTz });
         if (upsName is not null)
         {
             command.Parameters.Add(new NpgsqlParameter { Value = upsName, NpgsqlDbType = NpgsqlDbType.Text });
         }
+
+        // Always the last parameter, after the UPS's name where there is one.
+        command.Parameters.Add(new NpgsqlParameter { Value = window.To, NpgsqlDbType = NpgsqlDbType.TimestampTz });
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

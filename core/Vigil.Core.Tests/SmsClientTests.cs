@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
 using Vigil.Core.Alerting;
 using Vigil.Core.Notifications;
 using Vigil.Core.Protocol;
@@ -24,21 +23,7 @@ public sealed class SmsClientTests
         }
     }
 
-    /// <summary>Every line logged, formatted, so a test can say what must never be in one.</summary>
-    private sealed class RecordingLogger : ILogger<SmsClient>
-    {
-        public List<string> Lines { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-
-        public bool IsEnabled(LogLevel logLevel) => true;
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Lines.Add(formatter(state, exception));
-    }
-
-    private static SmsClient Client(HttpMessageHandler handler, ILogger<SmsClient>? logger = null) =>
-        new(new HttpClient(handler), Gateway, Token, logger ?? new RecordingLogger());
+    private static SmsClient Client(HttpMessageHandler handler) => new(new HttpClient(handler), Gateway, Token);
 
     private static Notification Raised(Severity severity, string message) => new(new NewEvent(severity, "k", message), IsAllClear: false);
 
@@ -47,7 +32,7 @@ public sealed class SmsClientTests
     {
         using var gateway = new FakeGateway(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
 
-        await Client(gateway).SendAsync(Raised(Severity.Critical, "Pool tank is DEGRADED. ✓ ünïcode"));
+        Assert.Null(await Client(gateway).TryDeliverAsync(Raised(Severity.Critical, "Pool tank is DEGRADED. ✓ ünïcode"), TestContext.Current.CancellationToken));
 
         var (request, body) = Assert.Single(gateway.Received);
         Assert.Equal(HttpMethod.Post, request.Method);
@@ -60,29 +45,43 @@ public sealed class SmsClientTests
     [Fact]
     public void EachTextSaysHowBadItIsOrThatItIsOver()
     {
-        Assert.Equal("vigil CRITICAL: m", SmsClient.TextOf(Raised(Severity.Critical, "m")));
-        Assert.Equal("vigil warning: m", SmsClient.TextOf(Raised(Severity.Warning, "m")));
-        Assert.Equal("vigil resolved: m", SmsClient.TextOf(new Notification(new NewEvent(Severity.Info, "k", "m"), IsAllClear: true)));
+        Assert.Equal("vigil CRITICAL: m", Raised(Severity.Critical, "m").Headline);
+        Assert.Equal("vigil warning: m", Raised(Severity.Warning, "m").Headline);
+        Assert.Equal("vigil resolved: m", new Notification(new NewEvent(Severity.Info, "k", "m"), IsAllClear: true).Headline);
     }
 
     [Fact]
-    public async Task AFailureIsLoggedWithoutTheUrlOrTheTokenAndNeverThrown()
+    public async Task AFailureIsReportedWithoutTheUrlOrTheTokenAndNeverThrown()
     {
-        var logger = new RecordingLogger();
         using var refusing = new FakeGateway(_ => throw new HttpRequestException("connection refused"));
         using var rejecting = new FakeGateway(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        using var silent = new FakeGateway(_ => throw new TaskCanceledException());
 
-        await Client(refusing, logger).SendAsync(Raised(Severity.Critical, "m"));
-        await Client(rejecting, logger).SendAsync(Raised(Severity.Critical, "m"));
+        string?[] failures =
+        [
+            await Client(refusing).TryDeliverAsync(Raised(Severity.Critical, "m"), TestContext.Current.CancellationToken),
+            await Client(rejecting).TryDeliverAsync(Raised(Severity.Critical, "m"), TestContext.Current.CancellationToken),
+            await Client(silent).TryDeliverAsync(Raised(Severity.Critical, "m"), TestContext.Current.CancellationToken),
+        ];
 
-        Assert.Equal(2, logger.Lines.Count);
-        Assert.Contains("401", logger.Lines[1], StringComparison.Ordinal);
-        Assert.All(logger.Lines, line =>
+        Assert.Contains("401", failures[1], StringComparison.Ordinal);
+        Assert.All(failures, failure =>
         {
-            Assert.DoesNotContain(Token, line, StringComparison.Ordinal);
-            Assert.DoesNotContain("sms-gateway", line, StringComparison.Ordinal);
-            Assert.DoesNotContain("private-path", line, StringComparison.Ordinal);
+            Assert.NotNull(failure);
+            Assert.DoesNotContain(Token, failure, StringComparison.Ordinal);
+            Assert.DoesNotContain("sms-gateway", failure, StringComparison.Ordinal);
+            Assert.DoesNotContain("private-path", failure, StringComparison.Ordinal);
         });
+    }
+
+    [Fact]
+    public async Task StoppingIsNotReportedAsAFailure()
+    {
+        using var gateway = new FakeGateway(_ => new HttpResponseMessage(HttpStatusCode.Accepted));
+        using var stopped = new CancellationTokenSource();
+        await stopped.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Client(gateway).TryDeliverAsync(Raised(Severity.Critical, "m"), stopped.Token));
     }
 
     [Fact]

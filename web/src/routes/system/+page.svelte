@@ -18,8 +18,8 @@
 
 	const live = getLive();
 
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
-	const network = $derived(networkSeries(live.history, live.host, live.now));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
+	const network = $derived(networkSeries(live.history, live.host, live.chartNow));
 	const uptime = $derived(live.host?.uptimeSeconds ?? null);
 
 	/** "12 days", "5 hours": uptime to the largest whole unit, which is all a glance needs. */
@@ -54,7 +54,7 @@
      percent of time stalled are four different questions. -->
 <LineChart
 	title="Memory"
-	series={memorySeries(live.history, live.host, live.now)}
+	series={memorySeries(live.history, live.host, live.chartNow)}
 	from={plotWindow.from}
 	to={plotWindow.to}
 	unit=" GiB"
@@ -65,7 +65,7 @@
 <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] gap-3">
 	<LineChart
 		title="CPU"
-		series={cpuSeries(live.history, live.host, live.now)}
+		series={cpuSeries(live.history, live.host, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"
@@ -74,7 +74,7 @@
 	/>
 	<LineChart
 		title="Load average"
-		series={loadSeries(live.history, live.host, live.now)}
+		series={loadSeries(live.history, live.host, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit=""
@@ -87,7 +87,7 @@
 	     this says whether that is hurting. -->
 	<LineChart
 		title="Pressure: something stalled"
-		series={pressureSeries(live.history, live.host, live.now)}
+		series={pressureSeries(live.history, live.host, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"
@@ -98,7 +98,7 @@
 	     smaller, and on one chart it would sit unreadably under the other. -->
 	<LineChart
 		title="Pressure: everything stalled"
-		series={pressureFullSeries(live.history, live.host, live.now)}
+		series={pressureFullSeries(live.history, live.host, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"

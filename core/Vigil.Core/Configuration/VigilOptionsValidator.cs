@@ -73,13 +73,6 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
             problems.Add($"WEB_ROOT is '{webRoot}', which has no index.html. Point it at the dashboard's build output.");
         }
 
-        if (options.NtfyUrl is { Length: > 0 } ntfy
-            && (!Uri.TryCreate(ntfy, UriKind.Absolute, out var ntfyUri) || ntfyUri.Scheme is not ("https" or "http")))
-        {
-            // The URL itself is not repeated: a private topic's name is its only secret.
-            problems.Add("NTFY_URL must be an absolute http(s) URL.");
-        }
-
         // Neither value is repeated in a problem: the token is a secret, and the URL is the
         // gateway's address. Both or neither, so a half-configured channel cannot pass for one.
         var (hasSmsUrl, hasSmsToken) = (options.SmsUrl is { Length: > 0 }, options.SmsToken is { Length: > 0 });
@@ -91,6 +84,26 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
         if (hasSmsUrl && (!Uri.TryCreate(options.SmsUrl, UriKind.Absolute, out var smsUri) || smsUri.Scheme is not ("https" or "http")))
         {
             problems.Add("SMS_URL must be an absolute http(s) URL.");
+        }
+
+        problems.AddRange(EmailProblems(options));
+
+        if (options.HeartbeatUrl is { Length: > 0 } heartbeat
+            && (!Uri.TryCreate(heartbeat, UriKind.Absolute, out var heartbeatUri) || heartbeatUri.Scheme is not ("https" or "http")))
+        {
+            // The URL itself is not repeated: it is the check's only secret.
+            problems.Add("HEARTBEAT_URL must be an absolute http(s) URL.");
+        }
+
+        // Faster than this is a load test of someone else's service; slower, and a dead host goes unnoticed for a day.
+        if (!double.IsFinite(options.HeartbeatIntervalSeconds) || options.HeartbeatIntervalSeconds is < 10 or > 86_400)
+        {
+            problems.Add($"HEARTBEAT_INTERVAL_SECONDS must be between 10 and 86400, got '{options.HeartbeatIntervalSeconds}'.");
+        }
+
+        if (!Alerting.TemperatureLimits.TryParse(options.TemperatureLimits, out _, out var temperatureProblem))
+        {
+            problems.Add($"TEMPERATURE_LIMITS {temperatureProblem}");
         }
 
         if (!Api.TrustedProxies.TryParse(options.TrustedProxies, Clients.CloudflareRanges.BuiltIn, out _, out var proxyProblem))
@@ -116,6 +129,57 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
     /// treats any name but "localhost" as "every interface", so a typo would not fail, it would
     /// just listen somewhere other than intended.
     /// </remarks>
+    /// <summary>
+    /// The email channel is all of SMTP_HOST, EMAIL_FROM and EMAIL_TO, or none of them. No value
+    /// is repeated in a problem: an address is private and the password is a secret.
+    /// </summary>
+    private static IEnumerable<string> EmailProblems(VigilOptions options)
+    {
+        var (hasHost, hasFrom, hasTo) = (options.SmtpHost is { Length: > 0 }, options.EmailFrom is { Length: > 0 }, options.EmailTo is { Length: > 0 });
+        var (hasUsername, hasPassword) = (options.SmtpUsername is { Length: > 0 }, options.SmtpPassword is { Length: > 0 });
+
+        if (hasHost != hasFrom || hasHost != hasTo)
+        {
+            yield return "SMTP_HOST, EMAIL_FROM and EMAIL_TO go together: set all three to send email, or none.";
+        }
+
+        if (hasUsername != hasPassword)
+        {
+            yield return "SMTP_USERNAME and SMTP_PASSWORD go together: set both to log in to the mail server, or neither.";
+        }
+
+        if ((hasUsername || hasPassword) && !hasHost)
+        {
+            yield return "SMTP_USERNAME and SMTP_PASSWORD need SMTP_HOST.";
+        }
+
+        if (hasHost && Uri.CheckHostName(options.SmtpHost) == UriHostNameType.Unknown)
+        {
+            yield return "SMTP_HOST must be a host name or an IP address, with no scheme and no port.";
+        }
+
+        if (options.SmtpPort is < 1 or > 65535)
+        {
+            yield return $"SMTP_PORT must be a port number, got '{options.SmtpPort}'.";
+        }
+
+        if (hasFrom && !System.Net.Mail.MailAddress.TryCreate(options.EmailFrom, out _))
+        {
+            yield return "EMAIL_FROM must be one email address.";
+        }
+
+        if (hasTo && !MailAddresses.TryParse(options.EmailTo, out _))
+        {
+            yield return $"EMAIL_TO must be one to {MailAddresses.MaximumRecipients} email addresses, separated by commas.";
+        }
+
+        // A password sent before the connection is encrypted is a password published.
+        if (hasPassword && !options.SmtpStartTls)
+        {
+            yield return "SMTP_PASSWORD needs SMTP_STARTTLS: a login is never sent over an unencrypted connection.";
+        }
+    }
+
     public static string? ListenAddress(VigilOptions options)
     {
         var host = options.CoreHost.Trim().Trim('[', ']');

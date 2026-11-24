@@ -28,6 +28,44 @@ public sealed class NutProtocolTests
     }
 
     [Fact]
+    public void AnswersWhateverUpsdSendsInPlaceOfAnyLine()
+    {
+        // upsd is another program on another machine (docs/SECURITY.md §4.3). Every line of a
+        // real answer cut off after each character, and every value made something else: the
+        // parser and the reading built from it must answer, and never with a number that
+        // cannot be serialized.
+        string[] answer =
+        [
+            "BEGIN LIST VAR apc",
+            """VAR apc battery.charge "100" """.TrimEnd(),
+            """VAR apc battery.runtime "2310" """.TrimEnd(),
+            """VAR apc ups.status "OL CHRG" """.TrimEnd(),
+            """VAR apc ups.load "25" """.TrimEnd(),
+            """VAR apc ups.realpower.nominal "670" """.TrimEnd(),
+            """VAR apc battery.temperature "34.5" """.TrimEnd(),
+            "END LIST VAR apc",
+        ];
+        string[] wrong = ["", "\"", "x", "-1", "NaN", "Infinity", "1e999", "99999999999999999999999999", "\0", "\"\"\""];
+
+        for (var changed = 0; changed < answer.Length; changed++)
+        {
+            var cuts = Enumerable.Range(0, answer[changed].Length).Select(length => answer[changed][..length]);
+            var spoiled = wrong.Select(value => System.Text.RegularExpressions.Regex.Replace(answer[changed], "\"[^\"]*\"$", $"\"{value}\""));
+            foreach (var line in cuts.Concat(spoiled).Concat(wrong))
+            {
+                var lines = answer.ToArray();
+                lines[changed] = line;
+
+                var reading = NutProtocol.ToReading("apc", NutProtocol.ParseVariables(lines), "t");
+
+                double?[] numbers = [reading.BatteryCharge, reading.BatteryRuntimeSeconds, reading.Load, reading.RealPower, reading.BatteryTemperature];
+                Assert.All(numbers, number => Assert.True(number is null || double.IsFinite(number.Value), line));
+                Assert.Null(NutProtocol.ParseNumLogins(line, "apc") is < 0 ? "a negative count" : null);
+            }
+        }
+    }
+
+    [Fact]
     public void ReadsVarLinesAndSkipsTheFraming()
     {
         var variables = NutProtocol.ParseVariables(

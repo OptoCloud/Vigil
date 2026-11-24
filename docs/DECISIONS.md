@@ -299,6 +299,9 @@ is the one new route: a GET, bound to 200 rows, the name bound as a parameter. A
 
 ### ADR-021: Notifications go out through channels, each with its own minimum severity
 
+**Amended on 2026-11-24 (ADR-028).** ntfy is gone; the channels are texts and email, and a
+channel now retries. The router, the minimum severities and the all-clears stand.
+
 *Decided 2026-11-11:* push the all-clear of anything that was pushed. ntfy was the only way
 vigil reached a person, called straight from the runtime. An SMS gateway on a cellular modem
 is to be the second, for when the LAN or the
@@ -484,3 +487,29 @@ gateway exists, and is simply not configured until it does.
 in vigil-core and the modem in its guest. *Rejected:* phone numbers in vigil's config. One
 list, in the gateway, is one place to change and one place they can leak from.
 
+### ADR-028: Vigil reaches a person by text or by email, and nothing else
+
+*Decided 2026-11-24* by the owner: ntfy is removed, and no push service, webhook or chat
+integration takes its place. A text reaches a phone with no app and no account, and works when
+the internet is what is down (ADR-027). An email reaches everything else. Each further channel
+is one more address to keep secret and one more thing to find broken on the night it matters.
+
+`NtfyClient` and `NTFY_URL` are deleted; a `NTFY_URL` left in an environment file is ignored.
+Email is `EmailClient`, over the platform's `SmtpClient` (ADR-015): `SMTP_HOST`, `EMAIL_FROM`
+and `EMAIL_TO`, with a login that is only ever sent after STARTTLS. It carries warnings and
+worse with their all-clears, as texts do.
+
+A channel is now an `IDelivery`, one attempt that reports why it failed, behind a
+`RetryingNotifier` that queues, keeps order and tries again after 30 seconds, 2 minutes and
+10 minutes. In order, so "resolved" never arrives before its problem. Both the retries and the
+queue (64) are bounded.
+
+*Consequence:* a deployment that used ntfy has no channel at all until `SMS_*` or `SMTP_*` is
+set, and vigil-core does not warn about that: running with none is allowed. A notification
+can arrive up to a quarter of an hour late, and one behind it later still. What is queued is
+lost on a restart, as the router's memory is (ADR-021).
+*Rejected:* a generic webhook, as the one channel that reaches everything. It is the same
+decision as ntfy with a longer list of things on the other end. *Rejected:* MailKit. It is the
+better SMTP library, and a dependency for one message a month to one server.
+*Rejected:* retrying inside each channel. Two channels would each grow a loop, and neither
+would keep its notifications in order.

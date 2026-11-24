@@ -23,7 +23,7 @@ public sealed record Condition(Severity Severity, string Message, string Cleared
 /// </summary>
 /// <remarks>
 /// Ordinal-sorted, as the Rust side's <c>BTreeMap</c> is: the debouncer raises and clears in
-/// key order, so the order events reach the log and ntfy is the same in both implementations.
+/// key order, so the order events reach the log and a phone is the same in both implementations.
 /// </remarks>
 public sealed class Conditions : SortedDictionary<string, Condition>
 {

@@ -14,7 +14,7 @@ boundary first and a code boundary second: see `docs/SECURITY.md` §1.
                         ┌─────────▼─────────┐
           upsd ────────>│    vigil-core     │──────> Postgres + TimescaleDB
      (NUT, TCP)         │    C#, core/      │        (owns the schema)
-                        │  one state loop   │──────> ntfy (optional)
+                        │  one state loop   │──────> SMS gateway, mail server (optional)
                         └─────────┬─────────┘
                            public │ one listener, no auth (ADR-023)
                                   │ the dashboard (web/build) + GET /api/*
@@ -94,12 +94,12 @@ messages on one channel, so there are no locks and events are ordered as they ha
 |---|---|---|
 | `Protocol` | the wire types and their JSON options; the source of `core/contract.json` | nothing |
 | `Configuration` | `VigilOptions` from the environment's published names, validated before start | nothing |
-| `Clients` | `VigildClient` (vigild's socket, SSE via the framework's parser) and `NutClient` (upsd) | Protocol, Configuration |
-| `Alerting` | **pure** condition logic: snapshot, UPS, pool and drive conditions, the debouncer, the drive and pool diffs, bay names for messages. No I/O | Protocol |
+| `Clients` | `VigildClient` (vigild's socket, SSE via the framework's parser), `NutClient` (upsd), `CloudflareRanges` (ADR-024) and `Heartbeat`, the outbound "still alive" | Protocol, Configuration, Runtime's `RuntimePulse` |
+| `Alerting` | **pure** condition logic: snapshot, temperature, host, UPS, pool and drive conditions, the debouncer, the drive and pool diffs, bay names for messages. No I/O | Protocol |
 | `Data` | Npgsql: two data sources, `SchemaSetup` (tables, hypertables, aggregates, policies, applied on every connect), the writers and the history and event queries. SQL from `core/sql/` | Protocol, Configuration |
-| `Notifications` | `AlertRouter` and the `INotifier` channels behind it, each with a minimum severity (ADR-021); `NtfyClient` over HTTPS and `SmsClient` to an SMS gateway (ADR-027) | Alerting, Protocol |
-| `Runtime` | `VigilRuntime`, the one owner of state, with `PoolWatch`, `DriveTracking`, `UpsTracking` and `HostTracking` (vigild's counters into rates) holding each source's state for it; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
-| `Api` | the routes (`/api/live`, `/api/history`, `/api/events`, `/api/drives/{name}/history`, `/health`), the static dashboard's pages and its security headers | Runtime, Data, Protocol |
+| `Notifications` | `AlertRouter` and the `INotifier` channels behind it, each with a minimum severity (ADR-021): `SmsClient` to an SMS gateway (ADR-027) and `EmailClient` over SMTP (ADR-028), each an `IDelivery` behind a `RetryingNotifier`, which queues, orders and retries | Alerting, Protocol |
+| `Runtime` | `VigilRuntime`, the one owner of state, with `PoolWatch`, `DriveTracking`, `UpsTracking`, `HostTracking` (vigild's counters into rates) and `HostWatch` (their five-minute average, judged) holding each source's state for it; `RuntimePulse`, what the loop says about itself to other threads; `DatabaseGate`; `LiveHub` and the subscriber cap; the hosted services that feed it | all of the above |
+| `Api` | the routes (`/api/live`, `/api/status`, `/api/history`, `/api/events`, `/api/drives/{name}/history`, `/health`, and `/metrics` through the one writer of that format, `PrometheusText`), the static dashboard's pages and its security headers | Runtime, Data, Protocol |
 
 `Program.cs` and `VigilServices.cs` only compose these. Nothing below `Runtime` knows it is in a
 web server, which is why all of it is unit-tested without one.
@@ -118,10 +118,8 @@ web server, which is why all of it is unit-tested without one.
 | `static/theme.js` | resolves the theme to a `dark` class before first paint; a file, so the CSP needs no hand-kept hash. mode-watcher owns the choice after load |
 | `lib/chart/` | scales, ticks, formatting, and the line chart's paths and readout |
 | `lib/components/` | presentation |
-| `lib/components/ui/`³ | vendored shadcn-svelte: never hand-edited |
+| `lib/components/ui/` | vendored shadcn-svelte: never hand-edited |
 | `lib/types.ts` | the mirror of both contract files |
-
-³ arrives in Phase 5.
 
 There is no server code in `web/`. In development, Vite proxies `/api` and `/health` to a
 running vigil-core (`VIGIL_CORE_URL`, default `http://127.0.0.1:3001`).

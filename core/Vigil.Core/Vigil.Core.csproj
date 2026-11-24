@@ -4,6 +4,10 @@
     <RootNamespace>Vigil.Core</RootNamespace>
     <UserSecretsId>vigil-core</UserSecretsId>
     <PublishAot>true</PublishAot>
+    <!-- The release tag, which /api/status reports. release.yml sets VIGIL_VERSION for this
+         build as it does for vigild's; unset, the binary says it is a development build. -->
+    <InformationalVersion Condition="'$(VIGIL_VERSION)' != ''">$(VIGIL_VERSION)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

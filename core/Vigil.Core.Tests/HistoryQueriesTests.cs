@@ -11,39 +11,11 @@ namespace Vigil.Core.Tests;
 [Collection(DatabaseTestGroup.Name)]
 public sealed class HistoryQueriesTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 10, 1, 12, 0, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void TheResponseHasExactlyThePropertiesTheBrowserReads()
-    {
-        // HistoryResponse is not yet in core/contract.json, so its shape, a contract with the
-        // browser all the same, is pinned here against what web/src/lib/types.ts declares.
-        var empty = new Dictionary<string, IReadOnlyList<double[]>>(StringComparer.Ordinal);
-        var response = new HistoryResponse
-        {
-            Range = RangeKey.OneDay,
-            From = 1,
-            To = 2,
-            BucketSeconds = 300,
-            Temperatures = empty,
-            Duties = empty,
-            Rpms = empty,
-            Ups = empty,
-            Host = empty,
-            TrafficIn = empty,
-            TrafficOut = empty,
-            Busy = empty,
-            PoolFill = empty,
-        };
-
-        var json = JsonNode.Parse(JsonSerializer.Serialize(response, VigilJson.Options))!.AsObject();
-
-        Assert.Equal(
-            ["bucketSeconds", "busy", "duties", "from", "host", "poolFill", "range", "rpms", "temperatures", "to", "trafficIn", "trafficOut", "ups"],
-            json.Select(property => property.Key).OrderBy(key => key, StringComparer.Ordinal));
-        // The range is the string the dashboard's buttons use, not an ordinal.
-        Assert.Equal("24h", json["range"]!.GetValue<string>());
-    }
+    /// <summary>
+    /// Noon yesterday, not a date written here: the database's own retention drops raw rows
+    /// after 30 days, so a fixed date passes for a month and then fails for ever.
+    /// </summary>
+    private static readonly DateTimeOffset Now = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddHours(-12);
 
     [Theory]
     [InlineData(RangeKey.OneHour, "1h", 10)]
@@ -214,6 +186,49 @@ public sealed class HistoryQueriesTests
         var found = Convert.ToInt64(await command.ExecuteScalarAsync(token), System.Globalization.CultureInfo.InvariantCulture);
 
         Assert.SkipWhen(found == 0, "run `cargo run -p vigil-core` against this database once to create the rollups");
+    }
+
+    [Fact]
+    public async Task AWindowFurtherBackEndsWhereItIsToldToAndLeavesOutWhatCameAfter()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+
+        await InsertSensorAsync(databases.Writer, "cpu", Now.AddMinutes(-5), 38, token);
+        await InsertSensorAsync(databases.Writer, "cpu", Now.AddHours(-2).AddMinutes(-5), 30, token);
+        await InsertSensorAsync(databases.Writer, "cpu", Now.AddHours(-4), 99, token);
+
+        var earlier = await new HistoryQueries(databases).QueryAsync(RangeKey.OneHour, upsName: null, Now, token, to: Now.AddHours(-2));
+
+        Assert.Equal(Now.AddHours(-2).ToUnixTimeMilliseconds(), earlier.To);
+        Assert.Equal(Now.AddHours(-3).ToUnixTimeMilliseconds(), earlier.From);
+        Assert.Equal(30, Assert.Single(earlier.Temperatures["cpu"])[1]);
+    }
+
+    [Fact]
+    public async Task AWindowThatStartsBeforeTheRawSamplesWereDroppedReadsARollup()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var databases = await DatabaseFixture.ConnectAsync(token);
+        await RequireAggregatesAsync(databases.Writer, token);
+        await DatabaseFixture.TruncateAsync(databases.Writer, token);
+
+        await InsertSensorAsync(databases.Writer, "cpu", Now.AddHours(-2).AddMinutes(-5), 30, token);
+        await RefreshAggregateAsync(databases.Writer, "sensor_1m", token);
+
+        // What retention does in production: the raw row goes, the minute it fed stays.
+        await using (var drop = databases.Writer.CreateCommand("delete from sensor_samples"))
+        {
+            await drop.ExecuteNonQueryAsync(token);
+        }
+
+        var queries = new HistoryQueries(databases);
+        var assumingRaw = await queries.QueryAsync(RangeKey.OneHour, upsName: null, Now, token, to: Now.AddHours(-2));
+        var knowingBetter = await queries.QueryAsync(RangeKey.OneHour, upsName: null, Now, token, to: Now.AddHours(-2), rawRetention: TimeSpan.FromHours(1));
+
+        Assert.False(assumingRaw.Temperatures.ContainsKey("cpu"));
+        Assert.Equal(30, Assert.Single(knowingBetter.Temperatures["cpu"])[1]);
     }
 
     private static async Task RefreshAggregateAsync(NpgsqlDataSource source, string name, CancellationToken token)

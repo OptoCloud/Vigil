@@ -74,3 +74,26 @@ export function tableRows(series: ChartSeries[]): { time: number; values: (numbe
 		.filter((_, i) => i % stride === 0)
 		.map(([time]) => ({ time, values: series.map((s) => s.points[nearestIndex(s.points, time)]?.[1]) }));
 }
+
+/**
+ * One CSV field. Quoted when it holds a comma, a quote or a line break; and a field a
+ * spreadsheet would run as a formula (it starts with =, +, - or @) is led with an apostrophe,
+ * since a series is named after a sensor or a fan, which is to say after someone's config.
+ */
+function csvField(text: string): string {
+	const inert = /^[=+\-@]/.test(text) ? `'${text}` : text;
+	return /[",\r\n]/.test(inert) ? `"${inert.replaceAll('"', '""')}"` : inert;
+}
+
+/**
+ * Every point of every series as CSV, at full resolution (the table view thins; a download
+ * must not). One row per instant any series has a point at, in time order, with the time in
+ * ISO 8601 UTC; a series with no point at that instant leaves its cell empty, never a zero.
+ */
+export function toCsv(series: ChartSeries[], unit: string): string {
+	const columns = series.map((s) => new Map(s.points));
+	const times = [...new Set(series.flatMap((s) => s.points.map(([time]) => time)))].sort((a, b) => a - b);
+	const header = ['time', ...series.map((s) => (unit ? `${s.label} (${unit.trim()})` : s.label))];
+	const rows = times.map((time) => [new Date(time).toISOString(), ...columns.map((column) => String(column.get(time) ?? ''))]);
+	return [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n') + '\r\n';
+}

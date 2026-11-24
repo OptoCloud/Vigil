@@ -44,6 +44,7 @@ public static class VigilJson
 [JsonSerializable(typeof(Snapshot))]
 [JsonSerializable(typeof(LiveMessage))]
 [JsonSerializable(typeof(HistoryResponse))]
+[JsonSerializable(typeof(StatusResponse))]
 [JsonSerializable(typeof(RangeKey))]
 [JsonSerializable(typeof(List<EventRecord>))]
 [JsonSerializable(typeof(EventRecord[]))]

@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Bespoke by decision (ADR-011): gap detection, the crosshair readout and the table view are
 	// behaviour shadcn's chart primitives would lose. The maths is in #lib/chart/plot.ts.
-	import { linePath, readoutAt, tableRows } from '#lib/chart/plot.ts';
+	import { linePath, readoutAt, tableRows, toCsv } from '#lib/chart/plot.ts';
 	import { formatInstant, formatTick, linearScale, niceTicks, timeTicks } from '#lib/chart/scale.ts';
 	import { Button } from '#lib/components/ui/button/index.ts';
 	import * as Card from '#lib/components/ui/card/index.ts';
@@ -79,15 +79,29 @@
 		hidden = next;
 	}
 
+	/** Hands the browser what is drawn (hidden series left out) as a file, built here: nothing is asked of vigil-core. */
+	function download() {
+		const url = URL.createObjectURL(new Blob([toCsv(visible, unit)], { type: 'text/csv;charset=utf-8' }));
+		const link = document.createElement('a');
+		link.href = url;
+		link.download =
+			`vigil ${title} ${new Date(from).toISOString().slice(0, 16)} to ${new Date(to).toISOString().slice(0, 16)}.csv`.replaceAll(':', '');
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
 	const format = (value: number | undefined) => (value === undefined ? 'n/a' : `${Math.round(value * 10) / 10}${unit}`);
 </script>
 
 <Card.Root class="min-w-0 gap-2">
 	<Card.Header class="flex items-center justify-between gap-3">
 		<Card.Title class="text-sm font-semibold text-muted-foreground"><h2>{title}</h2></Card.Title>
-		<Button variant="outline" size="xs" aria-pressed={showTable} onclick={() => (showTable = !showTable)}>
-			{showTable ? 'Show chart' : 'Show table'}
-		</Button>
+		<div class="flex items-center gap-1.5">
+			<Button variant="outline" size="xs" disabled={visible.length === 0} onclick={download}>CSV</Button>
+			<Button variant="outline" size="xs" aria-pressed={showTable} onclick={() => (showTable = !showTable)}>
+				{showTable ? 'Show chart' : 'Show table'}
+			</Button>
+		</div>
 	</Card.Header>
 
 	<Card.Content class="min-w-0">

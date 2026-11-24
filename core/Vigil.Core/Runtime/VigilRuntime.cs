@@ -11,7 +11,7 @@ namespace Vigil.Core.Runtime;
 /// <summary>
 /// vigil-core's heart: one loop that owns all state. vigild's snapshots, the UPS readings and
 /// new live subscribers arrive on one channel; history goes to Postgres, events to the log, the
-/// database and ntfy, and every change to the live subscribers. One owner means no locks, and
+/// database and the notification channels, and every change to the live subscribers. One owner means no locks, and
 /// the order of events is the order they happened in. Ported from the Rust core's runtime.rs.
 /// </summary>
 /// <remarks>
@@ -46,6 +46,9 @@ public sealed class VigilRuntime
     private readonly DriveTracking _drives;
     private readonly UpsTracking _ups;
     private readonly HostTracking _host;
+    private readonly HostWatch _hostWatch;
+    private readonly TemperatureLimits _temperatureLimits;
+    private readonly RuntimePulse? _pulse;
 
     private readonly ConditionDebouncer _snapshotDebouncer;
     private readonly PoolWatch _pools;
@@ -58,8 +61,10 @@ public sealed class VigilRuntime
     private long? _lastInventory;
 
     /// <param name="notifiers">Every way of reaching a person that is configured; empty is fine.</param>
-    public VigilRuntime(VigilOptions options, IRuntimeStore store, IReadOnlyList<INotifier> notifiers, ILogger<VigilRuntime> logger, TimeProvider time)
+    /// <param name="pulse">Where the loop says it is alive, for the status route and the heartbeat.</param>
+    public VigilRuntime(VigilOptions options, IRuntimeStore store, IReadOnlyList<INotifier> notifiers, ILogger<VigilRuntime> logger, TimeProvider time, RuntimePulse? pulse = null)
     {
+        _pulse = pulse;
         _store = store;
         _router = new AlertRouter(notifiers);
         _snapshotDebouncer = new ConditionDebouncer(SnapshotThreshold, time);
@@ -72,6 +77,8 @@ public sealed class VigilRuntime
         _daemonLostAfter = TimeSpan.FromSeconds(options.DaemonLostAfterSeconds);
         _ups = new UpsTracking(options, logger, time);
         _host = new HostTracking(_persistInterval);
+        _hostWatch = new HostWatch(time);
+        _temperatureLimits = TemperatureLimits.Parse(options.TemperatureLimits);
         _daemonLostSince = (time.GetTimestamp(), "not connected yet");
     }
 
@@ -91,6 +98,7 @@ public sealed class VigilRuntime
                 }
 
                 await TickAsync(cancellationToken).ConfigureAwait(false);
+                _pulse?.Record(_daemonConnected, _database.IsReady, new RuntimeView(_latest, _drives.List, _ups.State, _alerts, _host.Latest));
             }
         }
         finally
@@ -184,7 +192,9 @@ public sealed class VigilRuntime
 
     private async Task HandleSnapshotAsync(Snapshot snapshot, CancellationToken cancellationToken)
     {
-        var events = _snapshotDebouncer.Update(SnapshotConditions.In(snapshot, _knownSensorIds));
+        var visible = SnapshotConditions.In(snapshot, _knownSensorIds);
+        TemperatureConditions.AddTo(visible, snapshot, _temperatureLimits, _snapshotDebouncer.RaisedSeverity);
+        var events = _snapshotDebouncer.Update(visible);
         _knownSensorIds.UnionWith(snapshot.Sensors.Select(sensor => sensor.Id));
 
         var drives = _drives.Observe(snapshot.DriveHealth, snapshot.Bays);
@@ -204,6 +214,7 @@ public sealed class VigilRuntime
 
         // Before history is written, so a row written now includes this reading.
         var host = _host.Observe(snapshot.Host, snapshot.Zfs);
+        events.AddRange(host is null ? [] : _hostWatch.Observe(host));
 
         var now = _time.GetTimestamp();
         var persist = IsDue(_lastPersisted, _persistInterval);
@@ -336,7 +347,7 @@ public sealed class VigilRuntime
     /// </summary>
     private List<Alert> Verdict()
     {
-        IEnumerable<Alert> alerts = [.. _snapshotDebouncer.Raised, .. _ups.Raised, .. _pools.Raised, .. _drives.Raised];
+        IEnumerable<Alert> alerts = [.. _snapshotDebouncer.Raised, .. _ups.Raised, .. _pools.Raised, .. _drives.Raised, .. _hostWatch.Raised];
         if (_daemonLostRaised && _daemonLostAt is { } since)
         {
             alerts = alerts.Append(new Alert

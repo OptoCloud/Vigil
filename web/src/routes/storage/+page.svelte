@@ -11,7 +11,7 @@
 	const live = getLive();
 
 	const zfs = $derived(live.snapshot?.zfs);
-	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.now));
+	const plotWindow = $derived(chartWindow(live.history, live.snapshotAt, live.chartNow));
 </script>
 
 <svelte:head><title>Storage · vigil</title></svelte:head>
@@ -40,7 +40,7 @@
 	     not what it can store, so the chart is in percent. Throughput is each pool's disks summed. -->
 	<LineChart
 		title="Pool fill"
-		series={poolFillSeries(live.history, zfs, live.now)}
+		series={poolFillSeries(live.history, zfs, live.chartNow)}
 		from={plotWindow.from}
 		to={plotWindow.to}
 		unit="%"
@@ -50,7 +50,7 @@
 	<div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,440px),1fr))] gap-3">
 		<LineChart
 			title="Pool reads"
-			series={poolTrafficSeries(live.history, live.host, live.now, 'read')}
+			series={poolTrafficSeries(live.history, live.host, live.chartNow, 'read')}
 			from={plotWindow.from}
 			to={plotWindow.to}
 			unit=" MB/s"
@@ -58,7 +58,7 @@
 		/>
 		<LineChart
 			title="Pool writes"
-			series={poolTrafficSeries(live.history, live.host, live.now, 'written')}
+			series={poolTrafficSeries(live.history, live.host, live.chartNow, 'written')}
 			from={plotWindow.from}
 			to={plotWindow.to}
 			unit=" MB/s"

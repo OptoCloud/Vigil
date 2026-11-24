@@ -2,9 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Vigil.Core.Protocol;
 
-// What the dashboard adds on top of vigild's snapshot. Not yet in core/contract.json, which
-// began as the live stream's half of the old Rust-generated file; until it moves there,
-// HistoryQueriesTests pins every property name against what web/src/lib/types.ts declares.
+// What /api/history answers with. In core/contract.json like every other type the browser reads.
 
 /// <summary>How far back a chart goes, and at what resolution.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter<RangeKey>))]

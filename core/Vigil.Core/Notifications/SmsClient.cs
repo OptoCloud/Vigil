@@ -1,7 +1,5 @@
 using System.Net.Http.Headers;
 using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging;
-using Vigil.Core.Alerting;
 using Vigil.Core.Protocol;
 
 namespace Vigil.Core.Notifications;
@@ -13,12 +11,12 @@ namespace Vigil.Core.Notifications;
 /// gateway holds them, so none is in vigil's config or its log.
 /// </summary>
 /// <remarks>
-/// Built as <see cref="NtfyClient"/> is: fire and forget, a hard time limit, the reply's body
-/// never read, a failure logged and never thrown. Neither the URL nor the token is ever logged.
+/// A hard time limit, the reply's body never read, a failure reported and never thrown.
+/// Neither the URL nor the token is in what it reports.
 /// </remarks>
-public sealed class SmsClient(HttpClient http, Uri url, string token, ILogger<SmsClient> logger) : INotifier
+public sealed class SmsClient(HttpClient http, Uri url, string token) : IDelivery
 {
-    /// <summary>The gateway is on the LAN; a text later than this is noise, as for ntfy.</summary>
+    /// <summary>The gateway is on the LAN; one that has not answered by now will not.</summary>
     public static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>A gateway's reply needs a handful of headers; SocketsHttpHandler's unit is KiB.</summary>
@@ -26,42 +24,36 @@ public sealed class SmsClient(HttpClient http, Uri url, string token, ILogger<Sm
 
     public string Name => "sms";
 
-    /// <summary>Warnings and worse, with their all-clears, as decided on 2026-11-11: the same as ntfy.</summary>
+    /// <summary>Warnings and worse, with their all-clears, as decided on 2026-11-11.</summary>
     public Severity MinimumSeverity => Severity.Warning;
 
-    /// <summary>Starts sending and returns at once; a failure is logged, never thrown.</summary>
-    public void Send(Notification notification) => _ = SendAsync(notification);
-
-    /// <summary>What the text says: who sent it and how bad it is, then the event's own words.</summary>
-    internal static string TextOf(Notification notification) =>
-        (notification.IsAllClear ? "vigil resolved: "
-            : notification.Event.Severity == Severity.Critical ? "vigil CRITICAL: "
-            : "vigil warning: ") + notification.Event.Message;
-
-    internal async Task SendAsync(Notification notification)
+    public async Task<string?> TryDeliverAsync(Notification notification, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(notification);
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(SendTimeout);
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 // Source-generated, as everything serialized is under NativeAOT (ADR-016).
-                Content = System.Net.Http.Json.JsonContent.Create(new SmsMessage(TextOf(notification)), SmsJsonContext.Default.SmsMessage),
+                Content = System.Net.Http.Json.JsonContent.Create(new SmsMessage(notification.Headline), SmsJsonContext.Default.SmsMessage),
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            using var timeout = new CancellationTokenSource(SendTimeout);
-
             // ResponseHeadersRead: only the status is used, so the body is never read.
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning("could not send a text: the SMS gateway answered HTTP {Status}", (int)response.StatusCode);
-            }
+            return response.IsSuccessStatusCode ? null : $"the SMS gateway answered HTTP {(int)response.StatusCode}";
         }
-        catch (Exception error) when (error is HttpRequestException or OperationCanceledException)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return "the SMS gateway did not answer in time";
+        }
+        catch (HttpRequestException error)
         {
             // The exception's message, never the request: the URL and the token stay out of the log.
-            logger.LogWarning("could not send a text: {Error}", error is OperationCanceledException ? "the SMS gateway did not answer in time" : error.Message);
+            return error.Message;
         }
     }
 }

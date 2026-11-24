@@ -10,7 +10,11 @@ namespace Vigil.Core.Tests;
 [Collection(DatabaseTestGroup.Name)]
 public sealed class LoadHistoryTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 11, 19, 12, 0, 0, TimeSpan.Zero);
+    /// <summary>
+    /// Noon yesterday, not a date written here: the database's own retention drops raw rows
+    /// after 30 days, so a fixed date passes for a month and then fails for ever.
+    /// </summary>
+    private static readonly DateTimeOffset Now = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddHours(-12);
 
     private static HostLoad Load(DateTimeOffset at, double read, double? cpuBusy = 20) => new()
     {

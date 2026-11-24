@@ -24,7 +24,7 @@ Every rule names an **Enforcer**.
              │  vigil-core ──TCP──> upsd (anonymous reads)    │
              │     ├──> Postgres: owner role writes,          │
              │     │    SELECT-only role reads                │
-             │     ├──> ntfy (HTTPS, outbound only)           │
+             │     ├──> SMS gateway (HTTP), mail server (SMTP)│
              │     ├──> Cloudflare's IP lists (HTTPS, out)    │
              │     └── :3000, plain HTTP, NO AUTH, GET only ──┼──> TLS proxy ──> internet
              └────────────────────────────────────────────────┘
@@ -142,7 +142,6 @@ to know that before "fixing" the unit:
 | `ProtectKernelTunables` | `vigild` | Mounts `/sys` read-only. vigild's whole job is writing `/sys/class/hwmon/*/pwmN`; with it, taking a channel to manual fails at startup and **no fan is ever driven**. |
 | `PrivateDevices` | `vigild` | Hides `/dev/mpt3ctl` (the HBA temperature ioctl) and the nvidia device nodes. |
 | `MemoryDenyWriteExecute` | `vigild` | Applies to `smartctl` and `nvidia-smi` too: vendor binaries whose memory behaviour is not ours to promise. |
-| `MemoryDenyWriteExecute` | `vigil-core` | .NET's JIT writes the machine code it then runs, so the process would not start (ADR-016). |
 | `CapabilityBoundingSet` | `vigild` | Runs as root and needs `CAP_CHOWN` for the socket's uid/gid; `smartctl` may need `CAP_SYS_RAWIO` for `SG_IO` on some kernels. Narrowing it blind risks losing fan control or drive health, so it must be established on the target host. |
 
 `RestrictAddressFamilies` is worth setting precisely rather than broadly. vigild gets
@@ -190,14 +189,16 @@ realistic cases here, not an attacker.
 | vigild's response headers, in vigil-core | 16 KiB (`VigildClient`) |
 | vigild's response, in vigil-core | 10s for the headers (`Limits.DaemonResponseTimeout`) |
 | vigild's stream, in vigil-core | 50s of silence ends it (`IdleTimeoutStream`); 1 MiB per event (`ReadBudgetStream`, `Limits.MaxDaemonEventBytes`) |
-| ntfy's reply | headers only, 16 KiB; the body is never read (`NtfyClient`) |
+| the SMS gateway's reply | 10s; headers only, 16 KiB; the body is never read (`SmsClient`) |
+| the heartbeat's reply | 10s; headers only, 16 KiB; the body is never read (`Heartbeat`) |
+| the mail server's replies | 30s for the whole conversation (`EmailClient.SendTimeout`); the server is one the owner named, and `SmtpClient` reads its replies a line at a time |
 | Cloudflare's IP lists | 10s and 16 KiB each, at most 256 networks, none wider than a /8 or an IPv6 /16; refused whole otherwise (`CloudflareRanges`) |
 | upsd `LIST VAR` response | 10s of silence; 64 KiB per answer (`ReadBudgetStream`), which must begin `BEGIN LIST VAR` |
 
 A read with no bound is a memory-exhaustion path. Add the cap when you add the read, not after.
 Silence and size are two bounds, not one: a peer that keeps sending is never silent.
 
-*Enforcer:* review checklist: "what bounds this read?"; `VigildClientTests`, `NtfyClientTests`
+*Enforcer:* review checklist: "what bounds this read?"; `VigildClientTests`, `SmsClientTests`
 and `CloudflareRangesTests` pin the four above.
 
 ### 4.2 Every concurrent resource is capped
@@ -240,7 +241,8 @@ a number that became an infinity), because a value that only fails when it is se
 fails on that loop. A derived number is checked after the arithmetic, not only before it.
 
 *Enforcer:* `VigildClientTests.ASnapshotTheRuntimeWouldChokeOnIsDiscardedAndTheStreamCarriesOn`,
-`NutProtocolTests`.
+`NutProtocolTests`, and the `answers_whatever_…` tests, which feed every parser its own
+fixture with each value, line and number spoiled in turn (`daemon/src/mangle.rs`).
 
 ### 4.4 Config is validated before it is acted on
 
@@ -251,7 +253,7 @@ value that reaches a syscall, a bind address or a SQL identifier is validated fi
 
 ## 5. Subprocesses
 
-vigild runs `smartctl`, `zpool` and `nvidia-smi`. vigil-core runs nothing: ntfy is an HTTPS request now.
+vigild runs `smartctl`, `zpool` and `nvidia-smi`. vigil-core runs nothing.
 `zpool` only ever runs `status`: the subcommand is a constant in `zfs.rs`, and config supplies
 only the binary's path (ADR-018).
 
@@ -288,11 +290,17 @@ with no `sql-literal-ok:` reason, and checks the statement timeout is set.
   an error message, never in an HTTP response, and never committed. `PostgresUri`'s own errors
   never repeat the value at all: a URL that will not parse is the one whose password cannot be
   found to mask.
-- A private ntfy topic's name is its only secret, so `NTFY_URL` is treated the same way.
-- So is every other notification channel's address (ADR-021): a phone number, an SMS
-  gateway's URL or token. A channel logs that a send failed and why, never where it was sent.
-  `SMS_TOKEN` is a bearer token; `VigilOptionsValidator` repeats neither SMS value in a
-  problem, and `SmsClientTests` checks that a failed send logs neither.
+- So is every notification channel's address (ADR-021, ADR-028): a phone number, an SMS
+  gateway's URL or token, a mailbox, a mail server's name and login. A channel reports that a
+  send failed and why, never where it was sent: an `IDelivery` returns words fit for the log.
+  `SMS_TOKEN` is a bearer token and `SMTP_PASSWORD` a password; `VigilOptionsValidator`
+  repeats no SMS or email value in a problem, and `SmsClientTests` and `EmailClientTests`
+  check that a failed send reports none. A mail server's reply can quote the recipient, so
+  `EmailClient` repeats its status code and never its words.
+- `HEARTBEAT_URL` is its check's only secret (whoever has it can keep a dead host looking
+  alive), so it is treated like a channel's address; `HeartbeatTests` checks the log.
+- `SMTP_PASSWORD` is sent only after STARTTLS: the validator refuses a password with
+  `SMTP_STARTTLS=false`.
 - upsd publishes each driver's configuration as `driver.parameter.*`, credentials included
   (snmp-ups's community and SNMPv3 passwords, the network drivers' logins), and the dashboard
   shows every variable. `NutProtocol` masks them as they are parsed, so nothing downstream can
@@ -343,10 +351,14 @@ headers and the build's hash mode are both still there.
   it ourselves is worse.
 - **No TLS stack** in vigild: it needs C and would end the static musl cross-build (ADR-003).
   vigil-core is .NET, where HTTPS is part of the platform.
-- `cargo-deny` gates vigild's advisories and licences; `npm audit` gates the web tree.
+- `cargo-deny` gates vigild's advisories and licences; `npm audit` gates the web tree; NuGet's
+  own audit gates vigil-core's packages, transitive ones included, as part of the build
+  (`core/Directory.Build.props`). All three draw the line at moderate (ADR-014).
+- A release publishes an SBOM beside its artifacts, and CodeQL reads all three languages and
+  the workflows weekly and on every change (`codeql.yml`). Its findings inform; they do not gate.
 - Lockfiles are committed and updated deliberately, never as a side effect.
 
-*Enforcer:* `cargo deny check` and `npm audit` in `scripts/check.sh`.
+*Enforcer:* `cargo deny check`, `dotnet build` and `npm audit` in `scripts/check.sh`.
 
 ## 10. Pre-merge checklist
 
@@ -357,6 +369,7 @@ Blocking questions. Any "I don't know" stops the merge.
 - [ ] Does this add a field to anything served? Is it fit to publish to a stranger? (ADR-023)
 - [ ] Does this add a read? What bounds it?
 - [ ] Does this add a concurrent resource? What caps it?
+- [ ] Does this add something that waits or retries? What ends it?
 - [ ] Does this build SQL? Are all values bound? Where did any identifier come from?
 - [ ] Does this spawn a process? Timeout, argv not shell, null stdin, bounded output?
 - [ ] Does this widen vigild's privilege, or move a write out of vigild?

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChartSeries, SeriesPoints } from '../types';
-import { linePath, medianStep, readoutAt, tableRows } from './plot';
+import { linePath, medianStep, readoutAt, tableRows, toCsv } from './plot';
 import { linearScale } from './scale';
 
 const identity = linearScale([0, 1], [0, 1]);
@@ -63,5 +63,37 @@ describe('tableRows', () => {
 		const rows = tableRows([long]);
 		expect(rows.length).toBeLessThanOrEqual(25);
 		expect(rows[1]).toEqual({ time: 5, values: [5] });
+	});
+});
+
+describe('toCsv', () => {
+	it('has a row for every instant, with an empty cell where a series has no point', () => {
+		const csv = toCsv(
+			[
+				series('cpu', [
+					[0, 38.25],
+					[10_000, 39]
+				]),
+				series('gpu', [[10_000, 50]])
+			],
+			' °C'
+		);
+
+		expect(csv).toBe('time,cpu (°C),gpu (°C)\r\n1970-01-01T00:00:00.000Z,38.25,\r\n1970-01-01T00:00:10.000Z,39,50\r\n');
+	});
+
+	it('keeps every point, where the table view thins', () => {
+		const long = series(
+			'long',
+			Array.from({ length: 500 }, (_, i): [number, number] => [i * 1000, i])
+		);
+
+		expect(toCsv([long], '').trimEnd().split('\r\n')).toHaveLength(501);
+	});
+
+	it('quotes what would break a row and disarms what a spreadsheet would run', () => {
+		const csv = toCsv([series('=cmd()', [[0, 1]]), series('a "b", c', [[0, 2]])], '');
+
+		expect(csv.split('\r\n')[0]).toBe(`time,'=cmd(),"a ""b"", c"`);
 	});
 });

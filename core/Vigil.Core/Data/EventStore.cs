@@ -7,7 +7,7 @@ namespace Vigil.Core.Data;
 public sealed class EventStore(VigilDataSources databases)
 {
     private static readonly string InsertEvent = SqlText.Load("insert_event");
-    private static readonly string SelectRecentEvents = SqlText.Load("select_recent_events");
+    private static readonly string SelectEvents = SqlText.Load("select_events");
 
     /// <summary>
     /// Records an event and returns it with the id and timestamp the database assigned, so the
@@ -36,11 +36,21 @@ public sealed class EventStore(VigilDataSources databases)
         };
     }
 
-    /// <summary>The newest <paramref name="limit"/> events, newest first. Read through the SELECT-only role.</summary>
-    public async Task<List<EventRecord>> RecentAsync(int limit, CancellationToken cancellationToken)
+    /// <summary>
+    /// A page of at most <paramref name="limit"/> events, newest first: those older than
+    /// <paramref name="before"/> (an event's id) when it is given, the newest otherwise, and
+    /// only those at least as bad as <paramref name="minimum"/>. Read through the SELECT-only role.
+    /// </summary>
+    public async Task<List<EventRecord>> PageAsync(int limit, long? before, Severity minimum, CancellationToken cancellationToken)
     {
-        await using var command = databases.Reader.CreateCommand(SelectRecentEvents);
+        await using var command = databases.Reader.CreateCommand(SelectEvents);
         command.Parameters.Add(new() { Value = limit, NpgsqlDbType = NpgsqlDbType.Integer });
+        command.Parameters.Add(new() { Value = before is { } id ? id : DBNull.Value, NpgsqlDbType = NpgsqlDbType.Bigint });
+        command.Parameters.Add(new()
+        {
+            Value = Enum.GetValues<Severity>().Where(severity => severity >= minimum).Select(SeverityName).ToArray(),
+            NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text,
+        });
 
         var events = new List<EventRecord>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

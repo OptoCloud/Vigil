@@ -1,6 +1,7 @@
 -- The host's load from a continuous aggregate. {table} is host_1m or host_1h, chosen from a
 -- closed set by the range (see HistoryQueries). Weighted by the sample count.
 --   $1 bucket width (an interval)   $2 oldest bucket to include
+--   $3 newest to include: the end of the window, which is now unless the page looks further back
 select date_bin($1::interval, bucket, 'epoch'::timestamptz) as bucket,
        (sum(avg_memory_used * samples) / sum(samples))::float8 as memory_used,
        (sum(avg_memory_cached * samples) / sum(samples))::float8 as memory_cached,
@@ -21,6 +22,6 @@ select date_bin($1::interval, bucket, 'epoch'::timestamptz) as bucket,
        (sum(avg_pressure_memory_full * samples) / sum(samples))::float8 as pressure_memory_full,
        (sum(avg_pressure_io_full * samples) / sum(samples))::float8 as pressure_io_full
 from {table}
-where bucket >= $2
+where bucket >= $2 and bucket <= $3
 group by 1
 order by 1
