@@ -50,6 +50,12 @@ public sealed class VigilOptions
     /// <summary>The UPS's name on upsd ([apc] in ups.conf), which its history is stored under.</summary>
     public string NutUps { get; set; } = "apc";
 
+    /// <summary>
+    /// Optional: the same UPS under a second name on upsd, read when the first cannot be (a
+    /// second driver on another cable). Unset, an unreadable UPS is simply unreadable.
+    /// </summary>
+    public string? NutUpsFallback { get; set; }
+
     public double NutPollSeconds { get; set; } = 5;
 
     /// <summary>

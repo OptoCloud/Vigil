@@ -260,6 +260,23 @@ public sealed partial class VigilRuntimeTests
         new(new UpsPoll.Read(UpsConditionsTests.Ups(status, 40.0, 600.0, monitors: monitors).Reading!)); // Ups() always sets a reading.
 
     [Fact]
+    public async Task AReadingThroughTheFallbackIsAWarningThatClearsWhenTheFirstNameAnswersAgain()
+    {
+        var runtime = Runtime(nutHost: "192.0.2.4");
+        var subscriber = await Subscribe(runtime);
+        var reading = UpsConditionsTests.Ups(["OL"], 40.0, 600.0, monitors: 1).Reading!;
+
+        await runtime.HandleAsync(new RuntimeInput.Ups(new UpsPoll.Read(reading, PrimaryFailure: "upsd: DATA-STALE")), CancellationToken.None);
+        var raised = Drain(subscriber);
+        Assert.Contains(raised, json => json.Contains("ups-on-fallback", StringComparison.Ordinal) && json.Contains("DATA-STALE", StringComparison.Ordinal));
+        // The power state is known, so the UPS is not "unreadable".
+        Assert.DoesNotContain(raised, json => json.Contains("ups-unreadable", StringComparison.Ordinal));
+
+        await runtime.HandleAsync(new RuntimeInput.Ups(new UpsPoll.Read(reading)), CancellationToken.None);
+        Assert.Contains(Drain(subscriber), json => json.Contains("ups-on-fallback", StringComparison.Ordinal) && json.Contains("again", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ADeadUpsmonIsRaisedOnceItHasStayedGoneAndClearedWhenItIsBack()
     {
         var runtime = Runtime(nutHost: "192.0.2.4");

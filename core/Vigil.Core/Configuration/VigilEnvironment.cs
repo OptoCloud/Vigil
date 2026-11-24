@@ -26,6 +26,7 @@ public static class VigilEnvironment
         ("NUT_HOST", nameof(VigilOptions.NutHost)),
         ("NUT_PORT", nameof(VigilOptions.NutPort)),
         ("NUT_UPS", nameof(VigilOptions.NutUps)),
+        ("NUT_UPS_FALLBACK", nameof(VigilOptions.NutUpsFallback)),
         ("NUT_POLL_SECONDS", nameof(VigilOptions.NutPollSeconds)),
         ("HOST_SHUTDOWN_SECONDS", nameof(VigilOptions.HostShutdownSeconds)),
         ("UPS_BATTERY_TEMPERATURE_WARN", nameof(VigilOptions.UpsBatteryTemperatureWarn)),

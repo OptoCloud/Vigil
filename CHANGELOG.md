@@ -4,6 +4,24 @@ What changed for someone running vigil: settings, routes, alerts, and anything a
 to do. The reasons are in `docs/DECISIONS.md` and the commits. Releases are tags
 (`vMAJOR.MINOR.PATCH`, ADR-022); each one's full list is on its GitHub release.
 
+## Unreleased
+
+### To do when upgrading
+
+- **DIMM sensors change their ids once more**, from `dimm:hwmonN` to `dimm:<i2c address>`
+  (`dimm:0-001a`). Their history starts again under the new ids and then stays put.
+
+### Added
+
+- An Insights page: each fan's duty against the temperature it tracks, a metric by day and
+  time of day, when each pool reaches 80 % and 90 %, and when a source was not reporting.
+- `NUT_UPS_FALLBACK`: the UPS under a second name on upsd, read while the first is unreadable.
+
+### Fixed
+
+- A DIMM's sensor id no longer changes with every reboot.
+- `daemon/scripts/integration-test.sh` runs as an ordinary user again (`instance_lock_path`).
+
 ## v1.2.0 (2026-11-24)
 
 ### To do when upgrading

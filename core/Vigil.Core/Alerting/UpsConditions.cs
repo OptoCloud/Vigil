@@ -59,6 +59,9 @@ public static class UpsConditions
     /// Without a reading that names a power source only <c>ups-unreadable</c> can be judged. Feed
     /// the result to the debouncer as incomplete then, so the conditions already raised stay raised.
     /// </remarks>
+    /// <summary>Raised by <c>UpsTracking</c>, which is what knows a reading came from <c>NUT_UPS_FALLBACK</c>.</summary>
+    public const string OnFallback = "ups-on-fallback";
+
     public static Conditions Of(UpsState ups, UpsWatch watch)
     {
         ArgumentNullException.ThrowIfNull(ups);

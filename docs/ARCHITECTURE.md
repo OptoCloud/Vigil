@@ -111,12 +111,13 @@ web server, which is why all of it is unit-tested without one.
 | `routes/+layout.svelte` | the header, the section nav and the banners; opens the one connection every page shares |
 | `routes/+layout.ts` | prerenders every page (`adapter-static`) |
 | `routes/+page.svelte` | the overview, each panel linking to its section |
-| `routes/{drives,storage,cooling,system,power,events}/` | a page per section; `system` is the host's load |
+| `routes/{drives,storage,cooling,system,power,insights,events}/` | a page per section; `system` is the host's load, and `insights` is what `lib/insights.ts` reads out of a longer window of history, which it fetches for itself |
 | `routes/drives/[wwn]/` | one disk; not prerendered, so it is the build's fallback page (ADR-020) |
 | `lib/live.svelte.ts` | the live state: the stream from `/api/live`, the event log and the history, held once for every page |
 | `lib/{series,status,drives,zfs,ups,host}.ts` | what the pages show, worked out from that state. Pure and unit-tested |
 | `static/theme.js` | resolves the theme to a `dark` class before first paint; a file, so the CSP needs no hand-kept hash. mode-watcher owns the choice after load |
 | `lib/chart/` | scales, ticks, formatting, and the line chart's paths and readout |
+| `lib/insights.ts` | relationships and trends from history: a fan's duty against the temperature it tracks, a metric by day and hour, a pool's trend, a source's gaps. Pure and unit-tested; `ScatterChart`, `Heatmap` and `GapTimeline` draw them |
 | `lib/components/` | presentation |
 | `lib/components/ui/` | vendored shadcn-svelte: never hand-edited |
 | `lib/types.ts` | the mirror of both contract files |

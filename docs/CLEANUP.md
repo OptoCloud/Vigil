@@ -105,8 +105,10 @@ the owner, not unattended.
 - [ ] 13.1 `CapabilityBoundingSet` for vigild. *Evidence:* `deploy/vigild.service` says
       "NOT set yet": it has to be found out on the host which capabilities vigild and
       `smartctl` need.
-- [ ] 13.2 The `lsi-cooling` and `drive-cage` curves, against the load history that now
-      exists (README, Status).
+- [x] 13.2 The `drive-cage` curve, against the load history that now exists (README, Status).
+      Relaxed on the host on 2026-11-24: two months had the hottest disk at 34-39 °C with the
+      fan never under 53 %. `lsi-cooling` holds the HBA at 52-57 °C at about half duty and
+      was left alone. The Insights page's fan response is where to look before the next change.
 - [ ] 13.3 Why `pwm7_enable` falls back to Disabled (README, Status). Worked around; not
       understood.
 

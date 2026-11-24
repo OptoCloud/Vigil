@@ -26,11 +26,16 @@ internal sealed class UpsTracking
     private long? _unreadableSince;
     private long? _unguardedSince;
 
+    /// <summary>Why the reading held came from the fallback and not the UPS's first name; null when it did not.</summary>
+    private string? _primaryFailure;
+    private readonly string? _fallbackName;
+
     public UpsTracking(VigilOptions options, ILogger logger, TimeProvider time)
     {
         _logger = logger;
         _time = time;
         _debouncer = new ConditionDebouncer(Threshold, time);
+        _fallbackName = options.NutUpsFallback;
         State = new UpsState
         {
             Enabled = options.NutHost is { Length: > 0 },
@@ -58,7 +63,8 @@ internal sealed class UpsTracking
     {
         switch (poll)
         {
-            case UpsPoll.Read { Reading: var reading }:
+            case UpsPoll.Read { Reading: var reading, PrimaryFailure: var primaryFailure }:
+                _primaryFailure = primaryFailure;
                 if (State.Reading is null && _logger.IsEnabled(LogLevel.Information))
                 {
                     _logger.LogInformation("reading the UPS: {Status}", string.Join(' ', reading.Status));
@@ -78,6 +84,7 @@ internal sealed class UpsTracking
                 }
 
                 _unreadableSince ??= _time.GetTimestamp();
+                _primaryFailure = null;
                 State = State with { Reading = null, Error = error };
                 return null;
 
@@ -96,7 +103,18 @@ internal sealed class UpsTracking
 
         // Unreadable, the UPS's power state is unknown, not back to normal: the conditions raised
         // before stay raised until a reading says otherwise.
-        return _debouncer.Update(UpsConditions.Of(State, watch), isComplete: _unreadableSince is null);
+        var conditions = UpsConditions.Of(State, watch);
+        if (_primaryFailure is { } failure)
+        {
+            // The power state is known, so nothing above is in doubt; what is lost is the first
+            // way of knowing it, and whatever only that driver reports.
+            conditions[UpsConditions.OnFallback] = new Condition(
+                Severity.Warning,
+                $"The UPS is being read through its fallback, '{_fallbackName}': '{State.Name}' can't be read ({failure}).",
+                $"The UPS is being read as '{State.Name}' again.");
+        }
+
+        return _debouncer.Update(conditions, isComplete: _unreadableSince is null);
     }
 
     /// <summary>How long ago <paramref name="since"/> was; zero when it is not set.</summary>

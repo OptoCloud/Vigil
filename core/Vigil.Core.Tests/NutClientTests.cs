@@ -14,7 +14,8 @@ public sealed class NutClientTests
     /// A upsd stand-in that answers every <c>LIST VAR</c> with <paramref name="answer"/>, and
     /// every <c>GET NUMLOGINS</c> with <paramref name="numLogins"/>.
     /// </summary>
-    private static int FakeUpsd(string answer, bool closeImmediately = false, string numLogins = "NUMLOGINS apc 1\n")
+    /// <param name="fallbackAnswer">What <c>LIST VAR apc-usb</c> is answered with; the same as <paramref name="answer"/> when null.</param>
+    private static int FakeUpsd(string answer, bool closeImmediately = false, string numLogins = "NUMLOGINS apc 1\n", string? fallbackAnswer = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -39,7 +40,8 @@ public sealed class NutClientTests
 
                 while (await reader.ReadLineAsync() is { } request)
                 {
-                    var reply = request.StartsWith("LIST VAR", StringComparison.Ordinal) ? answer
+                    var reply = request == "LIST VAR apc-usb" ? fallbackAnswer ?? answer
+                        : request.StartsWith("LIST VAR", StringComparison.Ordinal) ? answer
                         : request.StartsWith("GET NUMLOGINS", StringComparison.Ordinal) ? numLogins
                         : null;
                     if (reply is null)
@@ -114,6 +116,58 @@ public sealed class NutClientTests
 
         var failed = Assert.IsType<UpsPoll.Failed>(polls[0]);
         Assert.Equal("upsd: DATA-STALE", failed.Reason);
+    }
+
+    [Fact]
+    public async Task AnUnreadableUpsIsReadByItsOtherNameWhenThereIsOne()
+    {
+        var port = FakeUpsd(
+            "ERR DATA-STALE\n",
+            fallbackAnswer: "BEGIN LIST VAR apc-usb\nVAR apc-usb ups.status \"OB\"\nVAR apc-usb battery.charge \"87\"\nEND LIST VAR apc-usb\n");
+        var client = new NutClient(Options.Create(new VigilOptions
+        {
+            NutHost = "127.0.0.1",
+            NutPort = port,
+            NutUps = "apc",
+            NutUpsFallback = "apc-usb",
+            NutPollSeconds = 0.05,
+        }));
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        UpsPoll? first = null;
+        await foreach (var poll in client.PollAsync(cancellation.Token))
+        {
+            first = poll;
+            break;
+        }
+
+        var read = Assert.IsType<UpsPoll.Read>(first);
+        Assert.Equal("upsd: DATA-STALE", read.PrimaryFailure);
+        Assert.Equal(["OB"], read.Reading.Status);
+        Assert.Equal(87, read.Reading.BatteryCharge);
+        // Under the first name, so history stays one series; and upsmon is counted there too.
+        Assert.Equal("apc", read.Reading.Name);
+        Assert.Equal(1, read.Reading.Monitors);
+    }
+
+    [Fact]
+    public async Task WithoutAFallbackOrWithOneThatIsAlsoLostTheErrorStands()
+    {
+        var lostToo = new NutClient(Options.Create(new VigilOptions
+        {
+            NutHost = "127.0.0.1",
+            NutPort = FakeUpsd("ERR DATA-STALE\n", fallbackAnswer: "ERR DRIVER-NOT-CONNECTED\n"),
+            NutUps = "apc",
+            NutUpsFallback = "apc-usb",
+            NutPollSeconds = 0.05,
+        }));
+
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        await foreach (var poll in lostToo.PollAsync(cancellation.Token))
+        {
+            Assert.Equal("upsd: DATA-STALE", Assert.IsType<UpsPoll.Failed>(poll).Reason);
+            break;
+        }
     }
 
     [Fact]

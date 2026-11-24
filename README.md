@@ -49,7 +49,8 @@ started life as a .NET daemon; that implementation is in the git history.)
   sensors are keyed by the drive's WWN (`drive:<wwn>`), since even the `sdX`
   letter isn't stable. The hwmon tree is re-scanned periodically
   (`sensor_rescan_interval_secs`, default 30), so a drive that resets or is
-  hot-swapped is picked back up without a restart.
+  hot-swapped is picked back up without a restart. A DIMM's sensor is keyed
+  by its I²C address (`dimm:0-001a`), for the same reason.
 - **Only whitelisted sensors are read.** Unconnected/floating hwmon inputs
   (`AUXTIN0/1/2`, `CPUTIN` on an NCT6798D board) are never touched.
 - **Fan headers are addressed by verified mapping, not guesswork.** There is
@@ -606,7 +607,7 @@ they happened.
   its swap half used or its tasks stalled on memory, each as a five-minute
   average, SMART changes, `vigild` outages, and the UPS
   on battery, low, in forced shutdown, needing a battery, overloaded or not
-  protecting; no `upsmon` watching it for a minute; a battery at or over
+  protecting, or being read through its fallback name; no `upsmon` watching it for a minute; a battery at or over
   `UPS_BATTERY_TEMPERATURE_WARN` (cleared 2 °C under it); and a
   `battery.runtime.low` shorter than `HOST_SHUTDOWN_SECONDS`, when the
   shutdown would not finish before the battery does. A condition must hold
@@ -625,7 +626,7 @@ tests, and checked against the routes that are mapped):
 
 | Route | What it serves |
 |---|---|
-| `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/system`, `/power` and `/events` each have a page of their own |
+| `/` and its assets | the dashboard, from `WEB_ROOT`: `/` is an overview, and `/drives`, `/storage`, `/cooling`, `/system`, `/power`, `/insights` and `/events` each have a page of their own. `/insights` works relationships and trends out of the history: each fan's duty against the temperature it tracks, a metric by day and time of day, when each pool reaches 80 % and 90 %, and when a source was not reporting |
 | `/drives/<name>` | one disk's page: its SMART state and changes, temperature, and its place in ZFS. The build's fallback page, rendered in the browser |
 | `/api/live` | Server-Sent Events: the current state on connect, then every change (snapshots, `vigild` reachability, drives, the UPS, new events). A named `keepalive` event after 20s of quiet. At most 64 at once; `503` past that |
 | `/api/history?range=&to=` | chart history for `1h`, `6h`, `24h`, `7d`, `30d` or `1y`, bucketed in SQL, ending now or at `to` (milliseconds since 1970) for a look further back. Each range reads the coarsest level that still has its resolution: raw samples up to 6 hours, minute rollups up to 7 days, hourly ones beyond, and a window that starts before a level's rows were dropped reads the next one up. `503` without a database |
@@ -650,6 +651,7 @@ before it starts, with every problem listed:
 | `NUT_HOST` | | upsd's address; unset leaves the UPS out rather than showing it broken |
 | `NUT_PORT` | `3493` | |
 | `NUT_UPS` | `apc` | the UPS's name on upsd |
+| `NUT_UPS_FALLBACK` | | the same UPS under a second name (a second driver, on another cable), read whenever the first cannot be; a warning says so while it is in use |
 | `NUT_POLL_SECONDS` | `5` | |
 | `HOST_SHUTDOWN_SECONDS` | | how long the host takes to shut down, guests included; unset shows no shutdown margin |
 | `UPS_BATTERY_TEMPERATURE_WARN` | `40` | °C at which the UPS battery is too hot |

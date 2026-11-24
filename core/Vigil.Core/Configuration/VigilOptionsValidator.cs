@@ -88,6 +88,21 @@ public sealed class VigilOptionsValidator : IValidateOptions<VigilOptions>
 
         problems.AddRange(EmailProblems(options));
 
+        // A UPS's name goes into a line of upsd's protocol as it is, so it is held to what
+        // ups.conf allows a section to be called: no spaces, no line breaks, nothing to quote.
+        foreach (var (variable, upsName) in new[] { ("NUT_UPS", options.NutUps), ("NUT_UPS_FALLBACK", options.NutUpsFallback) })
+        {
+            if (upsName is { Length: > 0 } && !upsName.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.'))
+            {
+                problems.Add($"{variable} must be a UPS's name on upsd: letters, digits, '-', '_' and '.'.");
+            }
+        }
+
+        if (options.NutUpsFallback is { Length: > 0 } && options.NutUpsFallback == options.NutUps)
+        {
+            problems.Add("NUT_UPS_FALLBACK is the same UPS as NUT_UPS; name its other entry in ups.conf, or leave it unset.");
+        }
+
         if (options.HeartbeatUrl is { Length: > 0 } heartbeat
             && (!Uri.TryCreate(heartbeat, UriKind.Absolute, out var heartbeatUri) || heartbeatUri.Scheme is not ("https" or "http")))
         {

@@ -31,6 +31,7 @@
 		{ route: '/cooling', label: 'Cooling' },
 		{ route: '/system', label: 'System' },
 		{ route: '/power', label: 'Power' },
+		{ route: '/insights', label: 'Insights' },
 		{ route: '/events', label: 'Events' }
 	] as const;
 

@@ -296,6 +296,9 @@ is the one new route: a GET, bound to 200 rows, the name bound as a parameter. A
 
 *Consequence:* a new page that needs a run-time name needs its own mapped route in
 `Dashboard.MapDashboardPages` and a line here; nothing falls through to the fallback by itself.
+*Added since:* `/system` (ADR-025) and `/insights`, both prerendered section pages. `/insights`
+is the one page that does not read the shared history: it asks for a week or a month of its
+own, so looking at a trend does not change the range every other page is showing.
 
 ### ADR-021: Notifications go out through channels, each with its own minimum severity
 
@@ -520,3 +523,24 @@ decision as ntfy with a longer list of things on the other end. *Rejected:* Mail
 better SMTP library, and a dependency for one message a month to one server.
 *Rejected:* retrying inside each channel. Two channels would each grow a loop, and neither
 would keep its notifications in order.
+
+### ADR-029: A UPS may be read by a second name when the first is lost
+
+*Decided 2026-11-24.* For a month the UPS reading dropped out for hours at a time, 14 % of it in
+all: the serial adapter its driver reads through kept falling off the USB bus, upsd answered
+`DATA-STALE`, and vigil could not have seen a power cut. The same UPS was attached by its own
+USB cable too, as a second entry in `ups.conf`, readable throughout.
+
+`NUT_UPS_FALLBACK` names that second entry. When upsd answers an error for `NUT_UPS`, the same
+connection asks for the fallback, and a reading from it is used under the first name, so
+history and the page stay one series. Monitors are still counted on the first name, which is
+the one upsmon logs in to. While the fallback is in use a warning (`ups-on-fallback`) says so
+and why: the power state is known, the usual way of knowing it is not.
+
+*Consequence:* what only the first driver reports is missing while the fallback answers, and
+the two drivers may disagree by a little on what both report. A name goes into upsd's protocol
+as written, so both are held to the characters a `ups.conf` section may have.
+*Rejected:* averaging or preferring whichever is fresher. One is the configured source and
+the other is what stands in for it; a reading has to be attributable to one of them.
+*Rejected:* fixing only the host. The adapter was fixed too, but a monitor that goes blind
+when one cable does was the fault in vigil.

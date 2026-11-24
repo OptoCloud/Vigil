@@ -120,9 +120,16 @@ impl<'a> HwmonResolver<'a> {
         let port = device_name.as_deref().and_then(|device| disks::port_of(device, links));
         let stable_name = match &device_name {
             Some(device) => disks::stable_name(self.sysfs, &self.block_root, device, port.as_ref()),
-            // No backing block device (jc42 DIMM sensors): nothing more stable exists
-            // than the hwmon directory name.
-            None => sysfs::file_name(chip_path).to_owned(),
+            // No backing block device (jc42 DIMM sensors). The hwmon directory's `device` link
+            // names the chip by where it is: its I2C bus and address ("0-001a"), which is a
+            // property of the slot. The directory's own name is the last resort, because it
+            // is hwmonN, and N is whatever order the modules loaded in at this boot.
+            None => self
+                .sysfs
+                .list_links(chip_path)
+                .into_iter()
+                .find(|(name, _)| name == "device")
+                .map_or_else(|| sysfs::file_name(chip_path).to_owned(), |(_, target)| target),
         };
 
         Some(ResolvedSensor {
@@ -278,7 +285,30 @@ mod tests {
     }
 
     #[test]
-    fn instance_without_a_block_device_is_keyed_by_hwmon_directory() {
+    fn a_dimm_is_keyed_by_its_i2c_address_which_a_reboot_does_not_renumber() {
+        // The same two DIMMs as two boots numbered them: hwmon15 and 16, then hwmon2 and 3.
+        let boot = |first: &str, second: &str| {
+            FakeSysFs::new()
+                .with_file(&format!("/sys/class/hwmon/{first}/name"), "jc42")
+                .with_file(&format!("/sys/class/hwmon/{first}/temp1_input"), "35000")
+                .with_link(&format!("/sys/class/hwmon/{first}"), "device", "0-001a")
+                .with_file(&format!("/sys/class/hwmon/{second}/name"), "jc42")
+                .with_file(&format!("/sys/class/hwmon/{second}/temp1_input"), "36000")
+                .with_link(&format!("/sys/class/hwmon/{second}"), "device", "0-001b")
+        };
+        let ids = |sysfs: &FakeSysFs| {
+            let mut ids: Vec<String> =
+                HwmonResolver::new(sysfs, "/sys").resolve(&[DEFAULT_WHITELIST[3]]).into_iter().map(|sensor| sensor.id).collect();
+            ids.sort();
+            ids
+        };
+
+        assert_eq!(ids(&boot("hwmon15", "hwmon16")), ["dimm:0-001a", "dimm:0-001b"]);
+        assert_eq!(ids(&boot("hwmon15", "hwmon16")), ids(&boot("hwmon2", "hwmon3")));
+    }
+
+    #[test]
+    fn an_instance_with_no_device_link_falls_back_to_its_hwmon_directory() {
         let sysfs =
             FakeSysFs::new().with_file("/sys/class/hwmon/hwmon3/name", "jc42").with_file("/sys/class/hwmon/hwmon3/temp1_input", "35000");
 

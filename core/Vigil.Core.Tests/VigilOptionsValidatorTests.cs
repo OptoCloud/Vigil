@@ -52,6 +52,15 @@ public sealed class VigilOptionsValidatorTests
         Assert.Empty(Problems(new VigilOptions { TemperatureLimits = "drive:45/55,hba:70/80" }));
     }
 
+    [Fact]
+    public void AUpsNameIsOneUpsdWouldAcceptAndTheFallbackIsADifferentOne()
+    {
+        Assert.Empty(Problems(new VigilOptions { NutUps = "apc", NutUpsFallback = "apc-usb" }));
+        Assert.Contains("NUT_UPS_FALLBACK", Assert.Single(Problems(new VigilOptions { NutUps = "apc", NutUpsFallback = "apc" })), StringComparison.Ordinal);
+        // A name is written into the protocol as it is: a line break in one would be a second command.
+        Assert.Contains("NUT_UPS ", Assert.Single(Problems(new VigilOptions { NutUps = "apc\nLOGIN x" })), StringComparison.Ordinal);
+    }
+
     private static VigilOptions Email(Action<VigilOptions>? change = null)
     {
         var options = new VigilOptions

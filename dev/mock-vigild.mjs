@@ -238,8 +238,8 @@ function snapshot() {
 			reading('cpu', 'cpu', 'Tctl', cpu),
 			reading('board', 'boardAmbient', 'SYSTIN', 33 + wave(2400) + noise(0.3)),
 			...drives.map((d, i) => ({ ...reading(`drive:${d.wwn}`, 'drive', d.wwn, driveTemps[i]), port: d.port })),
-			reading('dimm:hwmon15', 'memory', 'hwmon15', 32 + wave(1500) * 1.5),
-			reading('dimm:hwmon16', 'memory', 'hwmon16', 33 + wave(1500, 1) * 1.5),
+			reading('dimm:0-001a', 'memory', '0-001a', 32 + wave(1500) * 1.5),
+			reading('dimm:0-001b', 'memory', '0-001b', 33 + wave(1500, 1) * 1.5),
 			reading('gpu', 'gpu', 'GPU', faults.gpu ? null : gpu),
 			reading('hba', 'hba', 'IOC Temperature', hba)
 		],

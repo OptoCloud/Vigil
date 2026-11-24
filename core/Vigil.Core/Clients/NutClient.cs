@@ -10,7 +10,11 @@ namespace Vigil.Core.Clients;
 /// <summary>One poll of the UPS: a reading, or why there is not one.</summary>
 public abstract record UpsPoll
 {
-    public sealed record Read(UpsReading Reading) : UpsPoll;
+    /// <param name="PrimaryFailure">
+    /// Null for a reading from <c>NUT_UPS</c>. Otherwise the reading came from
+    /// <c>NUT_UPS_FALLBACK</c>, and this is why the first could not be read.
+    /// </param>
+    public sealed record Read(UpsReading Reading, string? PrimaryFailure = null) : UpsPoll;
 
     /// <summary>
     /// Both "upsd cannot be reached" and "upsd answered ERR". The second matters on its own:
@@ -147,13 +151,26 @@ public sealed class NutClient(IOptions<VigilOptions> options)
         while (!cancellationToken.IsCancellationRequested)
         {
             budget.Allow(MaximumAnswerBytes);
-            var poll = await ListVarAsync(network, reader, _options.NutUps, cancellationToken).ConfigureAwait(false);
+            var poll = await ListVarAsync(network, reader, _options.NutUps, _options.NutUps, cancellationToken).ConfigureAwait(false);
 
-            if (poll is UpsPoll.Read { Reading: var reading })
+            // upsd answered, but has lost this UPS (its driver or its cable). The same UPS by
+            // its other name, where one is configured, still says whether there is mains power.
+            // Recorded under the first name, so history and the page carry on as one series.
+            if (poll is UpsPoll.Failed { Reason: var lost } && _options.NutUpsFallback is { Length: > 0 } fallback)
             {
                 budget.Allow(MaximumAnswerBytes);
+                if (await ListVarAsync(network, reader, fallback, _options.NutUps, cancellationToken).ConfigureAwait(false) is UpsPoll.Read other)
+                {
+                    poll = other with { PrimaryFailure = lost };
+                }
+            }
+
+            if (poll is UpsPoll.Read { Reading: var reading } read)
+            {
+                // Always of the first name: that is the one upsmon logs in to, whichever answered.
+                budget.Allow(MaximumAnswerBytes);
                 var monitors = await NumLoginsAsync(network, reader, _options.NutUps, cancellationToken).ConfigureAwait(false);
-                poll = new UpsPoll.Read(reading with { Monitors = monitors });
+                poll = read with { Reading = reading with { Monitors = monitors } };
             }
 
             yield return poll;
@@ -186,7 +203,9 @@ public sealed class NutClient(IOptions<VigilOptions> options)
     /// One <c>LIST VAR</c> exchange: the variables, or upsd's own error word. Throws
     /// <see cref="IOException"/> when the answer is not upsd's, which ends the connection.
     /// </summary>
-    private static async Task<UpsPoll> ListVarAsync(Stream stream, StreamReader reader, string ups, CancellationToken cancellationToken)
+    /// <param name="ups">The name upsd is asked for.</param>
+    /// <param name="recordedAs">The name the reading carries, which differs when <paramref name="ups"/> is the fallback.</param>
+    private static async Task<UpsPoll> ListVarAsync(Stream stream, StreamReader reader, string ups, string recordedAs, CancellationToken cancellationToken)
     {
         await stream.WriteAsync(Encoding.UTF8.GetBytes($"LIST VAR {ups}\n"), cancellationToken).ConfigureAwait(false);
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -213,7 +232,7 @@ public sealed class NutClient(IOptions<VigilOptions> options)
             if (line.StartsWith("END LIST VAR", StringComparison.Ordinal))
             {
                 var variables = NutProtocol.ParseVariables(lines);
-                return new UpsPoll.Read(NutProtocol.ToReading(ups, variables, Rfc3339.Now()));
+                return new UpsPoll.Read(NutProtocol.ToReading(recordedAs, variables, Rfc3339.Now()));
             }
         }
     }
